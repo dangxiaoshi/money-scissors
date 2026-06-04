@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 卡片生成器</title>
+<title>金钱剪刀 · 推广卡片生成</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
 
@@ -219,6 +220,13 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .divider { border: none; border-top: 1px solid rgba(200,149,42,0.15); }
+
+/* ── 统一顶部导航栏 ── */
+.jjd-topbar{display:flex;align-items:center;gap:12px;padding:11px 22px;background:rgba(245,240,232,0.97);border-bottom:1px solid rgba(200,149,42,0.2);backdrop-filter:blur(8px);position:sticky;top:0;z-index:100;}
+.jjd-topbar-logo{width:28px;height:28px;background:linear-gradient(135deg,#f5d06a,#c8952a);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;box-shadow:0 2px 6px rgba(200,149,42,0.3);}
+.jjd-topbar-name{font-size:15px;font-weight:700;color:#1a1209;letter-spacing:-0.2px;}
+.jjd-topbar-back{margin-left:auto;font-size:13px;color:#9a8a6a;text-decoration:none;padding:5px 11px;border-radius:7px;border:1px solid transparent;transition:all 0.15s;}
+.jjd-topbar-back:hover{background:rgba(200,149,42,0.1);color:#c8952a;border-color:rgba(200,149,42,0.2);}
 </style>
 </head>
 <body>
@@ -271,13 +279,13 @@
     </div>
     <div class="actions">
       <button class="action-btn" id="copy-btn" disabled onclick="copyCode()">复制代码</button>
-      <button class="action-btn" id="dl-btn" disabled onclick="downloadHTML()">下载 HTML</button>
+      <button class="action-btn" id="dl-btn" disabled onclick="downloadImage()">下载图片</button>
     </div>
   </div>
 </div>
 
 <script>
-const API_KEY = 'sk-N0D1r3PupkGsgE5yFc33Bf95269042C69035DcC888B4D291';
+const API_KEY = '__FILL_BEFORE_LOCAL_USE__';
 const API_URL = 'https://api.hardon.work/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
 
@@ -401,14 +409,30 @@ function copyCode() {
   });
 }
 
-function downloadHTML() {
+function downloadImage() {
   if (!currentCode) return;
-  const blob = new Blob([currentCode], { type: 'text/html;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'card-' + Date.now() + '.html';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const btn = document.getElementById('dl-btn');
+  btn.textContent = '生成中...';
+  btn.disabled = true;
+
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:400px;';
+  tmp.innerHTML = currentCode;
+  document.body.appendChild(tmp);
+
+  html2canvas(tmp, { scale: 2, useCORS: true, allowTaint: true }).then(canvas => {
+    const a = document.createElement('a');
+    a.download = '推广卡片-' + Date.now() + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    document.body.removeChild(tmp);
+    btn.textContent = '下载图片';
+    btn.disabled = false;
+  }).catch(() => {
+    document.body.removeChild(tmp);
+    btn.textContent = '下载图片';
+    btn.disabled = false;
+  });
 }
 
 // Allow Ctrl+Enter to generate
