@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 21天学习路径</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+    :root {
+      --gold-1: #c8952a;
+      --gold-2: #e8b84b;
+      --gold-3: #f5d06a;
+      --text-dark: #1a1209;
+      --text-mid: #5a4a2a;
+      --text-light: #9a8a6a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f5f0e8;
+      min-height: 100vh;
+    }
+
+    /* ─── NAV ─── */
+    .nav {
+      height: 52px;
+      background: rgba(245,240,232,0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      gap: 0;
+      border-bottom: 1px solid rgba(200,149,42,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-right: 36px;
+      text-decoration: none;
+    }
+    .nav-logo-icon {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, #c8952a, #e8b84b);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .nav-logo-texts { line-height: 1; }
+    .nav-logo-name {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-dark);
+      letter-spacing: 0.5px;
+    }
+    .nav-logo-sub {
+      font-size: 9px;
+      color: var(--text-light);
+      letter-spacing: 0.3px;
+      margin-top: 2px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+    .nav-link {
+      font-size: 13px;
+      color: var(--text-mid);
+      text-decoration: none;
+      padding: 5px 14px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { color: var(--gold-1); background: rgba(200,149,42,0.08); }
+    .nav-link.active {
+      color: var(--gold-1);
+      background: rgba(200,149,42,0.12);
+      font-weight: 600;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .nav-icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(200,149,42,0.1);
+      border: 1px solid rgba(200,149,42,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      cursor: pointer;
+      color: var(--text-mid);
+    }
+    .nav-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #b8821e, #c8952a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #FAF0DC;
+      cursor: pointer;
+      border: 2px solid rgba(200,149,42,0.3);
+    }
+
+    /* ─── MAIN ─── */
+    .main {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      padding: 28px 28px 40px;
+      background: radial-gradient(ellipse 100% 70% at 50% -10%, #FAF0DC 0%, #F2DFBA 35%, #ECDBA8 65%, #E4CC90 100%);
+      min-height: calc(100vh - 52px);
+    }
+
+    /* ─── PATH SECTION ─── */
+    .path-section { flex: 1; min-width: 0; }
+
+    .path-header {
+      margin-bottom: 18px;
+    }
+    .path-title {
+      font-size: 34px;
+      font-weight: 900;
+      color: #1E0E00;
+      letter-spacing: 2px;
+    }
+    .path-title span {
+      font-size: 34px;
+      font-weight: 900;
+      background: linear-gradient(90deg, #7A4008 0%, #C8820A 35%, #F0C840 55%, #C8820A 75%, #7A4008 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .path-sub {
+      font-size: 12.5px;
+      color: #8A6030;
+      margin-top: 5px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ─── DAY PROGRESS ─── */
+    .day-progress {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 22px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .day-progress::-webkit-scrollbar { height: 0; }
+    .dp-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .dp-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #E8D098;
+      border: 2px solid #C8A860;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
+      color: #8A6030;
+      transition: all 0.15s;
+    }
+    .dp-dot.done {
+      background: #9A6A28;
+      border-color: #7A5020;
+      color: #FAF0DC;
+    }
+    .dp-dot.today {
+      background: #C8820A;
+      border-color: #C8820A;
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(200,130,10,0.25);
+      font-weight: 800;
+    }
+    .dp-label {
+      font-size: 8px;
+      color: #B09050;
+    }
+    .dp-label.today-label { color: #C8820A; font-weight: 700; }
+
+    .dp-divider {
+      width: 10px;
+      height: 1px;
+      background: #C8A860;
+      opacity: 0.5;
+      flex-shrink: 0;
+      margin-top: -10px;
+    }
+
+    /* ─── WEEK ROWS ─── */
+    .week-rows { display: flex; flex-direction: column; gap: 14px; }
+
+    .week-row {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .week-meta {
+      width: 68px;
+      flex-shrink: 0;
+      padding-top: 6px;
+    }
+    .week-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      color: #2E1600;
+      background: #DEBA7A;
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .week-theme {
+      font-size: 9.5px;
+      color: #9A6A28;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    .week-cards {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    .lesson-card {
+      width: 102px;
+      background: #FFFCF0;
+      border: 1.5px solid #E8D098;
+      border-radius: 12px;
+      padding: 10px 9px 9px;
+      cursor: pointer;
+      transition: all 0.18s;
+      position: relative;
+    }
+    .lesson-card:hover {
+      box-shadow: 0 4px 14px rgba(160,100,0,0.14);
+      transform: translateY(-1px);
+      border-color: #C8A060;
+    }
+    .lesson-card.active {
+      border-color: #C8820A;
+      background: #FFF8E5;
+      box-shadow: 0 2px 10px rgba(200,130,10,0.18);
+    }
+    .lesson-card.locked {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .lesson-card.locked:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .lesson-card.done {
+      background: #F5F0E4;
+      border-color: #C8A060;
+    }
+
+    .lc-day {
+      font-size: 9px;
+      color: #B09050;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .lc-icon {
+      font-size: 22px;
+      display: block;
+      margin-bottom: 5px;
+      line-height: 1;
+    }
+    .lc-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #1E0E00;
+      line-height: 1.35;
+      margin-bottom: 4px;
+    }
+    .lc-desc {
+      font-size: 9.5px;
+      color: #8A6030;
+      line-height: 1.45;
+    }
+    .lc-bar {
+      height: 3px;
+      background: #E8D098;
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .lc-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #C8820A, #F0C840);
+      border-radius: 2px;
+    }
+    .lc-done-badge {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      width: 14px;
+      height: 14px;
+      background: #9A6A28;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      color: #FAF0DC;
+    }
+    .lc-lock {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      font-size: 11px;
+      opacity: 0.4;
+    }
+
+    /* ─── RIGHT PANELS ─── */
+    .right-col {
+      width: 210px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .r-panel {
+      background: #FFFCF0;
+      border: 1.5px solid #E8D098;
+      border-radius: 14px;
+      padding: 16px 15px;
+    }
+
+    .rp-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #B09050;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+    }
+    .rp-day-num {
+      font-size: 26px;
+      font-weight: 900;
+      color: #C8820A;
+      letter-spacing: 1px;
+    }
+    .rp-day-sub {
+      font-size: 11px;
+      color: #8A6030;
+      margin-bottom: 13px;
+    }
+    .rp-section-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #2E1600;
+      margin-bottom: 8px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #EAD8A0;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+    .task-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #C8820A;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+    .task-dot.done-dot { background: #9A6A28; }
+    .task-text {
+      font-size: 11.5px;
+      color: #2E1600;
+      line-height: 1.45;
+    }
+    .task-text.done-text {
+      color: #9A7040;
+      text-decoration: line-through;
+      text-decoration-color: #C8A060;
+    }
+
+    .next-step-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 9px;
+      background: #FFF5DC;
+      border: 1px solid #E8D098;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .next-step-item:hover { background: #FFEFC0; }
+    .nsi-icon { font-size: 14px; flex-shrink: 0; }
+    .nsi-text { font-size: 11px; font-weight: 600; color: #2E1600; }
+    .nsi-arrow { margin-left: auto; font-size: 10px; color: #C8820A; }
+
+    .start-btn {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #C8820A 0%, #E8A020 50%, #F0C840 100%);
+      border: none;
+      border-radius: 9px;
+      color: #1E0E00;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 10px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(200,130,10,0.3);
+      transition: all 0.15s;
+    }
+    .start-btn:hover {
+      box-shadow: 0 4px 14px rgba(200,130,10,0.4);
+      transform: translateY(-1px);
+    }
+
+    /* Rewards panel */
+    .rp-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #1E0E00;
+      margin-bottom: 12px;
+    }
+    .rp-title-accent {
+      color: #C8820A;
+    }
+    .reward-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin-bottom: 10px;
+    }
+    .reward-icon-box {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #F5E8C0, #EDD090);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .reward-texts { line-height: 1; }
+    .reward-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #1E0E00;
+      margin-bottom: 2px;
+    }
+    .reward-desc {
+      font-size: 9.5px;
+      color: #8A6030;
+      line-height: 1.4;
+    }
+
+    .progress-summary {
+      background: linear-gradient(135deg, #FFF5DC, #FFEAB0);
+      border: 1px solid #E8D098;
+      border-radius: 9px;
+      padding: 10px 12px;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ps-num {
+      font-size: 22px;
+      font-weight: 900;
+      color: #C8820A;
+    }
+    .ps-num span { font-size: 11px; font-weight: 600; color: #9A6A28; }
+    .ps-bar-wrap { flex: 1; }
+    .ps-bar-label { font-size: 10px; color: #8A6030; margin-bottom: 4px; }
+    .ps-bar {
+      height: 6px;
+      background: #E8D098;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .ps-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #C8820A, #F0C840);
+      border-radius: 3px;
+      width: 4.76%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── NAV ─── -->
+  <nav class="nav">
+    <a class="nav-logo" href="#">
+      <div class="nav-logo-icon">✂️</div>
+      <div class="nav-logo-texts">
+        <div class="nav-logo-name">金钱剪刀</div>
+        <div class="nav-logo-sub">播客剪辑训练营</div>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a class="nav-link active" href="#">学习中心</a>
+      <a class="nav-link" href="#">课程大纲</a>
+      <a class="nav-link" href="#">作业与互动</a>
+      <a class="nav-link" href="#">作业与师</a>
+    </div>
+    <div class="nav-right">
+      <div class="nav-icon-btn">🔔</div>
+      <div class="nav-avatar">丹</div>
+    </div>
+  </nav>
+
+  <!-- ─── MAIN ─── -->
+  <div class="main">
+
+    <!-- ─── PATH SECTION ─── -->
+    <div class="path-section">
+
+      <div class="path-header">
+        <div class="path-title"><span>21 天</span>学习路径</div>
+        <div class="path-sub">从把握小巧到拥有稳定被动收入的进阶智慧路径</div>
+      </div>
+
+      <!-- Day Progress -->
+      <div class="day-progress">
+        <!-- Week 1: days 1-7 -->
+        <div class="dp-item">
+          <div class="dp-dot today">1</div>
+          <div class="dp-label today-label">今天</div>
+        </div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">2</div><div class="dp-label">天2</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">3</div><div class="dp-label">天3</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">4</div><div class="dp-label">天4</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">5</div><div class="dp-label">天5</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">6</div><div class="dp-label">天6</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot">7</div><div class="dp-label">天7</div></div>
+        <div class="dp-divider"></div>
+        <!-- Week 2: days 8-14 -->
+        <div class="dp-item"><div class="dp-dot locked">8</div><div class="dp-label">天8</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">9</div><div class="dp-label">天9</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">10</div><div class="dp-label">天10</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">11</div><div class="dp-label">天11</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">12</div><div class="dp-label">天12</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">13</div><div class="dp-label">天13</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">14</div><div class="dp-label">天14</div></div>
+        <div class="dp-divider"></div>
+        <!-- Week 3: days 15-21 -->
+        <div class="dp-item"><div class="dp-dot locked">15</div><div class="dp-label">天15</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">16</div><div class="dp-label">天16</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">17</div><div class="dp-label">天17</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">18</div><div class="dp-label">天18</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">19</div><div class="dp-label">天19</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">20</div><div class="dp-label">天20</div></div>
+        <div class="dp-divider"></div>
+        <div class="dp-item"><div class="dp-dot locked">21</div><div class="dp-label">天21</div></div>
+      </div>
+
+      <!-- Week Rows -->
+      <div class="week-rows">
+
+        <!-- WEEK 1 -->
+        <div class="week-row">
+          <div class="week-meta">
+            <div class="week-badge">第一周</div>
+            <div class="week-theme">工具总览<br>基础录制<br>第一次上线</div>
+          </div>
+          <div class="week-cards">
+
+            <div class="lesson-card active">
+              <div class="lc-day">天 1</div>
+              <span class="lc-icon">🎙️</span>
+              <div class="lc-title">工具总览</div>
+              <div class="lc-desc">认识你的播客工具箱，一节搞清楚</div>
+              <div class="lc-bar"><div class="lc-bar-fill" style="width:30%"></div></div>
+            </div>
+
+            <div class="lesson-card">
+              <div class="lc-day">天 2</div>
+              <span class="lc-icon">🎤</span>
+              <div class="lc-title">收音与设备</div>
+              <div class="lc-desc">麦克风选购、调试与避坑指南</div>
+              <div class="lc-bar"><div class="lc-bar-fill" style="width:0%"></div></div>
+            </div>
+
+            <div class="lesson-card">
+              <div class="lc-day">天 3</div>
+              <span class="lc-icon">✂️</span>
+              <div class="lc-title">剪辑入门</div>
+              <div class="lc-desc">Descript 基础：剪出第一条成品</div>
+              <div class="lc-bar"><div class="lc-bar-fill" style="width:0%"></div></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 4</div>
+              <span class="lc-icon">📝</span>
+              <div class="lc-title">内容策划</div>
+              <div class="lc-desc">选题框架与开头钩子结构</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 5</div>
+              <span class="lc-icon">🎬</span>
+              <div class="lc-title">第一次录制</div>
+              <div class="lc-desc">独录/对录流程，实战走一遍</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 6</div>
+              <span class="lc-icon">🎨</span>
+              <div class="lc-title">封面与上线</div>
+              <div class="lc-desc">Canva 做封面 + 提交 RSS 平台</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 7</div>
+              <span class="lc-icon">📊</span>
+              <div class="lc-title">第一周复盘</div>
+              <div class="lc-desc">回顾节奏，调整下一周计划</div>
+              <div class="lc-bar"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- WEEK 2 -->
+        <div class="week-row">
+          <div class="week-meta">
+            <div class="week-badge">第二周</div>
+            <div class="week-theme">发布分发<br>推广运营<br>数据复盘</div>
+          </div>
+          <div class="week-cards">
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 8</div>
+              <span class="lc-icon">📡</span>
+              <div class="lc-title">多平台分发</div>
+              <div class="lc-desc">小宇宙/喜马拉雅/苹果全上线</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 9</div>
+              <span class="lc-icon">📱</span>
+              <div class="lc-title">小红书推广</div>
+              <div class="lc-desc">音频转图文，做听众入口</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 10</div>
+              <span class="lc-icon">✍️</span>
+              <div class="lc-title">Show Notes</div>
+              <div class="lc-desc">让搜索引擎爱上你的节目</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 11</div>
+              <span class="lc-icon">💬</span>
+              <div class="lc-title">社群运营</div>
+              <div class="lc-desc">建群、留群、激活听众互动</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 12</div>
+              <span class="lc-icon">🤝</span>
+              <div class="lc-title">嘉宾连麦</div>
+              <div class="lc-desc">找对嘉宾，撬动对方的流量</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 13</div>
+              <span class="lc-icon">📈</span>
+              <div class="lc-title">数据复盘</div>
+              <div class="lc-desc">看懂播放/完播/转发三指标</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 14</div>
+              <span class="lc-icon">🔄</span>
+              <div class="lc-title">第二周复盘</div>
+              <div class="lc-desc">选一期作品做深度精修</div>
+              <div class="lc-bar"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- WEEK 3 -->
+        <div class="week-row">
+          <div class="week-meta">
+            <div class="week-badge">第三周</div>
+            <div class="week-theme">变现产品<br>私域转化<br>毕业总结</div>
+          </div>
+          <div class="week-cards">
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 15</div>
+              <span class="lc-icon">💰</span>
+              <div class="lc-title">变现路径</div>
+              <div class="lc-desc">播客变现的5种模式拆解</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 16</div>
+              <span class="lc-icon">📦</span>
+              <div class="lc-title">产品设计</div>
+              <div class="lc-desc">设计你的第一个付费产品</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 17</div>
+              <span class="lc-icon">🔁</span>
+              <div class="lc-title">私域转化</div>
+              <div class="lc-desc">听众→微信→付费的路径设计</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 18</div>
+              <span class="lc-icon">🎓</span>
+              <div class="lc-title">课程录制</div>
+              <div class="lc-desc">把经验做成可复购的录播课</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 19</div>
+              <span class="lc-icon">💎</span>
+              <div class="lc-title">定价策略</div>
+              <div class="lc-desc">高客单 vs 大众价：如何选</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 20</div>
+              <span class="lc-icon">♻️</span>
+              <div class="lc-title">持续更新</div>
+              <div class="lc-desc">建立一人可跑的更新飞轮</div>
+              <div class="lc-bar"></div>
+            </div>
+
+            <div class="lesson-card locked">
+              <div class="lc-lock">🔒</div>
+              <div class="lc-day">天 21</div>
+              <span class="lc-icon">🏆</span>
+              <div class="lc-title">毕业典礼</div>
+              <div class="lc-desc">展示成果，领取结业证书</div>
+              <div class="lc-bar"></div>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- /week-rows -->
+
+      <!-- Overall progress -->
+      <div class="progress-summary" style="margin-top:18px;">
+        <div>
+          <div class="ps-num">1<span>/21</span></div>
+        </div>
+        <div class="ps-bar-wrap">
+          <div class="ps-bar-label">整体完成进度</div>
+          <div class="ps-bar"><div class="ps-bar-fill"></div></div>
+        </div>
+      </div>
+
+    </div><!-- /path-section -->
+
+    <!-- ─── RIGHT PANELS ─── -->
+    <div class="right-col">
+
+      <!-- Today panel -->
+      <div class="r-panel">
+        <div class="rp-label">TODAY</div>
+        <div class="rp-day-num">第 1 天</div>
+        <div class="rp-day-sub">6月3日 · 工具总览</div>
+
+        <div class="rp-section-title">今日任务</div>
+
+        <div class="task-item">
+          <div class="task-dot"></div>
+          <div class="task-text">观看「工具总览」视频（约20分钟）</div>
+        </div>
+        <div class="task-item">
+          <div class="task-dot"></div>
+          <div class="task-text">注册 Descript 账号并安装</div>
+        </div>
+        <div class="task-item">
+          <div class="task-dot"></div>
+          <div class="task-text">在作业区上传你的工具清单</div>
+        </div>
+
+        <div class="rp-section-title" style="margin-top:12px;">下一步</div>
+
+        <div class="next-step-item">
+          <div class="nsi-icon">🎙️</div>
+          <div class="nsi-text">开始天1课程</div>
+          <div class="nsi-arrow">▶</div>
+        </div>
+        <div class="next-step-item">
+          <div class="nsi-icon">💬</div>
+          <div class="nsi-text">进入学员社群</div>
+          <div class="nsi-arrow">▶</div>
+        </div>
+
+        <button class="start-btn">▶ 继续学习</button>
+      </div>
+
+      <!-- Rewards panel -->
+      <div class="r-panel">
+        <div class="rp-title">21天后<br><span class="rp-title-accent">你将拥有</span></div>
+
+        <div class="reward-item">
+          <div class="reward-icon-box">🎙️</div>
+          <div class="reward-texts">
+            <div class="reward-title">一套播客方法论</div>
+            <div class="reward-desc">从选题到剪辑可复用的 SOP</div>
+          </div>
+        </div>
+
+        <div class="reward-item">
+          <div class="reward-icon-box">📻</div>
+          <div class="reward-texts">
+            <div class="reward-title">一个发布中的播客</div>
+            <div class="reward-desc">已上线至少3集、有真实听众</div>
+          </div>
+        </div>
+
+        <div class="reward-item">
+          <div class="reward-icon-box">💰</div>
+          <div class="reward-texts">
+            <div class="reward-title">一条变现收入</div>
+            <div class="reward-desc">完成第一笔来自播客的付费</div>
+          </div>
+        </div>
+
+        <div class="reward-item">
+          <div class="reward-icon-box">🏅</div>
+          <div class="reward-texts">
+            <div class="reward-title">一张结业证书</div>
+            <div class="reward-desc">可分享的金钱剪刀认证学员</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div><!-- /right-col -->
+
+  </div><!-- /main -->
+
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 播客剪辑工作台</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold-1: #c8952a;
+      --gold-2: #e8b84b;
+      --gold-3: #f5d06a;
+      --text-dark: #1a1209;
+      --text-mid: #5a4a2a;
+      --text-light: #9a8a6a;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      color: var(--text-dark);
+      overflow: hidden;
+    }
+
+    .page {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      background: url('设计图/背景页.png') center center / cover no-repeat;
+    }
+
+    /* ── 左侧内容 ── */
+    .left {
+      flex: 0 0 52%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5vh 5% 5vh 7%;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Logo */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 7vh;
+    }
+    .logo-icon {
+      width: 54px;
+      height: 54px;
+      flex-shrink: 0;
+      mix-blend-mode: multiply;
+      filter: saturate(0.75) brightness(0.82) hue-rotate(-8deg);
+    }
+    .logo-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-dark);
+      letter-spacing: 1px;
+      line-height: 1.2;
+    }
+    .logo-text .en {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gold-1);
+      letter-spacing: 3px;
+      line-height: 1.4;
+    }
+    .logo-text p {
+      font-size: 11px;
+      color: var(--text-light);
+      letter-spacing: 2px;
+    }
+
+    /* 主标题 */
+    .headline { margin-bottom: 3vh; }
+    .headline .line1 {
+      display: block;
+      font-size: clamp(32px, 4.2vw, 52px);
+      font-weight: 900;
+      color: var(--text-dark);
+      line-height: 1.2;
+      letter-spacing: 2px;
+    }
+    .headline .line2 {
+      display: block;
+      font-size: clamp(32px, 4.2vw, 52px);
+      font-weight: 900;
+      line-height: 1.2;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--gold-1) 0%, var(--gold-2) 50%, var(--gold-3) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* 副标题 */
+    .sub {
+      font-size: clamp(13px, 1.2vw, 16px);
+      color: var(--text-mid);
+      line-height: 2;
+      margin-bottom: 4vh;
+      max-width: 420px;
+    }
+
+    /* 功能特性 */
+    .features {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 5vh;
+      flex-wrap: wrap;
+    }
+    .feature {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(200,149,42,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(200,149,42,0.12);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .feature:hover .feature-icon {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(200,149,42,0.25);
+    }
+    .feature-name { font-size: 12px; font-weight: 600; color: var(--text-dark); text-align: center; }
+    .feature-desc { font-size: 11px; color: var(--text-light); text-align: center; }
+
+    /* CTA */
+    .cta-area {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 38px;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(135deg, #b8821e 0%, #d4a535 30%, #ecc04a 55%, #f5d06a 70%, #d4a535 100%);
+      background-size: 200% 100%;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      letter-spacing: 2px;
+      cursor: pointer;
+      overflow: hidden;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 20px rgba(200,149,42,0.5), 0 1px 0 rgba(255,255,255,0.3) inset, 0 -1px 0 rgba(0,0,0,0.1) inset;
+      transition: transform 0.2s, box-shadow 0.2s, background-position 0.4s;
+      animation: btn-breathe 3s ease-in-out infinite;
+    }
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -75%;
+      width: 55%; height: 100%;
+      background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,0.5) 50%, transparent 80%);
+      animation: btn-shimmer 3s ease-in-out infinite;
+    }
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.04);
+      box-shadow: 0 8px 32px rgba(200,149,42,0.65), 0 1px 0 rgba(255,255,255,0.3) inset;
+      background-position: 100% 0;
+      animation: none;
+    }
+    .btn-primary:active { transform: translateY(-1px) scale(1.01); }
+    .btn-arrow { display: inline-block; transition: transform 0.3s; }
+    .btn-primary:hover .btn-arrow { transform: translateX(5px); }
+
+    .btn-secondary {
+      font-size: 14px;
+      color: var(--text-mid);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-secondary span {
+      color: var(--gold-1);
+      font-weight: 600;
+      border-bottom: 1px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .btn-secondary:hover span { color: var(--gold-2); border-color: var(--gold-2); }
+
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.35);
+      transform: scale(0);
+      animation: ripple-expand 0.6s ease-out forwards;
+      pointer-events: none;
+    }
+
+    /* ── 右侧（透明，背景图透过来） ── */
+    .right {
+      flex: 0 0 48%;
+      position: relative;
+    }
+
+    /* ── 动画 ── */
+    @keyframes btn-breathe {
+      0%, 100% { box-shadow: 0 4px 20px rgba(200,149,42,0.45), 0 1px 0 rgba(255,255,255,0.3) inset; }
+      50%       { box-shadow: 0 6px 28px rgba(200,149,42,0.65), 0 1px 0 rgba(255,255,255,0.3) inset; }
+    }
+    @keyframes btn-shimmer {
+      0%   { left: -75%; }
+      60%  { left: 130%; }
+      100% { left: 130%; }
+    }
+    @keyframes ripple-expand { to { transform: scale(4); opacity: 0; } }
+
+    .logo    { animation: fade-up 0.6s 0.1s both; }
+    .headline{ animation: fade-up 0.6s 0.25s both; }
+    .sub     { animation: fade-up 0.6s 0.4s both; }
+    .features{ animation: fade-up 0.6s 0.5s both; }
+    .cta-area{ animation: fade-up 0.6s 0.62s both; }
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="left">
+
+    <div class="logo">
+      <img class="logo-icon" src="设计图/logo_icon.png" alt="金钱剪刀">
+      <div class="logo-text">
+        <h1>金钱剪刀</h1>
+        <div class="en">PODCUT</div>
+        <p>播客剪辑工作台</p>
+      </div>
+    </div>
+
+    <div class="headline">
+      <span class="line1">每一段声音</span>
+      <span class="line2">都能创造价值</span>
+    </div>
+
+    <p class="sub">
+      专为播客主和内容创作者打造的 AI 剪辑工作台<br>
+      让剪辑更智能，让内容更有影响力，让收益持续增长
+    </p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🎙</div>
+        <div class="feature-name">AI 智能剪辑</div>
+        <div class="feature-desc">高效精准</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">✨</div>
+        <div class="feature-name">智能降噪</div>
+        <div class="feature-desc">清晰人声</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎵</div>
+        <div class="feature-name">片头片尾</div>
+        <div class="feature-desc">一键添加</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📤</div>
+        <div class="feature-name">一键发布</div>
+        <div class="feature-desc">多平台分发</div>
+      </div>
+    </div>
+
+    <div class="cta-area">
+      <button class="btn-primary" id="ctaBtn">
+        进入工作台 <span class="btn-arrow">→</span>
+      </button>
+      <button class="btn-secondary">
+        已有账号？<span>立即登录</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- 右侧空位 — 把你的图放这里 -->
+  <div class="right"></div>
+
+</div>
+
+<script>
+  document.getElementById('ctaBtn').addEventListener('click', function(e) {
+    const btn = this;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+    btn.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+    setTimeout(() => { window.location.href = '金钱剪刀首页.html'; }, 300);
+  });
+</script>
+</body>
+</html>

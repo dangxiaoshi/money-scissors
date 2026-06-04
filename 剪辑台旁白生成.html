@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旁白生成助手</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+:root {
+  --gold-1: #c8952a;
+  --gold-2: #e8b84b;
+  --gold-3: #f5d06a;
+  --text-dark: #1a1209;
+  --text-mid: #5a4a2a;
+  --text-light: #9a8a6a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+  background: #f5f0e8; color: #1a1209;
+  padding: 0; min-height: 100vh;
+}
+.header {
+  text-align: center; padding: 48px 24px 20px;
+}
+.header h1 {
+  font-size: 32px; font-weight: 700; letter-spacing: -0.5px;
+  color: #1a1209; margin-bottom: 6px;
+}
+.header .subtitle {
+  font-size: 16px; color: #9a8a6a; font-weight: 400;
+  letter-spacing: 0.2px;
+}
+.main { max-width: 680px; margin: 0 auto; padding: 0 24px 48px; }
+.card {
+  background: rgba(255,255,255,0.92); border-radius: 16px;
+  padding: 28px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(200,149,42,0.1);
+  border: 1px solid rgba(200,149,42,0.15);
+}
+.card-label {
+  font-size: 13px; font-weight: 600; color: #9a8a6a;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+.segment-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.segment-label {
+  font-size: 13px; font-weight: 600; color: #9a8a6a;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.btn-remove {
+  background: none; border: none; color: #c7c7cc;
+  font-size: 20px; cursor: pointer; padding: 0 4px;
+  line-height: 1; transition: color 0.15s;
+}
+.btn-remove:hover { color: #ff3b30; }
+textarea {
+  width: 100%; border: none; background: transparent;
+  font-size: 15px; line-height: 1.7; font-family: inherit;
+  color: #1a1209; resize: vertical; outline: none;
+  min-height: 140px;
+}
+textarea.tall { min-height: 90px; }
+textarea::placeholder { color: #c7c7cc; }
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 4px 0;
+  color: #c7c7cc; font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: #f0f0f0;
+}
+.btn-add {
+  width: 100%; padding: 14px; border: 1.5px dashed #e5e5ea;
+  border-radius: 12px; font-size: 14px; font-weight: 500;
+  color: #9a8a6a; background: transparent; cursor: pointer;
+  margin-bottom: 16px; transition: all 0.2s ease;
+}
+.btn-add:hover { border-color: #c8952a; color: #c8952a; background: #fffaf0; }
+.btn-primary {
+  width: 100%; padding: 16px; border: none; border-radius: 12px;
+  font-size: 16px; font-weight: 600; cursor: pointer;
+  background: #c8952a; color: #fff;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(200,149,42,0.3);
+}
+.btn-primary:hover { background: #b8821e; box-shadow: 0 4px 12px rgba(200,149,42,0.4); }
+.btn-primary:disabled { background: #d2d2d7; box-shadow: none; cursor: not-allowed; }
+.error { color: #ff3b30; font-size: 13px; margin-top: 10px; text-align: center; }
+.output-section { margin-top: 20px; }
+.output-block {
+  background: #fff; border-radius: 16px;
+  padding: 24px 28px; margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.output-block.narration {
+  background: #fffaf0;
+  border-left: 3px solid #c8952a;
+}
+.output-block.segment {
+  background: #f9f9f9;
+}
+.output-tag {
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.output-tag.narration { color: #c8952a; }
+.output-tag.segment { color: #9a8a6a; }
+.output-text {
+  font-size: 15px; line-height: 1.8; color: #1a1209;
+  white-space: pre-wrap;
+}
+.output-text.segment-text { color: #9a8a6a; }
+.copy-row {
+  display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;
+}
+.btn-copy {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 20px; border: 1px solid #e5e5ea; border-radius: 10px;
+  font-size: 14px; font-weight: 500; color: #1a1209;
+  background: #fff; cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-copy:hover { background: #f5f5f7; border-color: #c8952a; color: #c8952a; }
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.footer {
+  text-align: center; padding: 24px;
+  font-size: 12px; color: #c7c7cc;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>旁白生成助手</h1>
+  <p class="subtitle">粘贴粗剪段落，自动生成旁白文案</p>
+</div>
+<div class="main">
+
+  <!-- 任务说明 -->
+  <div class="card">
+    <div class="card-label">任务说明（从微信群复制）</div>
+    <textarea id="taskDesc" class="tall" placeholder="把这条单子的剪辑要求粘贴进来，比如：这期是咨询录音，目的是让听众看到诊断过程；成片30分钟；需要三段式结构..."></textarea>
+  </div>
+
+  <!-- 段落区域 -->
+  <div id="segments">
+    <div class="card segment-card" data-index="1">
+      <div class="segment-header">
+        <div class="segment-label">段落 1</div>
+      </div>
+      <textarea class="segment-text-input" placeholder="粘贴第一段粗剪的逐字稿内容..."></textarea>
+    </div>
+  </div>
+
+  <button class="btn-add" onclick="addSegment()">＋ 添加段落</button>
+
+  <button class="btn-primary" id="generateBtn" onclick="generate()">生成旁白</button>
+  <div id="error" class="error"></div>
+
+  <!-- 输出区域 -->
+  <div id="outputSection" class="output-section" style="display:none"></div>
+
+</div>
+<div class="footer">播客旁白生成助手</div>
+
+<script>
+const API_KEY = 'sk-881e83d692f449d98e2efa633932942b';
+let segmentCount = 1;
+
+function addSegment() {
+  segmentCount++;
+  const container = document.getElementById('segments');
+
+  const divider = document.createElement('div');
+  divider.className = 'divider';
+  divider.textContent = '↓';
+  container.appendChild(divider);
+
+  const card = document.createElement('div');
+  card.className = 'card segment-card';
+  card.dataset.index = segmentCount;
+  card.innerHTML = `
+    <div class="segment-header">
+      <div class="segment-label">段落 ${segmentCount}</div>
+      <button class="btn-remove" onclick="removeSegment(this)" title="删除">×</button>
+    </div>
+    <textarea class="segment-text-input" placeholder="粘贴第 ${segmentCount} 段粗剪的逐字稿内容..."></textarea>
+  `;
+  container.appendChild(card);
+}
+
+function removeSegment(btn) {
+  const card = btn.closest('.segment-card');
+  const prev = card.previousElementSibling;
+  if (prev && prev.classList.contains('divider')) prev.remove();
+  card.remove();
+  // 重新编号
+  document.querySelectorAll('.segment-card').forEach((c, i) => {
+    c.querySelector('.segment-label').textContent = `段落 ${i + 1}`;
+  });
+  segmentCount = document.querySelectorAll('.segment-card').length;
+}
+
+async function generate() {
+  const taskDesc = document.getElementById('taskDesc').value.trim();
+  const segmentInputs = document.querySelectorAll('.segment-text-input');
+  const segments = Array.from(segmentInputs).map(t => t.value.trim()).filter(Boolean);
+
+  const errorEl = document.getElementById('error');
+  const btn = document.getElementById('generateBtn');
+  const outputSection = document.getElementById('outputSection');
+
+  errorEl.textContent = '';
+
+  if (!taskDesc) { errorEl.textContent = '请先填写任务说明'; return; }
+  if (segments.length === 0) { errorEl.textContent = '请至少添加一个段落'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>生成中...';
+  outputSection.style.display = 'none';
+  outputSection.innerHTML = '';
+
+  // 构建 prompt
+  const segmentText = segments.map((s, i) =>
+    `【段落${i + 1}】\n${s}`
+  ).join('\n\n');
+
+  const userMessage = `任务说明：\n${taskDesc}\n\n以下是粗剪的各段落内容：\n\n${segmentText}`;
+
+  const systemPrompt = `你是一个播客主的旁白写作助手。这位播客主做播客私教，擅长用咨询、复盘和案例追踪来帮助听众。
+
+你的任务：根据任务说明和粗剪段落，为播客主写旁白文案。
+
+旁白要求：
+- 用播客主第一人称写，语气像对听众说话，不是演讲，是聊天
+- 开头旁白：交代这期内容的背景，让听众知道今天要听什么，为什么值得听
+- 段落之间的旁白：点出刚才那段的核心判断是什么，这个问题的本质是什么，和其他听众有什么关系
+- 结尾旁白：收束，可以有行动引导（比如引导关注、投私教等），但不要硬广
+- 每段旁白100-200字，不要太长，要能用60秒念完
+- 语气：说人话，不用书面语，不用"首先其次最后"，不用"我们来看看"，写出来要像朋友在说话
+- 不要用「」或【】这种括号，不要用书名号
+
+输出格式：
+严格按照以下格式输出，每段用标签分隔：
+
+[开头旁白]
+（旁白内容）
+
+[段落1]
+（原段落内容，原样保留，不要修改）
+
+[旁白1]
+（段落1后的旁白）
+
+[段落2]
+（原段落内容，原样保留）
+
+[旁白2]
+（段落2后的旁白）
+
+...以此类推...
+
+[结尾旁白]
+（结尾旁白内容）`;
+
+  try {
+    const res = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'qwen-turbo',
+        max_tokens: 6000,
+        stream: true,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    outputSection.style.display = 'block';
+    outputSection.scrollIntoView({ behavior: 'smooth' });
+
+    let fullText = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    // 临时显示流式输出
+    const tempCard = document.createElement('div');
+    tempCard.className = 'output-block narration';
+    tempCard.innerHTML = '<div class="output-tag narration">生成中...</div><div class="output-text" id="streamText"></div>';
+    outputSection.appendChild(tempCard);
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6);
+        if (jsonStr === '[DONE]') continue;
+        try {
+          const event = JSON.parse(jsonStr);
+          if (event.choices?.[0]?.delta?.content) {
+            fullText += event.choices[0].delta.content;
+            document.getElementById('streamText').textContent = fullText;
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (!fullText) throw new Error('未收到任何内容');
+
+    // 解析并渲染结构化输出
+    outputSection.innerHTML = '';
+    renderOutput(fullText, outputSection, segments);
+
+  } catch(e) {
+    errorEl.textContent = '出错了：' + e.message;
+    outputSection.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成旁白';
+  }
+}
+
+function renderOutput(text, container, segments) {
+  // 按 [标签] 分割
+  const parts = text.split(/\[([^\]]+)\]/);
+  // parts: ['', '开头旁白', '内容', '段落1', '内容', ...]
+
+  let allNarration = '';
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const tag = parts[i].trim();
+    const content = (parts[i + 1] || '').trim();
+    if (!content) continue;
+
+    const isNarration = tag.includes('旁白') || tag.includes('narration');
+    const block = document.createElement('div');
+    block.className = `output-block ${isNarration ? 'narration' : 'segment'}`;
+
+    const tagEl = document.createElement('div');
+    tagEl.className = `output-tag ${isNarration ? 'narration' : 'segment'}`;
+    tagEl.textContent = tag;
+
+    const textEl = document.createElement('div');
+    textEl.className = `output-text ${isNarration ? '' : 'segment-text'}`;
+    textEl.textContent = content;
+
+    block.appendChild(tagEl);
+    block.appendChild(textEl);
+    container.appendChild(block);
+
+    if (isNarration) allNarration += `【${tag}】\n${content}\n\n`;
+  }
+
+  // 复制按钮区域
+  const copyRow = document.createElement('div');
+  copyRow.className = 'copy-row';
+
+  const copyAll = document.createElement('button');
+  copyAll.className = 'btn-copy';
+  copyAll.textContent = '📋 复制全部旁白文案';
+  copyAll.onclick = () => {
+    navigator.clipboard.writeText(allNarration.trim()).then(() => {
+      copyAll.textContent = '✅ 已复制';
+      setTimeout(() => copyAll.textContent = '📋 复制全部旁白文案', 1500);
+    });
+  };
+
+  const copyFull = document.createElement('button');
+  copyFull.className = 'btn-copy';
+  copyFull.textContent = '📄 复制完整脚本';
+  copyFull.onclick = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      copyFull.textContent = '✅ 已复制';
+      setTimeout(() => copyFull.textContent = '📄 复制完整脚本', 1500);
+    });
+  };
+
+  copyRow.appendChild(copyAll);
+  copyRow.appendChild(copyFull);
+  container.appendChild(copyRow);
+}
+</script>
+</body>
+</html>
