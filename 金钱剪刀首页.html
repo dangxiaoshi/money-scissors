@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 - 一体化播客剪辑系统</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+    :root {
+      --gold-1: #c8952a;
+      --gold-2: #e8b84b;
+      --gold-3: #f5d06a;
+      --text-dark: #1a1209;
+      --text-mid: #5a4a2a;
+      --text-light: #9a8a6a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #E8C98A;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .page {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      padding: 36px 64px 44px;
+      background: radial-gradient(ellipse 80% 60% at 50% 20%, #FAF0DC 0%, #F2DFBA 40%, #E8CE9A 75%, #DEBA7A 100%);
+      overflow: hidden;
+    }
+
+    /* ── LOGO ── */
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 20;
+    }
+    .logo-text h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #2E1600;
+      letter-spacing: 1px;
+    }
+    .logo-text p {
+      font-size: 11px;
+      color: #9A6A28;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      text-align: center;
+      margin-top: -30px;
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 5;
+    }
+    .hero-main {
+      font-size: 38px;
+      font-weight: 800;
+      color: #1E0E00;
+      letter-spacing: 3px;
+      margin-bottom: 6px;
+    }
+    .hero-sub {
+      font-size: 36px;
+      font-weight: 900;
+      background: linear-gradient(90deg, #7a4a18 0%, #c8952a 25%, #f5d06a 50%, #c8952a 75%, #7a4a18 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 4px;
+      margin-bottom: 10px;
+    }
+    .hero-desc {
+      font-size: 14px;
+      color: #7A5820;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── CARDS ── */
+    .cards-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 5;
+    }
+    .card {
+      background: rgba(255, 252, 242, 0.80);
+      border-radius: 20px;
+      padding: 24px 22px 20px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      box-shadow: 0 4px 24px rgba(160, 100, 10, 0.13);
+    }
+
+    /* card header */
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding-bottom: 14px;
+      margin-bottom: 2px;
+      border-bottom: 1px solid rgba(200, 150, 50, 0.18);
+    }
+    .ci {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #c8952a, #e8b84b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(200, 149, 42, 0.35);
+    }
+    .card-head-text h3 {
+      font-size: 19px;
+      font-weight: 700;
+      color: #1E0E00;
+    }
+    .card-head-text p {
+      font-size: 12.5px;
+      color: #9A7040;
+      margin-top: 3px;
+    }
+
+    /* menu items */
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(200, 150, 50, 0.13);
+      cursor: pointer;
+    }
+    .menu-item:last-of-type { border-bottom: none; }
+    .mi-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(210, 150, 40, 0.11);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .mi-text { flex: 1; }
+    .mi-text h4 {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #1E0E00;
+    }
+    .mi-text p {
+      font-size: 11.5px;
+      color: #9A7848;
+      margin-top: 2px;
+    }
+    .mi-arrow {
+      color: #C87F08;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    /* CTA button */
+    .card-btn {
+      display: block;
+      width: 100%;
+      margin-top: 18px;
+      padding: 13px;
+      background: linear-gradient(135deg, #b8821e 0%, #c8952a 50%, #e8b84b 100%);
+      background-size: 200% 100%;
+      color: #fff;
+      font-size: 15.5px;
+      font-weight: 600;
+      text-align: center;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      letter-spacing: 2.5px;
+      box-shadow: 0 4px 14px rgba(200, 149, 42, 0.4);
+      font-family: inherit;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .card-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    /* ── FEATURES BAR ── */
+    .features-bar {
+      background: rgba(255, 252, 242, 0.60);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      padding: 16px 0;
+      position: relative;
+      z-index: 5;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 16px rgba(160, 100, 10, 0.10);
+    }
+    .feat {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      justify-content: center;
+      padding: 6px 28px;
+    }
+    .feat:not(:last-child) {
+      border-right: 1px solid rgba(200, 150, 50, 0.22);
+    }
+    .fi {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #c8952a, #e8b84b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(200, 149, 42, 0.28);
+    }
+    .feat-text h4 {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #1E0E00;
+    }
+    .feat-text p {
+      font-size: 11.5px;
+      color: #9A7848;
+      margin-top: 2px;
+    }
+
+    /* ── COIN DECORATIONS ── */
+    .coin {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: rgba(140, 80, 5, 0.45);
+      background: radial-gradient(circle at 35% 35%, #F8E060, #D4960A 55%, #A86005 100%);
+      box-shadow:
+        inset 0 2px 6px rgba(255, 230, 100, 0.6),
+        inset 0 -3px 6px rgba(100, 50, 0, 0.25),
+        0 4px 16px rgba(160, 100, 5, 0.4);
+    }
+    .coin::after {
+      content: '$';
+      font-size: inherit;
+    }
+
+    /* ── 3D SCISSORS BOX (top right) ── */
+    .scissors-box {
+      position: absolute;
+      top: 24px;
+      right: 52px;
+      width: 122px;
+      height: 122px;
+      border-radius: 24px;
+      background: rgba(255, 252, 244, 0.52);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow:
+        0 8px 32px rgba(160, 110, 20, 0.22),
+        inset 0 1px 0 rgba(255,255,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+    /* gold ring glow behind scissors box */
+    .scissors-box::before {
+      content: '';
+      position: absolute;
+      width: 160px;
+      height: 60px;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%) rotateX(70deg);
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(230, 170, 30, 0.55) 0%, transparent 70%);
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── SCATTERED COINS ── -->
+  <!-- top-left floating -->
+  <div class="coin" style="width:48px;height:48px;font-size:18px;top:42px;left:260px;transform:perspective(80px) rotateX(28deg) rotateZ(22deg);"></div>
+  <!-- mid-left -->
+  <div class="coin" style="width:62px;height:62px;font-size:22px;top:290px;left:14px;transform:perspective(90px) rotateX(22deg) rotateZ(-18deg);"></div>
+  <div class="coin" style="width:44px;height:44px;font-size:16px;top:420px;left:2px;transform:perspective(70px) rotateX(18deg) rotateZ(14deg);"></div>
+  <!-- right side scattered -->
+  <div class="coin" style="width:50px;height:50px;font-size:18px;top:180px;right:220px;transform:perspective(80px) rotateX(20deg) rotateZ(-12deg);"></div>
+  <div class="coin" style="width:38px;height:38px;font-size:14px;top:240px;right:180px;transform:perspective(60px) rotateX(30deg) rotateZ(16deg);"></div>
+
+  <!-- bottom-left coin stack -->
+  <div style="position:absolute;bottom:36px;left:18px;display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:1;">
+    <div class="coin" style="width:70px;height:70px;font-size:24px;position:relative;margin-bottom:-44px;"></div>
+    <div class="coin" style="width:70px;height:70px;font-size:24px;position:relative;margin-bottom:-44px;"></div>
+    <div class="coin" style="width:70px;height:70px;font-size:24px;position:relative;margin-bottom:-44px;"></div>
+    <div class="coin" style="width:70px;height:70px;font-size:24px;position:relative;margin-bottom:-44px;"></div>
+    <div class="coin" style="width:70px;height:70px;font-size:24px;position:relative;"></div>
+  </div>
+
+  <!-- bottom-right coin stack -->
+  <div style="position:absolute;bottom:24px;right:22px;display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:1;">
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;margin-bottom:-46px;"></div>
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;margin-bottom:-46px;"></div>
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;margin-bottom:-46px;"></div>
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;margin-bottom:-46px;"></div>
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;margin-bottom:-46px;"></div>
+    <div class="coin" style="width:74px;height:74px;font-size:26px;position:relative;"></div>
+  </div>
+
+  <!-- ── SCISSORS BOX (top right) ── -->
+  <div class="scissors-box">
+    <img src="品牌主视觉_金色logo方图.png" width="96" height="96" style="border-radius:14px;object-fit:cover;">
+  </div>
+
+  <!-- ── LOGO ── -->
+  <div class="logo-area">
+    <img src="品牌主视觉_金色logo方图.png" width="52" height="52" style="border-radius:10px;object-fit:cover;flex-shrink:0;">
+    <div class="logo-text">
+      <h1>金钱剪刀</h1>
+      <p>播客剪辑工作台</p>
+    </div>
+  </div>
+
+  <!-- ── HERO ── -->
+  <div class="hero">
+    <div class="hero-main">一体化播客剪辑系统</div>
+    <div class="hero-sub">剪辑 × 接单 × 训练 三台合一</div>
+    <div class="hero-desc">从创作到变现，从技能到成长，金钱剪刀助你成为专业剪辑手</div>
+  </div>
+
+  <!-- ── CARDS ── -->
+  <div class="cards-row">
+
+    <!-- Card 1: 剪辑台 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ci">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect x="1"  y="9"  width="4" height="10" rx="2" fill="white"/>
+            <rect x="7"  y="5"  width="4" height="18" rx="2" fill="white"/>
+            <rect x="13" y="7"  width="4" height="14" rx="2" fill="white"/>
+            <rect x="19" y="2"  width="4" height="24" rx="2" fill="white"/>
+            <rect x="25" y="6"  width="3" height="16" rx="1.5" fill="white"/>
+          </svg>
+        </div>
+        <div class="card-head-text">
+          <h3>剪辑台</h3>
+          <p>高效剪辑，输出优质内容</p>
+        </div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='剪辑台项目管理.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="1" y="6" width="3" height="8" rx="1.5" fill="#C07808"/>
+            <rect x="5.5" y="3" width="3" height="14" rx="1.5" fill="#C07808"/>
+            <rect x="10" y="4.5" width="3" height="11" rx="1.5" fill="#C07808"/>
+            <rect x="14.5" y="1" width="3" height="18" rx="1.5" fill="#C07808"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>音频剪辑</h4>
+          <p>专业音频剪辑工具与流程</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='剪辑台剪辑决策.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <line x1="6" y1="7"  x2="14" y2="7"  stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="10" x2="14" y2="10" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="13" x2="10" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>剪辑决策</h4>
+          <p>AI 辅助决策，提升剪辑效率</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='剪辑台shownote.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M6 7 L8 9 L12 5" stroke="#C07808" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="6" y1="12" x2="14" y2="12" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="15" x2="10" y2="15" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>Shownote</h4>
+          <p>一键生成节目笔记与摘要</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <button class="card-btn" onclick="location.href='剪辑台项目管理.html'">进入剪辑台 →</button>
+    </div>
+
+    <!-- Card 2: 接单台 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ci">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="10" cy="9" r="4.5" fill="white"/>
+            <path d="M1 24 C1 18.5 5 16 10 16 C11.5 16 12.5 16.3 13.5 16.8" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="19" cy="9" r="4.5" fill="white"/>
+            <path d="M14.5 16.8 C15.5 16.3 16.5 16 19 16 C24 16 27 18.5 27 24" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="card-head-text">
+          <h3>接单台</h3>
+          <p>对接需求，高效接单变现</p>
+        </div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='接单台播客主vs剪辑手对接.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="6.5" cy="7" r="3.2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M1 18 C1 14.5 3.5 12.5 6.5 12.5" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="13.5" cy="7" r="3.2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M13.5 12.5 C16.5 12.5 19 14.5 19 18" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>播客主 vs 剪辑手对接</h4>
+          <p>精准匹配，高效对接需求</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='接单台训练营内派单.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M6 8 L8 10 L12 6" stroke="#C07808" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="6" y1="13" x2="14" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>训练营内派单</h4>
+          <p>内部订单分发，稳定资源</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='接待台排行榜.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M6 8 L8 10 L12 6" stroke="#C07808" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="6" y1="13" x2="14" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="16" x2="10" y2="16" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>接单排行榜</h4>
+          <p>实力榜单，激励成长</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <button class="card-btn" onclick="location.href='接单台播客主vs剪辑手对接.html'">进入接单台 →</button>
+    </div>
+
+    <!-- Card 3: 训练台 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ci">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <polygon points="14,3 27,9 14,15 1,9" fill="white"/>
+            <path d="M5 11 L5 19 C5 19 9 24 14 24 C19 24 23 19 23 19 L23 11" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+            <line x1="27" y1="9" x2="27" y2="17" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="27" cy="18" r="1.5" fill="white"/>
+          </svg>
+        </div>
+        <div class="card-head-text">
+          <h3>训练台</h3>
+          <p>系统学习，持续提升技能</p>
+        </div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='训练台21天学习路径.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <line x1="6" y1="7"  x2="14" y2="7"  stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="10" x2="14" y2="10" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="13" x2="10" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>课表及作业</h4>
+          <p>课程安排与作业提交</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='训练台游戏地图.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <path d="M6 7 L8 9 L12 5" stroke="#C07808" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="6" y1="13" x2="14" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>音频 vs 视频剪辑 SOP</h4>
+          <p>标准化流程，提升专业度</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <div class="menu-item" onclick="location.href='训练台自我介绍.html'">
+        <div class="mi-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="2" stroke="#C07808" stroke-width="1.5"/>
+            <line x1="6" y1="7"  x2="14" y2="7"  stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="10" x2="14" y2="10" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="6" y1="13" x2="10" y2="13" stroke="#C07808" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mi-text">
+          <h4>训练营及工作台使用手册</h4>
+          <p>新手指南与功能详解</p>
+        </div>
+        <div class="mi-arrow">→</div>
+      </div>
+
+      <button class="card-btn" onclick="location.href='训练台游戏地图.html'">进入训练台 →</button>
+    </div>
+
+  </div>
+
+  <!-- ── FEATURES BAR ── -->
+  <div class="features-bar">
+    <div class="feat">
+      <div class="fi">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M4 4 L20 20" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M4 20 L20 4" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="4"  cy="4"  r="3" fill="white"/>
+          <circle cx="4"  cy="20" r="3" fill="white"/>
+          <circle cx="12" cy="12" r="2" fill="white"/>
+        </svg>
+      </div>
+      <div class="feat-text">
+        <h4>一站式工作流</h4>
+        <p>剪辑·接单·学习 无缝衔接</p>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="fi">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="none"/>
+          <polyline points="6,16 10,11 14,13 19,7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="feat-text">
+        <h4>专业成长体系</h4>
+        <p>从入门到精通 持续进阶</p>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="fi">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="none"/>
+          <text x="12" y="17" text-anchor="middle" font-size="14" font-weight="900" fill="white" font-family="Arial">$</text>
+        </svg>
+      </div>
+      <div class="feat-text">
+        <h4>稳定变现通道</h4>
+        <p>技能变现 接单赚钱</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
