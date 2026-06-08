@@ -793,6 +793,129 @@ body.auth-body .shell {
   }
 }
 
+/* ============ AI 剪辑分析面板 ============ */
+.analysis-card {
+  display: none;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.analysis-card.visible {
+  display: block;
+}
+
+.analysis-card.entered {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.analysis-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.analysis-head .label {
+  margin-bottom: 0;
+}
+
+.analysis-status {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.analysis-status.done {
+  color: var(--success);
+}
+
+.analysis-body {
+  min-height: 80px;
+}
+
+/* streaming cursor */
+.analysis-body.streaming::after {
+  animation: blink 1s step-start infinite;
+  background: var(--accent);
+  border-radius: 1px;
+  content: '';
+  display: inline-block;
+  height: 1em;
+  margin-left: 3px;
+  opacity: 0.7;
+  vertical-align: text-bottom;
+  width: 2px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* markdown 渲染 */
+.markdown-body h2 {
+  border-bottom: 1px solid var(--hairline);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  margin: 28px 0 14px;
+  padding-bottom: 8px;
+}
+
+.markdown-body h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 20px 0 10px;
+}
+
+.markdown-body p {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.85;
+  margin: 10px 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 10px 0;
+  padding-left: 22px;
+}
+
+.markdown-body li {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 6px 0;
+}
+
+.markdown-body strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--hairline);
+  margin: 24px 0;
+}
+
+.analysis-foot {
+  border-top: 1px solid var(--hairline);
+  display: none;
+  margin-top: 28px;
+  padding-top: 20px;
+}
+
+.analysis-foot.visible {
+  display: block;
+}
+
+.analysis-review-btn {
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
 /* ============ 欢迎页 welcome.html ============ */
 .welcome-body {
   display: flex;

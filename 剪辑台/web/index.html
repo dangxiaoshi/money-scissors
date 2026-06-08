@@ -60,6 +60,17 @@
       <div class="step-list" id="step-list"></div>
       <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
     </section>
+
+    <section class="card analysis-card" id="analysis-card">
+      <div class="analysis-head">
+        <div class="label">AI 剪辑分析</div>
+        <span class="analysis-status" id="analysis-status">分析中…</span>
+      </div>
+      <div class="analysis-body markdown-body" id="analysis-body"></div>
+      <div class="analysis-foot" id="analysis-foot">
+        <a class="primary-btn analysis-review-btn" id="review-btn" href="review.html">进入逐字稿剪辑 →</a>
+      </div>
+    </section>
   </main>
 
   <div class="modal" id="speaker-modal" role="dialog" aria-modal="true" aria-labelledby="speaker-modal-title">
@@ -73,6 +84,7 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=20260606-4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module" src="js/main.js?v=20260608-1"></script>
 </body>
 </html>

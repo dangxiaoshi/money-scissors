@@ -176,11 +176,16 @@ async function runPipeline() {
     setStep('prepare', 'done', `${sentences.length} 句已准备`);
     setProgress(92);
 
-    setStep('review', 'active', '正在打开逐字稿剪辑');
-    await sleep(350);
-    setStep('review', 'done', '完成');
+    setStep('review', 'active', '正在生成剪辑分析');
     setProgress(100);
-    location.href = 'decision.html';
+    const transcriptText = sentences.map((s) => {
+      const min = Math.floor(s.startTime / 60);
+      const sec = String(Math.floor(s.startTime % 60)).padStart(2, '0');
+      return `${s.speaker} ${min}:${sec}：${s.text}`;
+    }).join('\n');
+    await runAnalysis(transcriptText);
+    setStep('review', 'done', '分析完成');
+    stopTimer();
   } catch (error) {
     showError(error.message || String(error));
     stopTimer();
@@ -317,5 +322,122 @@ function persistJson(key, value) {
     localStorage.setItem(key, serialized);
   } catch (error) {
     // sessionStorage is enough for the current flow; localStorage is a recovery cache.
+  }
+}
+
+const ANALYSIS_PROMPT = `你是一个做了十年内容营销的播客剪辑顾问。你帮人决定一期播客哪些该留、哪些该删。
+
+你判断内容好不好，不看讲得对不对，看的是：
+1. 听众听到这段会不会有感觉，会笑、会难过、会觉得说到心坎里了，这种留
+2. 两个人聊到观点不一样、或者说了大家没想到的话，这种留
+3. 讲了一个真实的事，有画面感的，比干巴巴讲道理好，留
+4. 没什么情绪、在重复前面说过的、或者跑题了的，删
+
+语气要求：说人话，别用书面语，别用AI味的词，不要用书名号，不要用「」这种括号，写出来要像跟朋友聊天一样。
+
+用户粘贴播客逐字稿，直接分析，别问东问西，有什么就分析什么。用 markdown 格式输出。
+
+---
+
+## 节目概要
+
+- **播客主**：
+- **嘉宾**：
+- **这期聊了什么**：用一句话说清楚，要让人一看就想听
+- **适合谁听 / 能带走什么**：
+- **内容侧重**：干货 / 故事 / 情绪，大概各占多少
+- **高光时刻**：全篇最值得传播的一个地方，说清楚为什么
+- **最不能删的部分**：全篇最有价值的一个地方，说清楚为什么
+- **下次优化**：站在老播客主的角度，指出一个地方其实可以追问得更深
+- **建议保留比例**：xx%
+
+## 剪辑方案
+**核心主线**：一句话，写得像一个让人想点进来的标题
+
+**为什么这么剪**：两句话说清楚
+
+**金句开场**：从原文里挑3-5句最能打动人的话，优先选那种听完会想截图发朋友圈的
+
+
+**第一幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：
+
+**第二幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：
+
+**第三幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：`;
+
+async function runAnalysis(transcriptText) {
+  const card = document.getElementById('analysis-card');
+  const body = document.getElementById('analysis-body');
+  const statusEl = document.getElementById('analysis-status');
+  const foot = document.getElementById('analysis-foot');
+
+  card.classList.add('visible');
+  // trigger slide-in on next frame
+  requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('entered')));
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  body.classList.add('streaming');
+  statusEl.textContent = '分析中…';
+
+  try {
+    const res = await fetch('https://chuanjiabao.vip/ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 4096,
+        stream: true,
+        messages: [{ role: 'user', content: ANALYSIS_PROMPT + '\n\n以下是播客逐字稿：\n\n' + transcriptText }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    let fullText = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6);
+        if (jsonStr === '[DONE]') continue;
+        try {
+          const event = JSON.parse(jsonStr);
+          if (event.choices?.[0]?.delta?.content) {
+            fullText += event.choices[0].delta.content;
+            body.innerHTML = marked.parse(fullText);
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!fullText) throw new Error('未收到分析内容');
+  } catch (e) {
+    body.innerHTML = `<p style="color:var(--danger)">分析出错：${escapeHtml(e.message)}</p>`;
+  } finally {
+    body.classList.remove('streaming');
+    statusEl.textContent = '完成';
+    statusEl.classList.add('done');
+    foot.classList.add('visible');
+    foot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }

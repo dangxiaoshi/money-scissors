@@ -331,10 +331,7 @@ DeepSeek和豆包免费的时代，这款付费命理产品让老外疯狂买单
 - 每条问题读给没听过这期的陌生人，他们会不会觉得"这个我也想知道"
 `;
 
-        const API_KEY = 'sk-808c7e7547224685a7d79573a4ec35da';
-
         async function generate() {
-            const apiKey = API_KEY;
             const input = document.getElementById('input').value.trim();
 
             if (!input)  { alert('请粘贴逐字稿内容'); return; }
@@ -346,8 +343,8 @@ DeepSeek和豆包免费的时代，这款付费命理产品让老外疯狂买单
             btn.innerHTML = '<span class="spinner"></span>第一步：提取关键素材…';
             output.value = '';
 
-            const API_URL = 'https://api.deepseek.com/v1/chat/completions';
-            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
+            const API_URL = 'https://chuanjiabao.vip/ai/';
+            const headers = { 'Content-Type': 'application/json' };
 
             async function callAPI(messages) {
                 const res = await fetch(API_URL, {
