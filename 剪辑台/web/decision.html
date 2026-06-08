@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 剪辑决策</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260529b">
+  <style>
+    .decision-shell {
+      width: min(1120px, calc(100vw - 40px));
+    }
+    .decision-head {
+      align-items: flex-end;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .decision-title {
+      font-size: 30px;
+      font-weight: 820;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .decision-sub {
+      color: var(--muted);
+      font-size: 15px;
+      margin-top: 8px;
+    }
+    .decision-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .decision-actions .primary-btn,
+    .decision-actions .secondary-btn {
+      width: auto;
+      white-space: nowrap;
+    }
+    .metric-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      box-shadow: var(--shadow-card);
+      padding: 18px;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 820;
+      margin-top: 6px;
+    }
+    .decision-grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1fr 1fr;
+    }
+    .decision-grid .wide {
+      grid-column: 1 / -1;
+    }
+    .section-head {
+      align-items: center;
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      justify-content: space-between;
+      margin: -4px 0 18px;
+      padding-bottom: 14px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 780;
+    }
+    .section-meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .chapter-list,
+    .block-list,
+    .keep-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chapter-item,
+    .block-item,
+    .keep-item {
+      background: var(--surface-2);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 13px 14px;
+    }
+    .chapter-top,
+    .block-top,
+    .keep-top {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .time-chip {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--accent-deep);
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 760;
+      padding: 3px 8px;
+    }
+    .item-title {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 720;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-text {
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .reason {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .empty {
+      color: var(--muted);
+      padding: 8px 0;
+    }
+    .notice-row {
+      align-items: center;
+      background: var(--accent-soft);
+      border: 1px solid rgba(224, 160, 25, 0.18);
+      border-radius: 14px;
+      color: var(--ink-2);
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 13px 16px;
+    }
+    .report-card {
+      margin-bottom: 18px;
+    }
+    .report-content {
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.82;
+    }
+    .report-content h2 {
+      font-size: 21px;
+      margin: 22px 0 12px;
+    }
+    .report-content h3 {
+      font-size: 18px;
+      margin: 18px 0 10px;
+    }
+    .report-content p {
+      margin: 10px 0;
+    }
+    .report-content ul,
+    .report-content ol {
+      margin: 10px 0;
+      padding-left: 22px;
+    }
+    .report-content li {
+      margin: 7px 0;
+    }
+    .report-content strong {
+      font-weight: 760;
+    }
+    @media (max-width: 860px) {
+      .decision-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .decision-actions {
+        justify-content: stretch;
+      }
+      .decision-actions .primary-btn,
+      .decision-actions .secondary-btn {
+        flex: 1;
+      }
+      .metric-grid,
+      .decision-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell decision-shell">
+    <header class="top-chrome">
+      <div class="top-brand">
+        <span class="top-mark">✂️</span>
+        <div>
+          <div class="top-title">金钱剪刀</div>
+          <div class="top-sub">先确认剪辑框架，再进入逐字稿细剪。</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <a class="secondary-btn inline-btn" id="admin-link" href="/admin" hidden>后台</a>
+        <span class="user-chip" id="user-phone"></span>
+        <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
+      </div>
+    </header>
+
+    <section class="decision-head">
+      <div>
+        <div class="label">剪辑决策</div>
+        <h1 class="decision-title" id="decision-title">剪辑框架已生成</h1>
+        <p class="decision-sub">先看节目结构和大段删减建议。确认方向后，再进入逐字稿剪辑台做细修。</p>
+      </div>
+      <div class="decision-actions">
+        <button class="secondary-btn" type="button" id="back-home">重新导入</button>
+        <button class="primary-btn" type="button" id="open-review">确认框架，进入逐字稿剪辑</button>
+      </div>
+    </section>
+
+    <div class="notice-row">
+      <span>当前页面不会改动音频，只是把 AI 的粗剪判断整理成可确认的框架。</span>
+    </div>
+
+    <section class="metric-grid" id="metric-grid"></section>
+
+    <section class="card report-card" id="report-card" hidden>
+      <div class="section-head">
+        <div class="section-title">剪辑助手决策</div>
+        <div class="section-meta">按播客剪辑助手提示词生成</div>
+      </div>
+      <div class="report-content" id="decision-report"></div>
+    </section>
+
+    <section class="decision-grid">
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">节目框架</div>
+          <div class="section-meta" id="chapter-count"></div>
+        </div>
+        <div class="chapter-list" id="chapter-list"></div>
+      </article>
+
+      <article class="card">
+        <div class="section-head">
+          <div class="section-title">建议大段删除</div>
+          <div class="section-meta" id="block-count"></div>
+        </div>
+        <div class="block-list" id="block-list"></div>
+      </article>
+
+      <article class="card wide">
+        <div class="section-head">
+          <div class="section-title">建议保留的内容入口</div>
+          <div class="section-meta">用于快速判断正片方向</div>
+        </div>
+        <div class="keep-list" id="keep-list"></div>
+      </article>
+    </section>
+  </main>
+
+  <script type="module">
+    import { ensureLoggedIn, setupSessionChrome } from './js/api.js?v=20260606-1';
+
+    const auth = ensureLoggedIn();
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data');
+    if (!auth) {
+      throw new Error('not logged in');
+    }
+    setupSessionChrome();
+
+    let data = null;
+    try {
+      data = JSON.parse(raw || '{}');
+    } catch {
+      data = {};
+    }
+
+    if (!Array.isArray(data.S) || !data.S.length) {
+      document.querySelector('.decision-shell').innerHTML = `
+        <section class="card">
+          <div class="label">没有可用数据</div>
+          <h1 class="decision-title">请先从首页导入音频</h1>
+          <p class="decision-sub">这里需要读取刚生成的逐字稿和 AI 剪辑分析结果。</p>
+          <div class="actions"><a class="primary-btn" href="index.html">返回导入</a></div>
+        </section>
+      `;
+    } else {
+      renderDecision(data);
+    }
+
+    document.getElementById('open-review')?.addEventListener('click', () => {
+      location.href = 'review.html';
+    });
+    document.getElementById('back-home')?.addEventListener('click', () => {
+      location.href = 'index.html';
+    });
+
+    function renderDecision(payload) {
+      const sentences = payload.S;
+      const blocks = Array.isArray(payload.BLK) ? payload.BLK : [];
+      const chapters = Array.isArray(payload.CHAPS) ? payload.CHAPS : [];
+      const deleteIdx = new Set();
+      sentences.forEach((sentence) => {
+        if (sentence.ai || sentence.sug) deleteIdx.add(sentence.idx);
+      });
+
+      const totalDuration = Math.max(0, sentences[sentences.length - 1].e - sentences[0].s);
+      const deleteDuration = estimateDeletedDuration(sentences, deleteIdx);
+      const keepDuration = Math.max(0, totalDuration - deleteDuration);
+
+      document.getElementById('decision-title').textContent = payload.fileName
+        ? `${stripExt(payload.fileName)} 的剪辑框架`
+        : '剪辑框架已生成';
+
+      document.getElementById('metric-grid').innerHTML = [
+        metric('原始时长', formatDuration(totalDuration)),
+        metric('建议删除', formatDuration(deleteDuration)),
+        metric('预计成片', formatDuration(keepDuration)),
+        metric('建议句数', `${deleteIdx.size} / ${sentences.length}`),
+      ].join('');
+
+      renderReport(payload.DECISION);
+      renderChapters(chapters, sentences);
+      renderBlocks(blocks, sentences);
+      renderKeeps(sentences, deleteIdx);
+    }
+
+    function renderReport(report) {
+      const card = document.getElementById('report-card');
+      const content = document.getElementById('decision-report');
+      const text = String(report || '').trim();
+      if (!text) {
+        card.hidden = true;
+        return;
+      }
+      card.hidden = false;
+      content.innerHTML = renderMarkdown(text);
+    }
+
+    function renderChapters(chapters, sentences) {
+      const list = document.getElementById('chapter-list');
+      const items = chapters.length ? chapters : autoChapters(sentences);
+      document.getElementById('chapter-count').textContent = `${items.length} 段`;
+      list.innerHTML = items.map((chapter, index) => {
+        const sentence = findSentence(sentences, chapter.startIdx) || sentences[index] || sentences[0];
+        return `
+          <div class="chapter-item">
+            <div class="chapter-top">
+              <div class="item-title">${escapeHtml(chapter.title || sentence.t || `章节 ${index + 1}`)}</div>
+              <span class="time-chip">${escapeHtml(chapter.time || sentence.ts || '')}</span>
+            </div>
+            <div class="item-text">${escapeHtml(trimText(sentence.t, 90))}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderBlocks(blocks, sentences) {
+      const list = document.getElementById('block-list');
+      const valid = blocks
+        .map((block) => ({ block, range: normalizeRange(block) }))
+        .filter((item) => item.range);
+      document.getElementById('block-count').textContent = `${valid.length} 段`;
+      if (!valid.length) {
+        list.innerHTML = '<div class="empty">AI 没有识别出需要整段删除的大块内容。</div>';
+        return;
+      }
+      list.innerHTML = valid.slice(0, 10).map(({ block, range }) => {
+        const first = findSentence(sentences, range[0]);
+        const last = findSentence(sentences, range[1]);
+        const text = collectText(sentences, range[0], range[1], 120);
+        return `
+          <div class="block-item">
+            <div class="block-top">
+              <div class="item-title">${escapeHtml(typeLabel(block.type))}</div>
+              <span class="time-chip">${escapeHtml(first?.ts || '')}${last ? ` - ${escapeHtml(formatTime(last.e))}` : ''}</span>
+            </div>
+            <div class="item-text">${escapeHtml(text)}</div>
+            ${block.reason ? `<div class="reason">${escapeHtml(block.reason)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderKeeps(sentences, deleteIdx) {
+      const list = document.getElementById('keep-list');
+      const keepers = sentences
+        .filter((sentence) => !deleteIdx.has(sentence.idx) && String(sentence.t || '').length >= 18)
+        .slice(0, 8);
+      if (!keepers.length) {
+        list.innerHTML = '<div class="empty">进入逐字稿剪辑台后可以逐句确认保留内容。</div>';
+        return;
+      }
+      list.innerHTML = keepers.map((sentence) => `
+        <div class="keep-item">
+          <div class="keep-top">
+            <div class="item-title">${escapeHtml(sentence.sp || '说话人')}</div>
+            <span class="time-chip">${escapeHtml(sentence.ts || '')}</span>
+          </div>
+          <div class="item-text">${escapeHtml(trimText(sentence.t, 140))}</div>
+        </div>
+      `).join('');
+    }
+
+    function metric(label, value) {
+      return `
+        <div class="metric">
+          <div class="metric-label">${label}</div>
+          <div class="metric-value">${value}</div>
+        </div>
+      `;
+    }
+
+    function estimateDeletedDuration(sentences, deleteIdx) {
+      return sentences.reduce((sum, sentence) => (
+        deleteIdx.has(sentence.idx) ? sum + Math.max(0, sentence.e - sentence.s) : sum
+      ), 0);
+    }
+
+    function autoChapters(sentences) {
+      const step = Math.max(1, Math.ceil(sentences.length / 6));
+      const chapters = [];
+      for (let i = 0; i < sentences.length; i += step) {
+        chapters.push({ startIdx: sentences[i].idx, time: sentences[i].ts, title: trimText(sentences[i].t, 28) });
+      }
+      return chapters;
+    }
+
+    function normalizeRange(block) {
+      const range = block.r || block.range || [block.startIdx, block.endIdx];
+      const start = Number(range?.[0]);
+      const end = Number(range?.[1]);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+      return [start, end];
+    }
+
+    function findSentence(sentences, idx) {
+      return sentences.find((sentence) => sentence.idx === Number(idx));
+    }
+
+    function collectText(sentences, startIdx, endIdx, maxLength) {
+      const text = sentences
+        .filter((sentence) => sentence.idx >= startIdx && sentence.idx <= endIdx)
+        .map((sentence) => sentence.t)
+        .join('');
+      return trimText(text, maxLength);
+    }
+
+    function stripExt(name) {
+      return String(name || '').replace(/\.[a-z0-9]{2,8}$/i, '');
+    }
+
+    function trimText(text, maxLength) {
+      const value = String(text || '').trim();
+      return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+    }
+
+    function escapeHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderMarkdown(markdown) {
+      const lines = String(markdown || '').split(/\r?\n/);
+      const html = [];
+      let listOpen = false;
+      let paragraph = [];
+
+      const flushParagraph = () => {
+        if (!paragraph.length) return;
+        html.push(`<p>${formatInline(paragraph.join(' '))}</p>`);
+        paragraph = [];
+      };
+      const closeList = () => {
+        if (!listOpen) return;
+        html.push('</ul>');
+        listOpen = false;
+      };
+
+      lines.forEach((line) => {
+        const text = line.trim();
+        if (!text) {
+          flushParagraph();
+          closeList();
+          return;
+        }
+        if (text.startsWith('## ')) {
+          flushParagraph();
+          closeList();
+          html.push(`<h2>${formatInline(text.slice(3))}</h2>`);
+          return;
+        }
+        if (text.startsWith('### ')) {
+          flushParagraph();
+          closeList();
+          html.push(`<h3>${formatInline(text.slice(4))}</h3>`);
+          return;
+        }
+        if (/^[-*]\s+/.test(text)) {
+          flushParagraph();
+          if (!listOpen) {
+            html.push('<ul>');
+            listOpen = true;
+          }
+          html.push(`<li>${formatInline(text.replace(/^[-*]\s+/, ''))}</li>`);
+          return;
+        }
+        paragraph.push(text);
+      });
+
+      flushParagraph();
+      closeList();
+      return html.join('');
+    }
+
+    function formatInline(text) {
+      return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function formatDuration(seconds) {
+      const total = Math.max(0, Math.round(Number(seconds) || 0));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function formatTime(seconds) {
+      return formatDuration(seconds);
+    }
+
+    function typeLabel(type) {
+      const labels = {
+        pre_show: '录前准备',
+        tech_debug: '技术调试',
+        chit_chat: '闲聊寒暄',
+        privacy: '隐私信息',
+        repeated_content: '重复内容',
+        production_talk: '制作讨论',
+        redundant_viewpoint: '重复观点',
+        over_detail: '细节过多',
+        low_density: '低密度内容',
+        weak_relevance: '弱相关内容',
+      };
+      return labels[type] || '建议删除';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搞钱搞流量AI视频播客剪辑营 · 第一节课作业</title>
+<style>
+  :root {
+    --bg: #050505;
+    --bg-soft: #0a0a0a;
+    --panel: #0d0d0d;
+    --panel-soft: #141414;
+    --border: #2b2b2b;
+    --text: #f3efe1;
+    --muted: #9d9d9d;
+    --gold: #f4c85b;
+    --gold-dark: #b47a1e;
+    --gold-soft: #f7df9a;
+    --ink: #050505;
+    --shadow: #000000;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+    background: linear-gradient(180deg, #0b0b0b 0%, #050505 100%);
+    color: var(--text);
+    min-height: 100vh; padding-bottom: 60px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center; padding: 48px 24px 24px;
+  }
+  .step-tag {
+    display: inline-block; padding: 6px 16px;
+    background: var(--bg-soft); border-radius: 20px;
+    border: 1px solid var(--gold-dark);
+    font-size: 13px; font-weight: 600; color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .header .subtitle {
+    font-size: 15px; color: var(--muted);
+  }
+
+  /* ── Form ── */
+  .main { max-width: 560px; margin: 0 auto; padding: 0 24px; }
+
+  .card {
+    background: var(--panel); border-radius: 16px;
+    border: 1px solid var(--border);
+    padding: 24px; margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .card-label {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    letter-spacing: 0.3px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .card-label .num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--gold); color: var(--ink);
+    font-size: 12px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  textarea {
+    width: 100%; border: none; background: transparent;
+    font-size: 15px; line-height: 1.7; font-family: inherit;
+    color: var(--text); resize: none; outline: none;
+    min-height: 80px;
+  }
+  textarea::placeholder,
+  input::placeholder { color: var(--muted); }
+
+  /* ── Avatar upload ── */
+  .avatar-upload {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .avatar-preview {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--panel-soft); border: 2px dashed var(--border);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; cursor: pointer; flex-shrink: 0;
+    transition: border-color 0.2s;
+  }
+  .avatar-preview:hover { border-color: var(--gold); }
+  .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-placeholder { font-size: 28px; }
+  .avatar-hint { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .avatar-hint span { color: var(--gold); font-weight: 500; cursor: pointer; }
+  #avatarInput { display: none; }
+
+  /* ── Button ── */
+  .btn-primary {
+    width: 100%; padding: 16px; border: 1.5px solid var(--gold-dark); border-radius: 12px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    background: linear-gradient(135deg, #101010, #181818);
+    color: var(--gold); transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(244,200,91,0.18);
+    margin-bottom: 16px;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(244,200,91,0.24); }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* ── Preview wrapper ── */
+  .preview-section { margin-top: 8px; }
+  .preview-label {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    text-align: center; margin-bottom: 16px; letter-spacing: 0.3px;
+  }
+  .card-wrapper {
+    display: flex; justify-content: center; margin-bottom: 20px;
+  }
+
+  /* ── THE CARD (9:16) ── */
+  #outputCard {
+    width: 360px;
+    min-height: 640px;
+    height: auto;
+    border-radius: 28px;
+    background: linear-gradient(150deg, #050505 0%, #0b0b0b 35%, #17120a 70%, #24170a 100%);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  /* top glow */
+  #outputCard::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: 50%; transform: translateX(-50%);
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(244,200,91,0.18) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+  /* bottom-right accent */
+  #outputCard::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; right: -40px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(180,122,30,0.18) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* brand bar at top */
+  .card-brand-bar {
+    position: relative; z-index: 2;
+    padding: 18px 24px 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-brand-name {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.35); text-transform: uppercase;
+  }
+  .card-brand-tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--gold);
+    background: rgba(244,200,91,0.12);
+    border: 1px solid rgba(244,200,91,0.25);
+    border-radius: 20px; padding: 3px 10px;
+  }
+
+  /* avatar hero area */
+  .card-hero {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 24px 14px;
+  }
+  .card-avatar-ring {
+    width: 68px; height: 68px; border-radius: 50%;
+    padding: 2.5px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dark), #f0b73e);
+    box-shadow: 0 0 20px rgba(244,200,91,0.24), 0 0 40px rgba(244,200,91,0.1);
+  }
+  .card-avatar-inner {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: #111111;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; overflow: hidden;
+  }
+  .card-avatar-inner img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .card-hero-info {
+    display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  .card-name {
+    font-size: 18px; font-weight: 800; color: #fff;
+    letter-spacing: -0.3px; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .card-chips {
+    display: flex; gap: 5px; flex-wrap: wrap;
+  }
+  .card-chip {
+    font-size: 10px; font-weight: 600;
+    border-radius: 20px; padding: 2px 9px;
+  }
+  .chip-purple {
+    color: var(--gold-soft);
+    background: rgba(244,200,91,0.1);
+    border: 1px solid rgba(244,200,91,0.2);
+  }
+  .chip-orange {
+    color: var(--gold);
+    background: rgba(244,200,91,0.15);
+    border: 1px solid rgba(244,200,91,0.3);
+  }
+  .chip-blue {
+    color: #d8b76f;
+    background: rgba(180,122,30,0.15);
+    border: 1px solid rgba(180,122,30,0.3);
+  }
+
+  /* divider with glow */
+  .card-divider {
+    position: relative; z-index: 2;
+    margin: 0 24px 16px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(180,122,30,0.45), rgba(244,200,91,0.45), transparent);
+  }
+
+  /* content sections */
+  .card-body {
+    position: relative; z-index: 2;
+    padding: 0 24px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .card-section {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 11px 14px;
+  }
+  .card-section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 1.4px;
+    color: var(--gold); text-transform: uppercase; margin-bottom: 5px;
+  }
+  .card-section-text {
+    font-size: 12.5px; line-height: 1.6; color: rgba(255,255,255,0.82);
+    word-break: break-word;
+  }
+
+  /* footer */
+  .card-footer {
+    position: relative; z-index: 2;
+    padding: 16px 24px 24px;
+    margin-top: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-footer-left {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .card-course {
+    font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.8px;
+  }
+  .card-slogan {
+    font-size: 9px; color: rgba(255,255,255,0.25); letter-spacing: 0.3px;
+  }
+  .card-footer-dots {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .card-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+  }
+  .dot-1 { background: #F5A623; opacity: 0.9; }
+  .dot-2 { background: #d5a13b; opacity: 0.7; }
+  .dot-3 { background: #8c631b; opacity: 0.5; }
+
+  /* ── Share tip ── */
+  .share-tip {
+    background: var(--panel); border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 16px 20px; text-align: center;
+    font-size: 14px; color: var(--muted); line-height: 1.7;
+  }
+  .share-tip strong { color: var(--gold); }
+
+  .footer {
+    text-align: center; padding: 32px 24px 0;
+    font-size: 12px; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="step-tag">第一节课作业</div>
+  <h1>搞钱搞流量AI视频播客剪辑营</h1>
+  <p class="subtitle">填写完成，生成你的专属打卡卡片</p>
+</div>
+
+<div class="main">
+
+  <!-- Avatar + 昵称 -->
+  <div class="card">
+    <div class="card-label"><span class="num">📷</span> 头像 &amp; 昵称</div>
+    <div class="avatar-upload">
+      <div class="avatar-preview" onclick="document.getElementById('avatarInput').click()">
+        <div class="avatar-placeholder" id="avatarPlaceholder">🙂</div>
+        <img id="avatarImg" style="display:none" />
+      </div>
+      <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatar(event)" />
+      <div style="flex:1">
+        <input type="text" id="nickname" placeholder="你的昵称" oninput="updateCard()"
+          style="width:100%;border:none;border-bottom:1.5px solid #2b2b2b;padding:6px 0;font-size:16px;font-weight:600;font-family:inherit;outline:none;background:transparent;color:#f3efe1;margin-bottom:8px;" />
+        <div class="avatar-hint">
+          <span onclick="document.getElementById('avatarInput').click()">点击上传头像</span>，支持 JPG / PNG
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Field 1 -->
+  <div class="card">
+    <div class="card-label"><span class="num">1</span> 你是谁</div>
+    <textarea id="field1" placeholder="城市 · 当前状态（学生 / 上班族 / 宝妈…）" oninput="updateCard()"></textarea>
+  </div>
+
+  <!-- Field 2 -->
+  <div class="card">
+    <div class="card-label"><span class="num">2</span> 为什么加入剪辑营</div>
+    <textarea id="field2" placeholder="一句话说清楚你来的目的" oninput="updateCard()"></textarea>
+  </div>
+
+  <!-- Field 3 -->
+  <div class="card">
+    <div class="card-label"><span class="num">3</span> 第一天最触动你的一点</div>
+    <textarea id="field3" placeholder="某句话、某个认知、或你意识到卡在哪了" oninput="updateCard()"></textarea>
+  </div>
+
+  <button class="btn-primary" onclick="generateCard()">生成我的打卡卡片 ✨</button>
+
+  <!-- Preview -->
+  <div class="preview-section" id="previewSection" style="display:none">
+    <div class="preview-label">你的专属卡片 · 截图后发到群里</div>
+    <div class="card-wrapper">
+      <div id="outputCard">
+        <!-- brand bar -->
+        <div class="card-brand-bar">
+          <div class="card-brand-name">搞钱搞流量</div>
+          <div class="card-brand-tag">第一节课打卡</div>
+        </div>
+
+        <!-- hero: avatar left, name+chips right -->
+        <div class="card-hero">
+          <div class="card-avatar-ring">
+            <div class="card-avatar-inner" id="cardAvatarWrap">
+              <span id="cardAvatarEmoji">🙂</span>
+            </div>
+          </div>
+          <div class="card-hero-info">
+            <div class="card-name" id="cardName">你的昵称</div>
+            <div class="card-chips">
+              <span class="card-chip chip-purple">剪辑营学员</span>
+              <span class="card-chip chip-orange">Day 1</span>
+              <span class="card-chip chip-blue" id="cardChip2">打卡中</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-divider"></div>
+
+        <!-- body sections -->
+        <div class="card-body">
+          <div class="card-section">
+            <div class="card-section-label">关于我</div>
+            <div class="card-section-text" id="cardField1">—</div>
+          </div>
+          <div class="card-section">
+            <div class="card-section-label">我来这里是因为</div>
+            <div class="card-section-text" id="cardField2">—</div>
+          </div>
+          <div class="card-section">
+            <div class="card-section-label">今天最触动我的一点</div>
+            <div class="card-section-text" id="cardField3">—</div>
+          </div>
+        </div>
+
+        <!-- footer -->
+        <div class="card-footer">
+          <div class="card-footer-left">
+            <div class="card-course">AI视频播客剪辑营</div>
+            <div class="card-slogan">搞钱搞流量 · 从这里开始</div>
+          </div>
+          <div class="card-footer-dots">
+            <div class="card-dot dot-1"></div>
+            <div class="card-dot dot-2"></div>
+            <div class="card-dot dot-3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="share-tip">
+      直接截图这张卡片发到群里，配一句：<br>
+      <strong>「这是我在剪辑营的起点，欢迎大家认识我 👋」</strong>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">搞钱搞流量AI视频播客剪辑营 · 专属作业工具</div>
+
+<script>
+  let avatarDataUrl = null;
+
+  function handleAvatar(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      avatarDataUrl = ev.target.result;
+      // form preview
+      document.getElementById('avatarPlaceholder').style.display = 'none';
+      const img = document.getElementById('avatarImg');
+      img.src = avatarDataUrl;
+      img.style.display = 'block';
+      // card preview
+      updateCardAvatar();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function updateCardAvatar() {
+    const wrap = document.getElementById('cardAvatarWrap');
+    if (avatarDataUrl) {
+      wrap.innerHTML = `<img src="${avatarDataUrl}" />`;
+    }
+  }
+
+  function updateChips(f1) {
+    // try to extract city from field1 for chip
+    const parts = f1.split(/[·\s·]/);
+    const city = parts[1] ? parts[1].trim() : '';
+    if (city) {
+      document.getElementById('cardChip2').textContent = city;
+    } else {
+      document.getElementById('cardChip2').textContent = '打卡中';
+    }
+  }
+
+  function updateCard() {
+    const nickname = document.getElementById('nickname').value.trim();
+    const f1 = document.getElementById('field1').value.trim();
+    const f2 = document.getElementById('field2').value.trim();
+    const f3 = document.getElementById('field3').value.trim();
+
+    document.getElementById('cardName').textContent = nickname || '你的昵称';
+    document.getElementById('cardField1').textContent = f1 || '—';
+    document.getElementById('cardField2').textContent = f2 || '—';
+    document.getElementById('cardField3').textContent = f3 || '—';
+    updateChips(f1);
+  }
+
+  function generateCard() {
+    const nickname = document.getElementById('nickname').value.trim();
+    const f1 = document.getElementById('field1').value.trim();
+    const f2 = document.getElementById('field2').value.trim();
+    const f3 = document.getElementById('field3').value.trim();
+
+    if (!nickname && !f1 && !f2 && !f3) {
+      alert('请至少填写一个字段');
+      return;
+    }
+
+    updateCard();
+    updateCardAvatar();
+
+    const section = document.getElementById('previewSection');
+    section.style.display = 'block';
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+</script>
+</body>
+</html>

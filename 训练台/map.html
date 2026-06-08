@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>搞钱搞流量 * AI视频播客剪辑营</title>
+<link
+  rel="preload"
+  as="image"
+  href="assets/bootcamp-podcast-640.jpg"
+  imagesrcset="assets/bootcamp-podcast-480.jpg 320w, assets/bootcamp-podcast-640.jpg 426w, assets/bootcamp-podcast-768.jpg 512w"
+  imagesizes="100vw"
+>
+<style>
+  :root {
+    --gold: #f4c85b;
+    --gold-dark: #b47a1e;
+    --bg: #050505;
+    --card-bg: #0d0d0d;
+    --card-border: #2b2b2b;
+    --red: #d89a2c;
+    --green: #f6de94;
+    --gray: #141414;
+    --gray-text: #9d9d9d;
+    --white: #f3efe1;
+    --ink: #050505;
+    --ink-soft: #1a1a1a;
+    --shadow-deep: #000000;
+    --pixel: 4px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Courier New', monospace;
+    overflow-x: hidden;
+  }
+
+  /* pixel grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── PIXEL BORDER MIXIN via box-shadow ─── */
+  .px-border {
+    box-shadow:
+      0 -4px 0 0 var(--gold),
+      0 4px 0 0 var(--gold),
+      -4px 0 0 0 var(--gold),
+      4px 0 0 0 var(--gold);
+  }
+  .px-border-sm {
+    box-shadow:
+      0 -2px 0 0 var(--gold),
+      0 2px 0 0 var(--gold),
+      -2px 0 0 0 var(--gold),
+      2px 0 0 0 var(--gold);
+  }
+  .px-border-red {
+    box-shadow:
+      0 -4px 0 0 var(--red),
+      0 4px 0 0 var(--red),
+      -4px 0 0 0 var(--red),
+      4px 0 0 0 var(--red);
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: relative;
+    text-align: center;
+    padding: 48px 20px 40px;
+    background: linear-gradient(180deg, #111111 0%, #090909 40%, var(--bg) 100%);
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  /* scanlines */
+  header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(255, 255, 255, 0.06) 3px,
+      rgba(255, 255, 255, 0.06) 4px
+    );
+    pointer-events: none;
+  }
+
+  .header-top-label {
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
+
+  .logo {
+    font-size: clamp(18px, 5vw, 36px);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow:
+      4px 4px 0 var(--shadow-deep),
+      -2px -2px 0 var(--gold-dark);
+    letter-spacing: 2px;
+    line-height: 1.3;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 12px;
+  }
+
+  .logo span {
+    color: var(--white);
+    text-shadow: 3px 3px 0 var(--ink-soft);
+  }
+
+  .subtitle {
+    font-size: clamp(22px, 6vw, 48px);
+    font-weight: 900;
+    color: var(--white);
+    text-shadow: 4px 4px 0 var(--gold-dark), 6px 6px 0 var(--shadow-deep);
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .tagline {
+    display: inline-block;
+    font-size: 13px;
+    letter-spacing: 3px;
+    white-space: nowrap;
+    color: var(--gold);
+    background: #0a0a0a;
+    border: 2px solid var(--gold-dark);
+    padding: 6px 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .pixel-coins {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+  }
+
+  .coin {
+    position: absolute;
+    width: 12px; height: 12px;
+    background: var(--gold);
+    box-shadow: 2px 2px 0 var(--gold-dark);
+    animation: floatCoin linear infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes floatCoin {
+    0%   { transform: translateY(100%) rotate(0deg); opacity: 0; }
+    10%  { opacity: 0.6; }
+    90%  { opacity: 0.6; }
+    100% { transform: translateY(-200px) rotate(360deg); opacity: 0; }
+  }
+
+  /* ─── MAIN CONTENT ─── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 16px 60px;
+  }
+
+  .map-hero {
+    width: 100vw;
+    margin: 0 0 18px calc(50% - 50vw);
+    background: #000;
+  }
+
+  .map-hero img {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+
+  .section-title {
+    text-align: center;
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    margin: 48px 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .map-hero + .section-title {
+    margin-top: 18px;
+  }
+  .section-title::before,
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+  }
+  .section-title::after {
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+
+  /* ─── MAP PATH ─── */
+  .map-wrap {
+    position: relative;
+  }
+
+  .map-path {
+    position: absolute;
+    left: 50%;
+    top: 0; bottom: 0;
+    width: 4px;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--gold) 0px,
+      var(--gold) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    transform: translateX(-50%);
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── LEVEL CARDS ─── */
+  .levels {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .level-card {
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    padding: 20px;
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.1s;
+    cursor: pointer;
+  }
+
+  .level-card.active {
+    border-color: var(--green);
+    box-shadow:
+      0 -4px 0 0 var(--green),
+      0 4px 0 0 var(--green),
+      -4px 0 0 0 var(--green),
+      4px 0 0 0 var(--green),
+      0 0 24px rgba(246, 222, 148, 0.2);
+  }
+
+  .level-card.locked {
+    opacity: 0.6;
+    filter: saturate(0.75) brightness(0.92);
+  }
+
+  .level-card.boss {
+    border-color: var(--red);
+    box-shadow:
+      0 -4px 0 0 var(--red),
+      0 4px 0 0 var(--red),
+      -4px 0 0 0 var(--red),
+      4px 0 0 0 var(--red),
+      0 0 32px rgba(216, 154, 44, 0.25);
+  }
+
+  .level-card:not(.locked):hover {
+    transform: translate(-2px, -2px);
+    box-shadow:
+      0 -4px 0 0 var(--gold),
+      0 4px 0 0 var(--gold),
+      -4px 0 0 0 var(--gold),
+      4px 0 0 0 var(--gold),
+      4px 4px 0 0 var(--gold-dark);
+  }
+
+  .level-card.boss:not(.locked):hover {
+    transform: translate(-2px, -2px);
+    box-shadow:
+      0 -4px 0 0 var(--red),
+      0 4px 0 0 var(--red),
+      -4px 0 0 0 var(--red),
+      4px 0 0 0 var(--red),
+      4px 4px 0 0 var(--shadow-deep);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .level-num {
+    font-size: 10px;
+    color: var(--gray-text);
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .level-name {
+    font-size: 18px;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 1px;
+  }
+
+  .level-card.boss .level-name {
+    color: var(--red);
+    font-size: 20px;
+  }
+
+  .badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    border: 1px solid var(--card-border);
+  }
+
+  .badge-locked {
+    background: var(--gray);
+    color: var(--gray-text);
+  }
+
+  .badge-active {
+    background: #0b0b0b;
+    color: var(--green);
+    border-color: var(--green);
+    animation: blink 1s step-end infinite;
+  }
+
+  .badge-done {
+    background: #0b0b0b;
+    color: var(--gold);
+    border-color: var(--gold-dark);
+  }
+
+  .badge-reward {
+    background: #0b0b0b;
+    color: var(--gold);
+    border-color: var(--gold);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .badge-boss {
+    background: #0b0b0b;
+    color: var(--red);
+    border-color: var(--red);
+    animation: blink 1.5s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+
+  .card-field label {
+    color: var(--gray-text);
+    font-size: 10px;
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .card-field span {
+    color: var(--white);
+    line-height: 1.5;
+  }
+
+  .card-field.full {
+    grid-column: 1 / -1;
+  }
+
+  .card-btn {
+    display: inline-block;
+    background: #0b0b0b;
+    color: var(--gold);
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    padding: 10px 20px;
+    text-decoration: none;
+    border: 2px solid var(--gold-dark);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.1s;
+    box-shadow: 4px 4px 0 var(--gold-dark);
+  }
+
+  .card-btn:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--gold-dark);
+  }
+
+  .card-btn:active {
+    transform: translate(4px, 4px);
+    box-shadow: none;
+  }
+
+  .card-btn.locked-btn {
+    background: var(--gray);
+    color: var(--gray-text);
+    border-color: var(--card-border);
+    cursor: not-allowed;
+    box-shadow: 4px 4px 0 var(--ink-soft);
+  }
+
+  .card-btn.locked-btn:hover {
+    transform: none;
+    box-shadow: 4px 4px 0 var(--ink-soft);
+  }
+
+  .card-btn.boss-btn {
+    background: #0b0b0b;
+    color: var(--red);
+    border-color: var(--red);
+    box-shadow: 4px 4px 0 var(--shadow-deep);
+  }
+
+  .card-btn.boss-btn:hover {
+    box-shadow: 2px 2px 0 var(--shadow-deep);
+  }
+
+  .card-btn.tool-btn {
+    background: #0d2200;
+    color: #7eff3a;
+    border-color: #3a8a00;
+    box-shadow: 4px 4px 0 #1a4a00;
+  }
+
+  .card-btn.tool-btn:hover {
+    box-shadow: 2px 2px 0 #1a4a00;
+  }
+
+  /* lock overlay icon */
+  .lock-icon {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 20px;
+    opacity: 0.3;
+  }
+
+  /* ─── RULES BOARD ─── */
+  .rules-board {
+    background: #090909;
+    border: 2px solid var(--gold-dark);
+    padding: 24px;
+    position: relative;
+    box-shadow:
+      0 -4px 0 0 var(--gold-dark),
+      0 4px 0 0 var(--gold-dark),
+      -4px 0 0 0 var(--gold-dark),
+      4px 0 0 0 var(--gold-dark);
+  }
+
+  .contact-board {
+    background: #090909;
+    border: 2px solid var(--gold);
+    padding: 28px 24px;
+    position: relative;
+    text-align: center;
+    box-shadow:
+      0 -4px 0 0 var(--gold-dark),
+      0 4px 0 0 var(--gold-dark),
+      -4px 0 0 0 var(--gold-dark),
+      4px 0 0 0 var(--gold-dark);
+  }
+
+  .contact-board p {
+    color: var(--white);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .wechat-id {
+    margin: 18px auto 14px;
+    padding: 14px 16px;
+    max-width: 420px;
+    background: #050505;
+    border: 2px solid var(--gold-dark);
+    color: var(--gold);
+    font-size: clamp(22px, 4vw, 30px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: none;
+    word-break: break-all;
+    box-shadow: 4px 4px 0 var(--shadow-deep);
+  }
+
+  .contact-tips {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .contact-tip {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--gold);
+    border: 1px solid var(--gold-dark);
+    background: #0b0b0b;
+  }
+
+  .copy-btn {
+    margin-top: 18px;
+    display: inline-block;
+  }
+
+  .rules-board-title {
+    text-align: center;
+    font-size: 14px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px dashed var(--gold-dark);
+  }
+
+  .rules-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .rules-list li {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--white);
+    padding-left: 24px;
+    position: relative;
+  }
+
+  .rules-list li::before {
+    content: '▶';
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-size: 10px;
+    top: 4px;
+  }
+
+  .rules-list li strong {
+    color: var(--gold);
+  }
+
+  /* ─── QUICK ENTRY ─── */
+  .quick-entry {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .entry-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    color: var(--gold);
+    text-decoration: none;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 20px 12px;
+    transition: transform 0.1s, border-color 0.1s;
+    position: relative;
+    box-shadow: 4px 4px 0 var(--card-border);
+  }
+
+  .entry-btn:hover {
+    border-color: var(--gold);
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--gold-dark);
+    color: var(--gold);
+  }
+
+  .entry-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--gold-dark);
+  }
+
+  .entry-icon {
+    font-size: 24px;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    font-size: 10px;
+    color: var(--gray-text);
+    letter-spacing: 3px;
+    border-top: 1px dashed var(--card-border);
+    position: relative;
+    z-index: 1;
+  }
+
+  footer .blink {
+    animation: blink 1s step-end infinite;
+    color: var(--green);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 600px) {
+    .tagline {
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 6px 10px;
+    }
+    .card-body {
+      grid-template-columns: 1fr;
+    }
+    .card-field.full {
+      grid-column: 1;
+    }
+    .quick-entry {
+      grid-template-columns: 1fr;
+    }
+    .map-path {
+      display: none;
+    }
+  }
+
+  /* ─── SCROLL ANIMATION ─── */
+  .level-card {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.4s, transform 0.4s, box-shadow 0.1s;
+  }
+  .level-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .level-card.locked.visible {
+    opacity: 0.6;
+  }
+
+  /* progress bar header decoration */
+  .header-bar {
+    height: 4px;
+    background: linear-gradient(90deg, #000000, #1a1a1a, #000000);
+    margin-bottom: 0;
+  }
+
+  .pixel-star {
+    display: inline-block;
+    color: var(--gold);
+    animation: spin 2s linear infinite;
+    font-size: 12px;
+  }
+
+  @keyframes spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header-bar"></div>
+
+<header>
+  <div class="pixel-coins" id="coins"></div>
+
+  <div class="header-top-label">【 搞钱搞流量 】</div>
+
+  <div class="logo">
+    搞钱搞流量<span>*</span>Ai视频播客剪辑营
+  </div>
+
+  <div class="subtitle">21天从0到1接单变现</div>
+
+  <div class="tagline">学剪辑 · 做作品 · 接订单 · 一条龙搞钱闭环</div>
+</header>
+
+<main>
+
+  <div class="map-hero">
+    <img
+      src="assets/bootcamp-podcast-480.jpg"
+      srcset="assets/bootcamp-podcast-480.jpg 320w, assets/bootcamp-podcast-640.jpg 426w, assets/bootcamp-podcast-768.jpg 512w"
+      sizes="100vw"
+      width="320"
+      height="480"
+      alt="Bootcamp Podcast 篝火夜谈海报"
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    >
+  </div>
+
+  <!-- ── AI TOOLS ── -->
+  <div class="section-title">
+    <span class="pixel-star">★</span>
+    AI 工具箱
+    <span class="pixel-star">★</span>
+  </div>
+
+  <div class="quick-entry">
+    <a href="https://dangxiaoshi.github.io/jianji/" target="_blank" class="entry-btn">
+      <span class="entry-icon">🎙</span>
+      AI剪辑助手
+    </a>
+    <a href="https://dangxiaoshi.github.io/shownotes/" target="_blank" class="entry-btn">
+      <span class="entry-icon">📝</span>
+      Show Notes
+    </a>
+    <a href="https://voice.podvid.uk/" target="_blank" class="entry-btn">
+      <span class="entry-icon">🔊</span>
+      声音生成器
+    </a>
+  </div>
+
+  <!-- ── MAP SECTION ── -->
+  <div class="section-title">
+    <span class="pixel-star">★</span>
+    闯关地图
+    <span class="pixel-star">★</span>
+  </div>
+
+  <div class="map-wrap">
+    <div class="map-path"></div>
+
+    <div class="levels">
+
+      <!-- LEVEL 1 -->
+      <div class="level-card active">
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 01</span>
+            <div class="level-name">🏘️ 新手村</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-active">▶ 进行中</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>了解课程结构，完成自我介绍</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>约 1 天</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>提交自我介绍作业，解锁后续关卡</span>
+          </div>
+        </div>
+        <a href="assets/剪辑营作业卡片.html" class="card-btn">▶ 进入新手村</a>
+      </div>
+
+      <!-- LEVEL 2 -->
+      <div class="level-card">
+        <span class="lock-icon">🔒</span>
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 02</span>
+            <div class="level-name">⚓ 逐字稿港口</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-locked">🔒 未解锁</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>掌握素材下载、AI转录、飞书整理全流程</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>约 2 天</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 核心工具</label>
+            <span>通义听悟 · AI剪辑助手 · 飞书文档</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>MP3音频 + 完整逐字稿 + 飞书文档可编辑</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="https://jcnsx96xqr7d.feishu.cn/wiki/WYEnwT62BiSVTYk11B6chsp9nNn?from=from_copylink" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">📻 音频版教程</a>
+          <a href="https://bcnit4cr17ez.feishu.cn/wiki/KnbUwZ8ohip3XLkd9pmcPj8Sn9c" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">🎬 视频版教程</a>
+          <a href="https://dangxiaoshi.github.io/jianji/" target="_blank" class="card-btn tool-btn" style="flex: 1; min-width: 140px;">🎙 AI剪辑助手</a>
+        </div>
+      </div>
+
+      <!-- LEVEL 3 -->
+      <div class="level-card">
+        <span class="lock-icon">🔒</span>
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 03</span>
+            <div class="level-name">🌲 粗剪森林</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-locked">🔒 未解锁</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>搭建内容骨架，删除冗余废话</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>约 3 天</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 核心工具</label>
+            <span>喜马拉雅云剪辑 / 剪映专业版</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>逻辑通顺，无明显冗余，时长控制在10分钟</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="https://jcnsx96xqr7d.feishu.cn/wiki/WYEnwT62BiSVTYk11B6chsp9nNn?from=from_copylink" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">📻 音频版教程</a>
+          <a href="https://bcnit4cr17ez.feishu.cn/wiki/KnbUwZ8ohip3XLkd9pmcPj8Sn9c" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">🎬 视频版教程</a>
+          <a href="https://dangxiaoshi.github.io/jianji/" target="_blank" class="card-btn tool-btn" style="flex: 1; min-width: 140px;">🎙 AI剪辑助手</a>
+        </div>
+      </div>
+
+      <!-- LEVEL 4 -->
+      <div class="level-card">
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 04</span>
+            <div class="level-name">🔨 精剪工坊</div>
+          </div>
+          <div class="badges">
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>打磨细节，处理口癖、停顿、音量</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>约 3 天</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 核心工具</label>
+            <span>喜马拉雅云剪辑 / 剪映（字幕+多机位）</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>无咔哒跳音，音量均衡，听感流畅自然</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="https://jcnsx96xqr7d.feishu.cn/wiki/WYEnwT62BiSVTYk11B6chsp9nNn?from=from_copylink" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">📻 音频版教程</a>
+          <a href="https://bcnit4cr17ez.feishu.cn/wiki/KnbUwZ8ohip3XLkd9pmcPj8Sn9c" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">🎬 视频版教程</a>
+        </div>
+      </div>
+
+      <!-- LEVEL 5 -->
+      <div class="level-card">
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 05</span>
+            <div class="level-name">🎵 音频任务线</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-reward">💰 ¥50/条</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>接取真实音频剪辑任务，赚取训练奖励</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>按任务定</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 核心工具</label>
+            <span>完整音频剪辑流程 + 金句混剪 + BGM包装</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>甲方（课程导师）验收通过，奖励到账</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="https://jcnsx96xqr7d.feishu.cn/wiki/WYEnwT62BiSVTYk11B6chsp9nNn?from=from_copylink" target="_blank" class="card-btn" style="flex: 1; min-width: 140px;">📻 查看音频SOP</a>
+          <a href="https://voice.podvid.uk/" target="_blank" class="card-btn tool-btn" style="flex: 1; min-width: 140px;">🔊 声音生成器</a>
+        </div>
+      </div>
+
+      <!-- LEVEL 6 -->
+      <div class="level-card">
+        <div class="card-header">
+          <div>
+            <span class="level-num">LEVEL 06</span>
+            <div class="level-name">🎬 视频任务线</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-reward">💰 ¥100/条</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>接取真实视频剪辑任务，赚取更高奖励</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>按任务定</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 核心工具</label>
+            <span>剪映多机位 + 字幕识别 + 开场结尾模板</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>甲方（课程导师）验收通过，奖励到账</span>
+          </div>
+        </div>
+        <a href="https://bcnit4cr17ez.feishu.cn/wiki/KnbUwZ8ohip3XLkd9pmcPj8Sn9c" target="_blank" class="card-btn">🎬 查看视频SOP</a>
+      </div>
+
+      <!-- LEVEL 7 BOSS -->
+      <div class="level-card boss">
+        <div class="card-header">
+          <div>
+            <span class="level-num">FINAL BOSS</span>
+            <div class="level-name">🏰 导出哨站 / Boss塔</div>
+          </div>
+          <div class="badges">
+            <span class="badge badge-boss">⚔️ BOSS关</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-field">
+            <label>🎯 关卡目标</label>
+            <span>完成结业作品集，解锁长期接单资格</span>
+          </div>
+          <div class="card-field">
+            <label>⏱ 预计耗时</label>
+            <span>综合评估</span>
+          </div>
+          <div class="card-field full">
+            <label>🛠️ 交付要求</label>
+            <span>音频+视频各1条完整作品 · 符合行业交付标准</span>
+          </div>
+          <div class="card-field full">
+            <label>✅ 通关标准</label>
+            <span>作品集通过导师终审，获得长期接单推荐资格</span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <a href="https://jcnsx96xqr7d.feishu.cn/wiki/WYEnwT62BiSVTYk11B6chsp9nNn?from=from_copylink" target="_blank" class="card-btn boss-btn" style="flex: 1; min-width: 140px;">📻 音频标准</a>
+          <a href="https://bcnit4cr17ez.feishu.cn/wiki/KnbUwZ8ohip3XLkd9pmcPj8Sn9c" target="_blank" class="card-btn boss-btn" style="flex: 1; min-width: 140px;">🎬 视频标准</a>
+          <a href="https://dangxiaoshi.github.io/shownotes/" target="_blank" class="card-btn tool-btn" style="flex: 1; min-width: 140px;">📝 Show Notes</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── RULES SECTION ── -->
+  <div class="section-title">
+    <span class="pixel-star">★</span>
+    任务池规则
+    <span class="pixel-star">★</span>
+  </div>
+
+  <div class="rules-board">
+    <div class="rules-board-title">📋 公告栏 — 请仔细阅读以下规则</div>
+    <ul class="rules-list">
+      <li><strong>解锁接单群：</strong>提交第一次自我介绍作业后，自动解锁接单群入口</li>
+      <li><strong>前10条任务：</strong>每条任务最多 <strong>2人</strong> 同时认领，最终甲方选 <strong>1条</strong> 通过并发放奖励</li>
+      <li><strong>第11条起：</strong>每条任务仅限 <strong>1人</strong> 独立认领，先到先得</li>
+      <li><strong>任务奖励：</strong>音频任务 <strong>¥50/条</strong>，视频任务 <strong>¥100/条</strong>，由课程导师直接支付</li>
+      <li><strong>训练性质：</strong>所有任务均来自导师真实播客素材，为课程内训练任务，非外部商业接单</li>
+    </ul>
+  </div>
+
+  <!-- ── QUICK ENTRY ── -->
+  <div class="section-title">
+    <span class="pixel-star">★</span>
+    快捷入口
+    <span class="pixel-star">★</span>
+  </div>
+
+  <div class="quick-entry">
+    <a href="#wechat-entry" class="entry-btn">
+      <span class="entry-icon">👥</span>
+      加入课程群
+    </a>
+    <a href="#wechat-entry" class="entry-btn">
+      <span class="entry-icon">📤</span>
+      提交作业
+    </a>
+    <a href="https://bie137q1e77.feishu.cn/wiki/N795wBZ4oi9qpvk130bcBWq3nBP?sheet=s2JBfU" target="_blank" class="entry-btn">
+      <span class="entry-icon">📋</span>
+      接单任务统计
+    </a>
+    <a href="https://bie137q1e77.feishu.cn/docx/Xw0wdQSESoAzoDxj2K3cs4Ytnpg?from=from_copylink" target="_blank" class="entry-btn">
+      <span class="entry-icon">💬</span>
+      问答库
+    </a>
+  </div>
+
+  <div class="section-title">
+    <span class="pixel-star">★</span>
+    联系助教
+    <span class="pixel-star">★</span>
+  </div>
+
+  <div class="contact-board" id="wechat-entry">
+    <div class="rules-board-title">💬 课程入口 / 后续更新 / 群公告通知</div>
+    <p>当前课程入口、作业提交通道和群内通知统一由助教发放。</p>
+    <div class="wechat-id" id="wechat-id">gaoqiantongxue</div>
+    <p>添加微信时可备注：<strong>AI视频播客剪辑营</strong></p>
+    <div class="contact-tips">
+      <span class="contact-tip">领取课程入口</span>
+      <span class="contact-tip">查看群公告</span>
+      <span class="contact-tip">获取后续更新</span>
+    </div>
+    <button type="button" class="card-btn copy-btn" id="copy-wechat-btn">复制微信号</button>
+  </div>
+
+</main>
+
+<footer>
+  <p>搞钱搞流量 * AI视频播客剪辑营 &nbsp;|&nbsp; 教学内循环训练营</p>
+  <p style="margin-top:8px;"><span class="blink">■</span> 课程入口、后续更新与群公告通知，请添加助教微信：gaoqiantongxue <span class="blink">■</span></p>
+</footer>
+
+<script>
+  // ── Floating coins in header ──
+  const coinsEl = document.getElementById('coins');
+  for (let i = 0; i < 12; i++) {
+    const coin = document.createElement('div');
+    coin.className = 'coin';
+    coin.style.left = Math.random() * 100 + '%';
+    coin.style.width = coin.style.height = (8 + Math.random() * 8) + 'px';
+    coin.style.animationDuration = (4 + Math.random() * 6) + 's';
+    coin.style.animationDelay = (Math.random() * 6) + 's';
+    coinsEl.appendChild(coin);
+  }
+
+  // ── Intersection Observer for card entrance animation ──
+  const cards = document.querySelectorAll('.level-card');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  cards.forEach(card => observer.observe(card));
+
+  // ── Locked card click hint ──
+  document.querySelectorAll('.locked-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const card = btn.closest('.level-card');
+      if (btn.getAttribute('href') === '#wechat-entry') {
+        return;
+      }
+      e.preventDefault();
+      card.style.animation = 'none';
+      card.style.transform = 'translateX(8px)';
+      setTimeout(() => { card.style.transform = 'translateX(-6px)'; }, 80);
+      setTimeout(() => { card.style.transform = 'translateX(4px)'; }, 160);
+      setTimeout(() => { card.style.transform = 'translateX(0)'; }, 240);
+    });
+  });
+
+  const copyWechatBtn = document.getElementById('copy-wechat-btn');
+  const wechatId = document.getElementById('wechat-id').textContent.trim();
+  if (copyWechatBtn) {
+    copyWechatBtn.addEventListener('click', async () => {
+      const originalText = copyWechatBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(wechatId);
+        copyWechatBtn.textContent = '已复制微信号';
+      } catch (error) {
+        copyWechatBtn.textContent = '复制失败，请手动添加';
+      }
+      setTimeout(() => {
+        copyWechatBtn.textContent = originalText;
+      }, 1800);
+    });
+  }
+</script>
+</body>
+</html>

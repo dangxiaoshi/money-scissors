@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>播客工作台 · 搞钱搞流量</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #F5A623;
+    --brand-light: #FFF8EC;
+    --brand-hover: #fff3d6;
+    --brand-dark: #e6991a;
+    --text: #1d1d1f;
+    --text-secondary: #86868b;
+    --bg: #f5f5f7;
+    --white: #fff;
+    --border: #e5e5ea;
+    --sidebar-width: 252px;
+    --topbar-height: 52px;
+    --phase-before: #F5A623;
+    --phase-during: #1d1d1f;
+    --phase-after: #6366f1;
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", sans-serif;
+    color: var(--text); background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    height: var(--topbar-height);
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 12px;
+    flex-shrink: 0; z-index: 200;
+  }
+  .topbar-back {
+    display: flex; align-items: center; gap: 5px;
+    text-decoration: none; color: var(--brand);
+    font-size: 14px; font-weight: 500;
+    padding: 6px 10px; border-radius: 8px;
+    transition: background 0.15s;
+  }
+  .topbar-back:hover { background: var(--brand-light); }
+  .topbar-divider { width: 1px; height: 18px; background: var(--border); }
+  .topbar-title {
+    font-size: 15px; font-weight: 600; color: var(--text);
+    flex: 1;
+  }
+  .topbar-tool-name {
+    font-size: 14px; color: var(--text-secondary);
+    font-weight: 400;
+  }
+  .menu-toggle {
+    display: none; background: none; border: none;
+    font-size: 20px; cursor: pointer; color: var(--text);
+    padding: 6px; border-radius: 8px;
+  }
+  .menu-toggle:hover { background: var(--bg); }
+
+  /* ── WORKSPACE ── */
+  .workspace {
+    flex: 1; display: flex; overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-width);
+    background: var(--white);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto; overflow-x: hidden;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: #d2d2d7; border-radius: 4px; }
+
+  .sidebar-inner { padding: 12px 8px 24px; }
+
+  /* Phase group */
+  .phase-group { margin-bottom: 6px; }
+  .phase-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 10px;
+    cursor: pointer; user-select: none;
+    transition: background 0.15s;
+  }
+  .phase-header:hover { background: var(--bg); }
+  .phase-badge {
+    width: 24px; height: 24px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+  .phase-label-text { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+  .phase-sub { font-size: 11px; color: var(--text-secondary); font-weight: 400; }
+  .phase-chevron {
+    font-size: 10px; color: var(--text-secondary);
+    transition: transform 0.2s;
+  }
+  .phase-group.collapsed .phase-chevron { transform: rotate(-90deg); }
+  .phase-group.collapsed .phase-items { display: none; }
+
+  .phase-items { padding: 2px 0 4px; }
+
+  /* Section inside phase */
+  .tool-section { margin-bottom: 2px; }
+  .tool-section-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px 5px 36px;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-secondary); letter-spacing: 0.4px;
+    text-transform: uppercase; cursor: pointer;
+    border-radius: 8px; transition: background 0.15s;
+    user-select: none;
+  }
+  .tool-section-header:hover { background: var(--bg); color: var(--text); }
+  .section-chevron { font-size: 9px; transition: transform 0.2s; margin-left: auto; }
+  .tool-section.collapsed .section-chevron { transform: rotate(-90deg); }
+  .tool-section.collapsed .section-items { display: none; }
+
+  .section-items { padding: 2px 0; }
+
+  /* Tool item */
+  .tool-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px 7px 48px;
+    border-radius: 8px; cursor: pointer;
+    transition: background 0.15s; user-select: none;
+    text-decoration: none; color: var(--text);
+  }
+  .tool-item:hover { background: var(--bg); }
+  .tool-item.active {
+    background: var(--brand-light); color: var(--text);
+  }
+  .tool-item.active .tool-item-name { color: var(--brand); font-weight: 600; }
+  .tool-item-name { font-size: 13px; font-weight: 400; flex: 1; }
+  .tool-item-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 6px; border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tool-item-badge.live { background: #f0fdf4; color: #16a34a; }
+  .tool-item-badge.coming { background: #f5f5f7; color: #aaa; }
+
+  /* Direct tool item (no section parent) */
+  .tool-item-direct {
+    padding-left: 36px;
+  }
+
+  /* ── MAIN CONTENT ── */
+  .main-content {
+    flex: 1; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* Welcome screen */
+  .welcome {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 40px 24px;
+  }
+  .welcome-icon {
+    font-size: 56px; margin-bottom: 20px;
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .welcome h2 {
+    font-size: 24px; font-weight: 700;
+    letter-spacing: -0.3px; margin-bottom: 10px;
+  }
+  .welcome p {
+    font-size: 15px; color: var(--text-secondary);
+    max-width: 360px; line-height: 1.6; margin-bottom: 32px;
+  }
+  .welcome-phases {
+    display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  }
+  .welcome-phase {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; background: var(--white);
+    border-radius: 12px; border: 1px solid var(--border);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .welcome-phase:hover {
+    border-color: var(--brand); transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245,166,35,0.12);
+  }
+  .welcome-phase-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  /* Coming soon screen */
+  .coming-soon {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 40px 24px;
+  }
+  .coming-soon-icon { font-size: 48px; margin-bottom: 16px; }
+  .coming-soon h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .coming-soon p { font-size: 14px; color: var(--text-secondary); max-width: 300px; line-height: 1.6; }
+  .coming-badge {
+    display: inline-block; margin-top: 16px;
+    padding: 6px 16px; background: var(--bg);
+    border-radius: 20px; font-size: 13px;
+    font-weight: 600; color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  /* Tool iframe */
+  #toolFrame {
+    flex: 1; border: none; width: 100%;
+    min-height: 0;
+    display: none;
+    background: var(--white);
+  }
+
+  /* Overlay for mobile */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 150;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(2px);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .menu-toggle { display: flex; }
+    .topbar-back span { display: none; }
+    .sidebar {
+      position: fixed; left: 0;
+      top: var(--topbar-height); bottom: 0;
+      z-index: 160;
+      transform: translateX(-100%);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open { display: block; }
+    .main-content { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+  <a href="index.html" class="topbar-back">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>首页</span>
+  </a>
+  <div class="topbar-divider"></div>
+  <div class="topbar-title">播客工作台</div>
+  <div class="topbar-tool-name" id="topbarToolName"></div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<div class="workspace">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-inner">
+
+      <!-- 前 -->
+      <div class="phase-group" id="phase-before">
+        <div class="phase-header" onclick="togglePhase('phase-before')">
+          <div class="phase-badge" style="background: var(--phase-before)">前</div>
+          <div class="phase-label-text">录制前 <span class="phase-sub">策划</span></div>
+          <span class="phase-chevron">▼</span>
+        </div>
+        <div class="phase-items">
+
+          <div class="tool-item tool-item-direct" onclick="openTool(this, '拆解爆款', null)">
+            <span class="tool-item-name">拆解爆款</span>
+            <span class="tool-item-badge coming">即将</span>
+          </div>
+
+          <div class="tool-section" id="section-positioning">
+            <div class="tool-section-header" onclick="toggleSection('section-positioning')">
+              定位规划 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+              <div class="tool-item" onclick="openTool(this, '商业模式', 'https://dangxiaoshi.github.io/business-positioning-tool/')">
+                <span class="tool-item-name">商业模式</span>
+                <span class="tool-item-badge live">可用</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '规划内容', null)">
+                <span class="tool-item-name">规划内容</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tool-item tool-item-direct" onclick="openTool(this, '采访提纲', 'https://dangxiaoshi.github.io/caifang/')">
+            <span class="tool-item-name">采访提纲</span>
+            <span class="tool-item-badge live">可用</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 中 -->
+      <div class="phase-group" id="phase-during">
+        <div class="phase-header" onclick="togglePhase('phase-during')">
+          <div class="phase-badge" style="background: var(--phase-during)">中</div>
+          <div class="phase-label-text">制作中 <span class="phase-sub">剪辑</span></div>
+          <span class="phase-chevron">▼</span>
+        </div>
+        <div class="phase-items">
+
+          <div class="tool-section" id="section-text">
+            <div class="tool-section-header" onclick="toggleSection('section-text')">
+              文字思路 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+              <div class="tool-item" onclick="openTool(this, '剪辑决策', 'https://dangxiaoshi.github.io/jianji/')">
+                <span class="tool-item-name">剪辑决策</span>
+                <span class="tool-item-badge live">可用</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '文字提取', null)">
+                <span class="tool-item-name">文字提取</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '文字排序', null)">
+                <span class="tool-item-name">文字排序</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tool-section" id="section-audio">
+            <div class="tool-section-header" onclick="toggleSection('section-audio')">
+              音频剪辑 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+              <div class="tool-item" onclick="openTool(this, '文字剪辑音频', null)">
+                <span class="tool-item-name">文字剪辑音频</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '声音克隆', null)">
+                <span class="tool-item-name">声音克隆</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tool-section" id="section-video">
+            <div class="tool-section-header" onclick="toggleSection('section-video')">
+              视频剪辑 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+              <div class="tool-section" id="section-broll" style="margin-bottom:0">
+                <div class="tool-section-header" onclick="toggleSection('section-broll')" style="padding-left:60px; font-size:11px">
+                  B-roll <span class="section-chevron">▾</span>
+                </div>
+                <div class="section-items">
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, 'B-roll 文字脚本', null)">
+                    <span class="tool-item-name">文字</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, 'B-roll 画面描述', null)">
+                    <span class="tool-item-name">画面</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                </div>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '金句 · 大字 · 音乐', null)">
+                <span class="tool-item-name">金句 · 大字 · 音乐</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 后 -->
+      <div class="phase-group" id="phase-after">
+        <div class="phase-header" onclick="togglePhase('phase-after')">
+          <div class="phase-badge" style="background: var(--phase-after)">后</div>
+          <div class="phase-label-text">发布后 <span class="phase-sub">推广</span></div>
+          <span class="phase-chevron">▼</span>
+        </div>
+        <div class="phase-items">
+
+          <div class="tool-section" id="section-platform">
+            <div class="tool-section-header" onclick="toggleSection('section-platform')">
+              播客平台 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+              <div class="tool-item" onclick="openTool(this, '标题生成', null)">
+                <span class="tool-item-name">标题</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, 'Shownote', 'https://dangxiaoshi.github.io/shownotes/')">
+                <span class="tool-item-name">Shownote</span>
+                <span class="tool-item-badge live">可用</span>
+              </div>
+              <div class="tool-item" onclick="openTool(this, '评论区话术', null)">
+                <span class="tool-item-name">评论区</span>
+                <span class="tool-item-badge coming">即将</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tool-section" id="section-promo">
+            <div class="tool-section-header" onclick="toggleSection('section-promo')">
+              宣传平台 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+
+              <div class="tool-section" id="section-xhs" style="margin-bottom:0">
+                <div class="tool-section-header" onclick="toggleSection('section-xhs')" style="padding-left:60px; font-size:11px">
+                  小红书 <span class="section-chevron">▾</span>
+                </div>
+                <div class="section-items">
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '小红书标题框架', null)">
+                    <span class="tool-item-name">选题标题优化</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '蹭热点', null)">
+                    <span class="tool-item-name">蹭热点</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '段落文字优化', null)">
+                    <span class="tool-item-name">段落文字优化</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tool-section" id="section-wechat" style="margin-bottom:0">
+                <div class="tool-section-header" onclick="toggleSection('section-wechat')" style="padding-left:60px; font-size:11px">
+                  公众号 <span class="section-chevron">▾</span>
+                </div>
+                <div class="section-items">
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '公众号排版', null)">
+                    <span class="tool-item-name">排版</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '开头结尾金句优化', null)">
+                    <span class="tool-item-name">金句衔接优化</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '配图', null)">
+                    <span class="tool-item-name">配图</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tool-item" onclick="openTool(this, '朋友圈 / 社群', 'https://dangxiaoshi.github.io/pengyouquan/')">
+                <span class="tool-item-name">朋友圈 / 社群</span>
+                <span class="tool-item-badge live">可用</span>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="tool-section" id="section-images">
+            <div class="tool-section-header" onclick="toggleSection('section-images')">
+              图片 <span class="section-chevron">▾</span>
+            </div>
+            <div class="section-items">
+
+              <div class="tool-section" id="section-cards" style="margin-bottom:0">
+                <div class="tool-section-header" onclick="toggleSection('section-cards')" style="padding-left:60px; font-size:11px">
+                  卡片 <span class="section-chevron">▾</span>
+                </div>
+                <div class="section-items">
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '金句卡片', null)">
+                    <span class="tool-item-name">金句</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '嘉宾介绍卡', null)">
+                    <span class="tool-item-name">嘉宾介绍卡</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '本期主题卡', null)">
+                    <span class="tool-item-name">本期主题卡</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tool-section" id="section-cover" style="margin-bottom:0">
+                <div class="tool-section-header" onclick="toggleSection('section-cover')" style="padding-left:60px; font-size:11px">
+                  封面 <span class="section-chevron">▾</span>
+                </div>
+                <div class="section-items">
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '封面图 4:3', null)">
+                    <span class="tool-item-name">4:3 · 3:4</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                  <div class="tool-item" style="padding-left:72px" onclick="openTool(this, '封面图 16:9', null)">
+                    <span class="tool-item-name">16:9 · 9:16</span>
+                    <span class="tool-item-badge coming">即将</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- Welcome -->
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-icon">🎙</div>
+      <h2>选一个工具开始</h2>
+      <p>从左侧按制作阶段选择你需要的工具，前中后全流程都在这里</p>
+      <div class="welcome-phases">
+        <div class="welcome-phase" onclick="scrollToPhase('phase-before')">
+          <div class="welcome-phase-dot" style="background: var(--phase-before)"></div>
+          录制前 · 策划
+        </div>
+        <div class="welcome-phase" onclick="scrollToPhase('phase-during')">
+          <div class="welcome-phase-dot" style="background: var(--phase-during)"></div>
+          制作中 · 剪辑
+        </div>
+        <div class="welcome-phase" onclick="scrollToPhase('phase-after')">
+          <div class="welcome-phase-dot" style="background: var(--phase-after)"></div>
+          发布后 · 推广
+        </div>
+      </div>
+    </div>
+
+    <!-- Coming soon -->
+    <div class="coming-soon" id="comingSoonScreen" style="display:none">
+      <div class="coming-soon-icon">🚧</div>
+      <h3 id="comingSoonTitle">功能开发中</h3>
+      <p>这个工具正在建设中，敬请期待</p>
+      <span class="coming-badge">即将上线</span>
+    </div>
+
+    <!-- Tool iframe -->
+    <iframe id="toolFrame" title="工具"></iframe>
+
+  </div>
+</div>
+
+<script>
+  let currentActive = null;
+
+  function openTool(el, name, src) {
+    // Update active state
+    if (currentActive) currentActive.classList.remove('active');
+    el.classList.add('active');
+    currentActive = el;
+
+    // Update topbar
+    document.getElementById('topbarToolName').textContent = name;
+
+    // Close mobile sidebar
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('open');
+    }
+
+    const welcome = document.getElementById('welcomeScreen');
+    const comingSoon = document.getElementById('comingSoonScreen');
+    const frame = document.getElementById('toolFrame');
+
+    if (!src) {
+      // Coming soon
+      welcome.style.display = 'none';
+      frame.style.display = 'none';
+      comingSoon.style.display = 'flex';
+      document.getElementById('comingSoonTitle').textContent = name + ' · 开发中';
+    } else {
+      // Load tool
+      welcome.style.display = 'none';
+      comingSoon.style.display = 'none';
+      frame.style.display = 'block';
+      frame.src = src;
+    }
+  }
+
+  function togglePhase(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  function toggleSection(id) {
+    document.getElementById(id).classList.toggle('collapsed');
+  }
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  }
+
+  function scrollToPhase(id) {
+    const sidebar = document.getElementById('sidebar');
+    const el = document.getElementById(id);
+    // Open sidebar on mobile
+    if (window.innerWidth <= 768) {
+      sidebar.classList.add('open');
+      document.getElementById('sidebarOverlay').classList.add('open');
+    }
+    // Scroll to phase in sidebar
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Briefly highlight
+    el.querySelector('.phase-header').style.background = 'var(--brand-light)';
+    setTimeout(() => {
+      el.querySelector('.phase-header').style.background = '';
+    }, 800);
+  }
+</script>
+
+</body>
+</html>

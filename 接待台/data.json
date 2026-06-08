@@ -1,0 +1,193 @@
+{
+  "updated_at": "2026-06-06 17:58",
+  "overview": {
+    "total_orders": 41,
+    "completed_orders": 38,
+    "completion_rate": 92.7,
+    "student_count": 26
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "name": "许三思",
+      "orders": 6,
+      "earnings": 350,
+      "points": 15
+    },
+    {
+      "rank": 2,
+      "name": "泽林",
+      "orders": 6,
+      "earnings": 300,
+      "points": 12
+    },
+    {
+      "rank": 3,
+      "name": "山人",
+      "orders": 4,
+      "earnings": 250,
+      "points": 12
+    },
+    {
+      "rank": 4,
+      "name": "Ue椰子",
+      "orders": 3,
+      "earnings": 250,
+      "points": 9
+    },
+    {
+      "rank": 5,
+      "name": "妍潼潼",
+      "orders": 3,
+      "earnings": 200,
+      "points": 9
+    },
+    {
+      "rank": 6,
+      "name": "spark",
+      "orders": 3,
+      "earnings": 200,
+      "points": 6
+    },
+    {
+      "rank": 7,
+      "name": "叶青",
+      "orders": 3,
+      "earnings": 200,
+      "points": 9
+    },
+    {
+      "rank": 8,
+      "name": "满目星河",
+      "orders": 3,
+      "earnings": 200,
+      "points": 3
+    },
+    {
+      "rank": 9,
+      "name": "顺财神",
+      "orders": 3,
+      "earnings": 200,
+      "points": 6
+    },
+    {
+      "rank": 10,
+      "name": "婉小晚",
+      "orders": 2,
+      "earnings": 150,
+      "points": 6
+    },
+    {
+      "rank": 11,
+      "name": "楠少",
+      "orders": 3,
+      "earnings": 150,
+      "points": 9
+    },
+    {
+      "rank": 12,
+      "name": "邦邦两拳",
+      "orders": 2,
+      "earnings": 100,
+      "points": 6
+    },
+    {
+      "rank": 13,
+      "name": "VI",
+      "orders": 2,
+      "earnings": 100,
+      "points": 3
+    },
+    {
+      "rank": 14,
+      "name": "小小",
+      "orders": 1,
+      "earnings": 100,
+      "points": 0
+    },
+    {
+      "rank": 15,
+      "name": "露熙",
+      "orders": 1,
+      "earnings": 100,
+      "points": 0
+    },
+    {
+      "rank": 16,
+      "name": "Candy",
+      "orders": 1,
+      "earnings": 100,
+      "points": 3
+    },
+    {
+      "rank": 17,
+      "name": "Cx330",
+      "orders": 1,
+      "earnings": 100,
+      "points": 3
+    },
+    {
+      "rank": 18,
+      "name": "Fanny",
+      "orders": 1,
+      "earnings": 50,
+      "points": 0
+    },
+    {
+      "rank": 19,
+      "name": "小金子",
+      "orders": 1,
+      "earnings": 50,
+      "points": 0
+    },
+    {
+      "rank": 20,
+      "name": "花司",
+      "orders": 1,
+      "earnings": 50,
+      "points": 3
+    },
+    {
+      "rank": 21,
+      "name": "AI",
+      "orders": 1,
+      "earnings": 50,
+      "points": 0
+    },
+    {
+      "rank": 22,
+      "name": "千夜",
+      "orders": 1,
+      "earnings": 50,
+      "points": 3
+    },
+    {
+      "rank": 23,
+      "name": "小莫",
+      "orders": 1,
+      "earnings": 50,
+      "points": 0
+    },
+    {
+      "rank": 24,
+      "name": "梦控师",
+      "orders": 1,
+      "earnings": 50,
+      "points": 0
+    },
+    {
+      "rank": 25,
+      "name": "Vi",
+      "orders": 1,
+      "earnings": 50,
+      "points": 3
+    },
+    {
+      "rank": 26,
+      "name": "liora",
+      "orders": 1,
+      "earnings": 50,
+      "points": 3
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 训练台</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f0e8;
+      --gold: #c8952a;
+      --gold-light: #e8b84b;
+      --gold-pale: #f5e8c0;
+      --gold-gradient: linear-gradient(135deg, #b8821e 0%, #c8952a 50%, #e8b84b 100%);
+      --text-dark: #1a1209;
+      --text-body: #5a4a2a;
+      --text-muted: #9a8a6a;
+      --border: #e8d8b0;
+      --card-bg: #fffcf0;
+      --radius: 20px;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 900;
+      background: var(--gold-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 56px;
+    }
+
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 12px rgba(180,130,20,0.07);
+    }
+
+    .card:hover {
+      border-color: var(--gold);
+      box-shadow: 0 6px 24px rgba(180,130,20,0.15);
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 4px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card-arrow {
+      float: right;
+      font-size: 18px;
+      color: var(--gold);
+      margin-top: -32px;
+    }
+
+    footer {
+      margin-top: 56px;
+      font-size: 12px;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="logo">金钱剪刀</div>
+  <h1>训练台</h1>
+  <p class="subtitle">课程地图 · 学习路径 · 作业</p>
+
+  <div class="cards">
+    <a class="card" href="map.html">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title">闯关地图</div>
+      <div class="card-desc">课程全貌，看清每一关的目标和通关标准</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a class="card" href="path.html">
+      <div class="card-icon">📅</div>
+      <div class="card-title">21天学习路径</div>
+      <div class="card-desc">按天拆解任务，跟着节奏走完整个营期</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a class="card" href="intro.html">
+      <div class="card-icon">👋</div>
+      <div class="card-title">第一节课作业</div>
+      <div class="card-desc">填写自我介绍，生成专属打卡卡片发到群里</div>
+      <div class="card-arrow">→</div>
+    </a>
+  </div>
+
+  <footer>金钱剪刀播客剪辑营 · 内测版</footer>
+
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 · 剪辑决策助手</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+  :root {
+    --gold-1: #c8952a;
+    --gold-2: #e8b84b;
+    --gold-3: #f5d06a;
+    --text-dark: #1a1209;
+    --text-mid: #5a4a2a;
+    --text-light: #9a8a6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+    background: #f5f0e8; color: #1a1209;
+    padding: 0; min-height: 100vh;
+  }
+  .header {
+    text-align: center; padding: 48px 24px 20px;
+  }
+  .header h1 {
+    font-size: 32px; font-weight: 700; letter-spacing: -0.5px;
+    color: #1a1209; margin-bottom: 6px;
+  }
+  .header .subtitle {
+    font-size: 16px; color: #9a8a6a; font-weight: 400;
+    letter-spacing: 0.2px;
+  }
+  .main { max-width: 680px; margin: 0 auto; padding: 0 24px 48px; }
+  .card {
+    background: rgba(255,255,255,0.92); border-radius: 16px;
+    padding: 28px; margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(200,149,42,0.1);
+    border: 1px solid rgba(200,149,42,0.15);
+  }
+  .card-label {
+    font-size: 13px; font-weight: 600; color: #9a8a6a;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 14px;
+  }
+  textarea {
+    width: 100%; border: none; background: transparent;
+    font-size: 15px; line-height: 1.7; font-family: inherit;
+    color: #1a1209; resize: vertical; outline: none;
+    min-height: 300px;
+  }
+  textarea::placeholder { color: #c7c7cc; }
+  .btn-primary {
+    width: 100%; padding: 16px; border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    background: #c8952a; color: #fff;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(200,149,42,0.3);
+  }
+  .btn-primary:hover { background: #b8821e; box-shadow: 0 4px 12px rgba(200,149,42,0.4); }
+  .btn-primary:disabled { background: #d2d2d7; box-shadow: none; cursor: not-allowed; }
+  .error { color: #ff3b30; font-size: 13px; margin-top: 10px; text-align: center; }
+  .output-section { margin-top: 12px; }
+  .output-card {
+    background: #fff; border-radius: 16px;
+    padding: 28px; margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .output-label {
+    font-size: 13px; font-weight: 600; color: #c8952a;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 16px;
+  }
+  .output-content {
+    font-size: 15px; line-height: 1.8; color: #1a1209;
+  }
+  .output-content h2 {
+    font-size: 20px; font-weight: 700; margin: 24px 0 12px 0;
+    color: #1a1209;
+  }
+  .output-content h3 {
+    font-size: 17px; font-weight: 600; margin: 20px 0 10px 0;
+    color: #1a1209;
+  }
+  .output-content ul, .output-content ol {
+    margin: 12px 0; padding-left: 24px;
+  }
+  .output-content li {
+    margin: 8px 0;
+  }
+  .output-content strong {
+    font-weight: 600;
+    color: #1a1209;
+  }
+  .output-content p {
+    margin: 12px 0;
+  }
+  .btn-copy {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; border: 1px solid #e5e5ea; border-radius: 10px;
+    font-size: 14px; font-weight: 500; color: #1a1209;
+    background: #fff; cursor: pointer; margin-top: 20px;
+    transition: all 0.2s ease; width: auto;
+  }
+  .btn-copy:hover { background: #f5f5f7; border-color: #c8952a; color: #c8952a; }
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .footer {
+    text-align: center; padding: 24px;
+    font-size: 12px; color: #c7c7cc;
+  }
+
+/* ── 统一顶部导航栏 ── */
+.jjd-topbar{display:flex;align-items:center;gap:12px;padding:11px 22px;background:rgba(245,240,232,0.97);border-bottom:1px solid rgba(200,149,42,0.2);backdrop-filter:blur(8px);position:sticky;top:0;z-index:100;}
+.jjd-topbar-logo{width:28px;height:28px;background:linear-gradient(135deg,#f5d06a,#c8952a);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;box-shadow:0 2px 6px rgba(200,149,42,0.3);}
+.jjd-topbar-name{font-size:15px;font-weight:700;color:#1a1209;letter-spacing:-0.2px;}
+.jjd-topbar-back{margin-left:auto;font-size:13px;color:#9a8a6a;text-decoration:none;padding:5px 11px;border-radius:7px;border:1px solid transparent;transition:all 0.15s;}
+.jjd-topbar-back:hover{background:rgba(200,149,42,0.1);color:#c8952a;border-color:rgba(200,149,42,0.2);}
+</style>
+</head>
+<body>
+<div class="jjd-topbar"><div class="jjd-topbar-logo">✦</div><span class="jjd-topbar-name">金钱剪刀</span><a class="jjd-topbar-back" href="剪辑台项目管理.html">← 返回工作台</a></div>
+
+<div class="header">
+  <h1>播客剪辑助手</h1>
+  <p class="subtitle">粘贴逐字稿，获取剪辑决策</p>
+</div>
+
+<div class="main">
+  <div class="card">
+    <div class="card-label">播客逐字稿</div>
+    <textarea id="transcript" placeholder="直接粘贴播客逐字稿内容..."></textarea>
+  </div>
+
+  <button class="btn-primary" id="analyzeBtn" onclick="analyze()">开始分析</button>
+  <div id="error" class="error"></div>
+
+  <div id="outputSection" class="output-section" style="display:none">
+    <div class="output-card">
+      <div class="output-label">剪辑分析结果</div>
+      <div class="output-content" id="outputContent"></div>
+      <button class="btn-copy" onclick="copyResult()">📋 复制结果</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">播客剪辑决策助手</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const API_KEY = 'sk-808c7e7547224685a7d79573a4ec35da';
+
+const SYSTEM_PROMPT = `你是一个做了十年内容营销的播客剪辑顾问。你帮人决定一期播客哪些该留、哪些该删。
+
+你判断内容好不好，不看讲得对不对，看的是：
+1. 听众听到这段会不会有感觉，会笑、会难过、会觉得说到心坎里了，这种留
+2. 两个人聊到观点不一样、或者说了大家没想到的话，这种留
+3. 讲了一个真实的事，有画面感的，比干巴巴讲道理好，留
+4. 没什么情绪、在重复前面说过的、或者跑题了的，删
+
+语气要求：说人话，别用书面语，别用AI味的词，不要用书名号，不要用「」这种括号，写出来要像跟朋友聊天一样。
+
+用户粘贴播客逐字稿，直接分析，别问东问西，有什么就分析什么。用 markdown 格式输出。
+
+---
+
+## 节目概要
+
+- **播客主**：
+- **嘉宾**：
+- **这期聊了什么**：用一句话说清楚，要让人一看就想听
+- **适合谁听 / 能带走什么**：
+- **内容侧重**：干货 / 故事 / 情绪，大概各占多少
+- **高光时刻**：全篇最值得传播的一个地方，说清楚为什么
+- **最不能删的部分**：全篇最有价值的一个地方，说清楚为什么
+- **下次优化**：站在老播客主的角度，指出一个地方其实可以追问得更深
+- **建议保留比例**：xx%
+
+## 剪辑方案
+**核心主线**：一句话，写得像一个让人想点进来的标题
+
+**为什么这么剪**：两句话说清楚
+
+**金句开场**：从原文里挑3-5句最能打动人的话，优先选那种听完会想截图发朋友圈的
+
+
+**第一幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：
+
+**第二幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：
+
+**第三幕：[标题]**
+- 这段要做到什么：让听众 ___
+- 听完的感觉：___
+- 保留内容：`;
+
+async function analyze() {
+  const transcript = document.getElementById('transcript').value.trim();
+  const errorEl = document.getElementById('error');
+  const btn = document.getElementById('analyzeBtn');
+  const outputSection = document.getElementById('outputSection');
+  const outputContent = document.getElementById('outputContent');
+
+  errorEl.textContent = '';
+
+  if (!transcript) {
+    errorEl.textContent = '请先粘贴播客逐字稿';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>分析中...';
+  outputSection.style.display = 'none';
+
+  try {
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 4096,
+        stream: true,
+        messages: [
+          {
+            role: 'user',
+            content: SYSTEM_PROMPT + '\n\n以下是播客逐字稿：\n\n' + transcript
+          }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    outputSection.style.display = 'block';
+    outputSection.scrollIntoView({ behavior: 'smooth' });
+
+    let fullText = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6);
+        if (jsonStr === '[DONE]') continue;
+        try {
+          const event = JSON.parse(jsonStr);
+          if (event.choices?.[0]?.delta?.content) {
+            fullText += event.choices[0].delta.content;
+            outputContent.innerHTML = marked.parse(fullText);
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!fullText) throw new Error('未收到任何内容');
+
+  } catch (e) {
+    errorEl.textContent = '出错了：' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '开始分析';
+  }
+}
+
+function copyResult() {
+  const content = document.getElementById('outputContent').innerText;
+  navigator.clipboard.writeText(content).then(() => {
+    const btn = event.target;
+    btn.innerHTML = '✅ 已复制';
+    setTimeout(() => btn.innerHTML = '📋 复制结果', 1500);
+  });
+}
+</script>
+</body>
+</html>

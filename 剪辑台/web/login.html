@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 登录</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260529b">
+</head>
+<body class="auth-body">
+  <main class="shell shell-narrow">
+    <header class="brand">
+      <div class="brand-mark">✂️</div>
+      <h1>金钱剪刀</h1>
+      <p>AI 帮你剪播客。登录后即可上传、转录、剪辑。</p>
+    </header>
+
+    <section class="card auth-card">
+      <div class="stack">
+        <label class="field">
+          <span>手机号</span>
+          <input id="phone" inputmode="numeric" maxlength="11" placeholder="请输入 11 位手机号" autocomplete="tel">
+        </label>
+
+        <label class="field">
+          <span>验证码</span>
+          <div class="code-row">
+            <input id="code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" autocomplete="one-time-code">
+            <button class="ghost-btn" id="send-code-btn" type="button">发送验证码</button>
+          </div>
+        </label>
+
+        <button class="primary-btn" id="login-btn" type="button">登 录</button>
+        <div class="hint" id="hint"></div>
+        <div class="error" id="error"></div>
+      </div>
+    </section>
+
+    <p class="auth-foot">登录即表示你已阅读并同意 <a href="/privacy" target="_blank" rel="noopener">隐私说明</a>。</p>
+  </main>
+
+  <script type="module" src="js/login.js?v=20260529-1"></script>
+</body>
+</html>
