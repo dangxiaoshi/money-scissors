@@ -1,5 +1,5 @@
 import { DASHSCOPE_PROXY_URL } from './config.js?v=20260606-2';
-import { getAuthHeaders } from './api.js?v=20260606-1';
+import { getAuthHeaders } from './api.js?v=20260610-reviewflow-1';
 
 export async function transcribeWithFunASR(audioUrl, speakerCount, { onStatus } = {}) {
   if (!DASHSCOPE_PROXY_URL) {
@@ -21,7 +21,7 @@ export async function transcribeWithFunASR(audioUrl, speakerCount, { onStatus } 
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
     onStatus?.(`转录中，已等待 ${formatElapsed(elapsed)}`);
 
-  if (status === 'SUCCEEDED') {
+    if (status === 'SUCCEEDED') {
       const url = data.output?.results?.[0]?.transcription_url;
       if (!url) throw new Error(`转录成功但缺少 transcription_url：${JSON.stringify(data)}`);
       onStatus?.('正在下载转录结果');
@@ -33,7 +33,7 @@ export async function transcribeWithFunASR(audioUrl, speakerCount, { onStatus } 
     }
   }
 
-  throw new Error('阿里云转录超时：已等待 25 分钟');
+  throw new Error('阿里云转录超时：已等待 25 分钟。你可以重新开始；如果这段音频很长，建议先拆短一点再上传。');
 }
 
 async function submitTask(audioUrl, speakerCount) {

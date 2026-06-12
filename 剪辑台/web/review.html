@@ -25,6 +25,7 @@
   --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
   --shadow-accent: 0 2px 8px rgba(245,166,35,0.3);
+  --sidebar-w: 340px;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -69,24 +70,93 @@ body {
   transition: all .15s;
 }
 .topbar .expbtn:hover { background: var(--accent-hover); box-shadow: 0 4px 12px rgba(245,166,35,0.4); }
+.topbar .backupbtn {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.topbar .backupbtn:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+.topbar .snapshot-cutbtn {
+  background: var(--accent-soft);
+  border: 1px solid rgba(245,166,35,0.35);
+  color: var(--accent-deep);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 650;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.topbar .snapshot-cutbtn:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+body.readonly .expbtn,
+body.readonly .backupbtn,
+body.readonly .gearbtn,
+body.readonly .chk,
+body.readonly #selbtn,
+body.readonly .decision-edit,
+body.readonly .decision-tools button:last-child {
+  display: none !important;
+}
+body.readonly .row {
+  cursor: pointer;
+}
+body.readonly .decision-status::after {
+  content: " · 只读";
+}
 
 /* ===== LAYOUT ===== */
 .layout {
   display: flex;
   margin-top: 56px;
   margin-bottom: 80px;
+  align-items: flex-start;
 }
 
 /* --- SIDEBAR --- */
 .sidebar {
-  width: 320px; flex-shrink:0;
+  width: var(--sidebar-w); flex-shrink:0;
   background: var(--surface);
-  border-right: 1px solid var(--hairline);
   position: sticky; top: 56px;
   height: calc(100vh - 136px);
   overflow-y: auto;
   padding: 28px 24px;
-  display: flex; flex-direction: column; gap: 28px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.splitter {
+  width: 9px;
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: calc(100vh - 136px);
+  position: sticky;
+  top: 56px;
+  cursor: col-resize;
+  background: linear-gradient(to right, transparent 0 3px, var(--hairline) 3px 4px, transparent 4px 100%);
+  transition: background-color .12s;
+  z-index: 80;
+}
+
+.splitter:hover,
+body.resizing-sidebar .splitter {
+  background-color: var(--accent-soft);
+}
+
+body.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .section-label {
@@ -115,6 +185,56 @@ body {
 .dur-meta { font-size: 13px; color: var(--muted); }
 .dur-meta strong { font-weight: 600; color: var(--accent); }
 
+.side-fold {
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.side-fold summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.side-fold summary::-webkit-details-marker { display: none; }
+
+.side-fold summary::before {
+  content: "›";
+  color: var(--accent-deep);
+  transition: transform .12s;
+}
+
+.side-fold[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.side-fold-mini {
+  margin-left: auto;
+  font-family: "SF Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.side-fold-body {
+  border-top: 1px solid var(--hairline);
+  padding: 12px;
+}
+
+.side-fold .dur-block {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 /* Summary */
 .summary-text {
   font-size: 14px; line-height: 1.7; color: var(--ink-2);
@@ -134,6 +254,224 @@ body {
 /* Navigator */
 .nav-section { flex:1; min-height:0; display:flex; flex-direction:column; }
 .nav-list { display:flex; flex-direction:column; gap:2px; overflow-y:auto; flex:1; }
+
+.side-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+
+.side-tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 7px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+
+.side-tab.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+
+.side-panel {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.side-panel.hidden { display: none; }
+
+.decision-report,
+.overview-content {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 2px;
+}
+
+.decision-block {
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.decision-block[open] {
+  box-shadow: var(--shadow-card);
+}
+
+.decision-block summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.decision-block summary::-webkit-details-marker { display: none; }
+
+.decision-block summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 7px;
+  color: var(--accent-deep);
+  transition: transform .12s;
+}
+
+.decision-block[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.decision-content {
+  border-top: 1px solid var(--hairline);
+  padding: 10px 12px 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+.decision-subhead {
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 800;
+  margin: 12px 0 6px;
+}
+.decision-subhead:first-child { margin-top: 0; }
+.decision-content p { margin: 0 0 8px; }
+.decision-content p:last-child { margin-bottom: 0; }
+.decision-content .decision-bullet { padding-left: 12px; position: relative; }
+.decision-content .decision-bullet::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  position: absolute;
+  left: 0;
+  top: 11px;
+}
+
+.decision-tools {
+  align-items: center;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 12px 12px;
+}
+
+.decision-mini-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.decision-mini-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+.decision-edit {
+  border-top: 1px solid var(--hairline);
+  display: none;
+  gap: 10px;
+  padding: 12px;
+}
+
+.decision-block.editing .decision-content {
+  display: none;
+}
+
+.decision-block.editing .decision-edit {
+  display: grid;
+}
+
+.decision-field {
+  display: grid;
+  gap: 6px;
+}
+
+.decision-field label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.decision-input,
+.decision-select,
+.decision-textarea {
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+.decision-textarea {
+  line-height: 1.6;
+  min-height: 118px;
+  resize: vertical;
+}
+
+.decision-input:focus,
+.decision-select:focus,
+.decision-textarea:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.decision-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.decision-empty {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.decision-empty strong {
+  color: var(--ink);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.decision-empty p {
+  margin: 0;
+}
+.nav-decision-alert {
+  margin-bottom: 10px;
+}
 
 .nav-item {
   display: flex; align-items: flex-start; gap: 10px;
@@ -215,22 +553,16 @@ body {
   z-index: 0;
 }
 
-/* Audio refine bar */
-.refine-bar {
+/* Audio refine bar (kept for gear popup) */
+.refine-option {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
-}
-.refine-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 6px 10px;
-  background: var(--surface-2);
+  min-height: 34px;
+  padding: 6px 8px;
+  background: transparent;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
@@ -239,12 +571,132 @@ body {
   transition: all .15s;
 }
 .refine-option:hover {
-  border-color: var(--hairline-strong);
+  background: var(--surface-2);
   color: var(--ink);
 }
 .refine-option input {
   accent-color: var(--accent);
 }
+
+/* Gear button */
+.gearbtn {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+  padding: 8px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+  line-height: 1;
+}
+.gearbtn:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+
+/* Gear popup */
+.gear-popup {
+  position: fixed; top: 64px; right: 16px; z-index: 2001;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 12px; padding: 10px 12px; min-width: 160px;
+  box-shadow: var(--shadow-md);
+  display: none;
+}
+.gear-popup.vis { display: block; }
+.gear-popup-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 6px; padding: 0 4px;
+}
+
+/* Duration + speaker info bar in mode-bar */
+.dur-info-bar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.dur-info-time {
+  font-family: "SF Mono", monospace;
+  font-size: 13px; font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.dur-info-sep { color: var(--hairline-strong); font-size: 12px; }
+.sp-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  cursor: pointer; padding: 3px 7px; border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all .12s;
+  user-select: none;
+}
+.sp-chip:hover { border-color: var(--hairline); background: var(--surface-2); }
+.sp-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sp-chip-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.sp-chip-pct { font-size: 11px; color: var(--muted); }
+.sp-rename-input {
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--accent);
+  border-radius: 4px; outline: none; padding: 2px 5px;
+  width: 80px; font-family: inherit;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Unified nav + act items in sidebar */
+.nav-act-item {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 4px;
+  background: var(--surface);
+  transition: border-color .12s;
+}
+.nav-act-item.active { border-color: rgba(245,166,35,.4); background: var(--accent-soft); }
+.nav-act-item > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  font-size: 13px; font-weight: 650; color: var(--ink);
+}
+.nav-act-item > summary::-webkit-details-marker { display: none; }
+.nav-act-item > summary::before {
+  content: "›";
+  color: var(--accent-deep);
+  transition: transform .12s;
+  flex-shrink: 0;
+}
+.nav-act-item[open] > summary::before { transform: rotate(90deg); }
+.nav-act-item > summary:hover { background: var(--surface-2); }
+.nav-act-item.active > summary { color: var(--accent-deep); }
+.nav-act-item.active > summary::before { color: var(--accent-deep); }
+.nav-act-content {
+  border-top: 1px solid var(--hairline);
+  padding: 10px 12px 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.nav-act-content p { margin: 0 0 6px; }
+.nav-act-content p:last-child { margin-bottom: 0; }
+.nav-act-content .decision-bullet { padding-left: 12px; position: relative; }
+.nav-act-content .decision-bullet::before {
+  content: "";
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent);
+  position: absolute; left: 0; top: 9px;
+}
+.dec-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: .3px;
+  padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+  vertical-align: middle;
+}
+.dec-badge-保留 { background: rgba(52,199,89,.12); color: #1a7f37; }
+.dec-badge-删除 { background: rgba(255,59,48,.1); color: #c0392b; }
+.dec-badge-压缩 { background: var(--accent-soft); color: var(--accent-deep); }
 
 /* Preview mode: smooth transitions */
 .row.del, .blk, .sug-reason {
@@ -316,10 +768,14 @@ body.preview .sug-reason { opacity: 0; }
 /* Sentence row */
 .row {
   display: flex; align-items: flex-start;
-  padding: 10px 14px; border-radius: 8px; margin-bottom: 1px;
+  padding: 4px 14px; border-radius: 8px; margin-bottom: 0;
   cursor: pointer; transition: background .1s;
   border-left: 3px solid transparent;
 }
+/* First row of a speaker block gets top spacing */
+.row:not(.same-sp) { padding-top: 10px; }
+/* Last row of a speaker block (next has different speaker or is end) — add bottom space */
+.row.sp-last { padding-bottom: 10px; }
 .row:hover { background: var(--surface-2); }
 .row.act { background: var(--accent-soft); border-left-color: var(--accent); }
 .row.del { opacity: .5; }
@@ -327,6 +783,8 @@ body.preview .sug-reason { opacity: 0; }
 .row.del .r-txt { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
 .row.sug { border-left: 3px dashed var(--accent); }
 .row.sug .r-txt { text-decoration-style: dashed; }
+/* Same-speaker continuation: hide repeated speaker name */
+.row.same-sp .r-sp { visibility: hidden; }
 .sug-reason {
   display: inline-block; margin-left: 8px;
   font-size: 11px; color: var(--accent-deep); font-weight: 600;
@@ -337,8 +795,7 @@ body.preview .sug-reason { opacity: 0; }
 
 .r-chk { margin-right: 12px; padding-top: 3px; }
 .r-sp { font-size: 14px; font-weight: 700; min-width: 56px; flex-shrink:0; margin-right: 12px; padding-top: 4px; color: var(--ink-2); }
-.r-tm { font-family:"SF Mono",monospace; font-size: 13px; color: var(--light); min-width: 50px; flex-shrink:0; margin-right: 14px; padding-top: 5px; cursor:pointer; font-variant-numeric: tabular-nums; }
-.r-tm:hover { color: var(--accent); }
+.r-tm { display: none; }
 .r-txt { font-size: 16px; line-height: 1.8; color: var(--ink); flex:1; min-width:0; }
 .r-num { font-family:"SF Mono",monospace; font-size: 11px; color: var(--light); min-width: 32px; flex-shrink:0; margin-right: 8px; padding-top: 6px; text-align:right; user-select:none; font-variant-numeric: tabular-nums; }
 
@@ -504,6 +961,7 @@ body.preview .sug-reason { opacity: 0; }
 @media(max-width:960px) {
   .layout { flex-direction:column; }
   .sidebar { width:100%; position:relative; height:auto; border-right:none; border-bottom:1px solid var(--hairline); }
+  .splitter { display:none; }
   .main { padding: 24px; }
   .main-title { font-size:26px; }
 }
@@ -516,15 +974,35 @@ body.preview .sug-reason { opacity: 0; }
   <span class="proj">测试剪辑审查稿 (3人对话)</span>
   <span class="fill"></span>
   <span class="status" id="sv">自动保存：已保存</span>
-  <span class="info-icon" onclick="document.getElementById('info-tip').classList.toggle('vis')" title="关于导出">?</span>
-  <button class="expbtn" onclick="doExport()">导出</button>
+  <span class="info-icon" onclick="document.getElementById('info-tip').classList.toggle('vis')" title="关于提交审核">?</span>
+  <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="音频精修设置">⚙</button>
+  <button class="backupbtn" onclick="doExport({next:'cut'})">生成 MP3</button>
+  <button class="snapshot-cutbtn" id="snapshot-cut-btn" onclick="downloadSnapshotCut()" hidden>下载审核 MP3</button>
+  <button class="expbtn" onclick="doExport()">提交助教审核</button>
+</div>
+
+<!-- Gear popup: audio processing options -->
+<div class="gear-popup" id="gear-popup">
+  <div class="gear-popup-title">音频精修</div>
+  <label class="refine-option">
+    <input type="checkbox" id="refine-normalize">
+    <span>响度统一</span>
+  </label>
+  <label class="refine-option">
+    <input type="checkbox" id="refine-denoise">
+    <span>轻度降噪</span>
+  </label>
+  <label class="refine-option">
+    <input type="checkbox" id="refine-voice">
+    <span>人声增强</span>
+  </label>
 </div>
 
 <!-- Info tooltip -->
 <div class="info-popup" id="info-tip">
-  <div class="info-popup-title">导出说明</div>
-  <p>导出会把所有标记删除的时间段传给浏览器剪辑页。</p>
-  <p>下一页会在本机浏览器里加载 ffmpeg.wasm，生成可下载的 MP3 成品。</p>
+  <div class="info-popup-title">提交说明</div>
+  <p>提交会保存当前删减状态，生成一份只读审核快照，助教可以在后台查看。</p>
+  <p>如果你想自己先听成品，可以点旁边的生成 MP3 作为备用入口。</p>
   <button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
 </div>
 
@@ -553,33 +1031,29 @@ body.preview .sug-reason { opacity: 0; }
 <div class="layout">
 <aside class="sidebar">
 
-  <div class="dur-block">
-    <div class="section-label">时长</div>
-    <div class="dur-main">
-      <span class="dur-from serif" id="d-from">0:00</span>
-      <span class="dur-arrow">→</span>
-      <span class="dur-to serif" id="d-to">0:00</span>
+  <details class="side-fold" open>
+    <summary>删减概要 <span class="side-fold-mini" id="d-mini">0:00 → 0:00</span></summary>
+    <div class="side-fold-body">
+      <div class="dur-block">
+        <div class="dur-main">
+          <span class="dur-from serif" id="d-from">0:00</span>
+          <span class="dur-arrow">→</span>
+          <span class="dur-to serif" id="d-to">0:00</span>
+        </div>
+        <div class="dur-meta">删减了 <strong id="d-rm">0:00</strong></div>
+      </div>
+      <div class="summary-text" id="summ" style="margin-top:12px"></div>
+      <div class="sp-legend" id="spleg" style="margin-top:12px"></div>
     </div>
-    <div class="dur-meta">删减了 <strong id="d-rm">0:00</strong></div>
-  </div>
-
-  <div>
-    <div class="section-label">删减概要</div>
-    <div class="summary-text" id="summ"></div>
-  </div>
-
-  <div>
-    <div class="section-label">说话人</div>
-    <div class="sp-legend" id="spleg"></div>
-  </div>
+  </details>
 
   <div class="nav-section">
-    <div class="section-label">章节导航</div>
     <div class="nav-list" id="nav"></div>
   </div>
 
-
 </aside>
+
+<div class="splitter" id="splitter" title="拖动调整左侧宽度"></div>
 
 <main class="main">
   <div class="main-hdr">
@@ -588,20 +1062,6 @@ body.preview .sug-reason { opacity: 0; }
         <div class="mode-slider" id="mode-slider"></div>
         <button class="mode-btn active" id="mode-edit" onclick="setMode('edit')">✂️ 剪辑模式</button>
         <button class="mode-btn" id="mode-preview" onclick="setMode('preview')">🎧 粗剪试听</button>
-      </div>
-      <div class="refine-bar" id="refine-bar" aria-label="音频精修设置">
-        <label class="refine-option">
-          <input type="checkbox" id="refine-normalize">
-          <span>响度统一</span>
-        </label>
-        <label class="refine-option">
-          <input type="checkbox" id="refine-denoise">
-          <span>轻度降噪</span>
-        </label>
-        <label class="refine-option">
-          <input type="checkbox" id="refine-voice">
-          <span>人声增强</span>
-        </label>
       </div>
     </div>
   </div>
@@ -621,10 +1081,30 @@ body.preview .sug-reason { opacity: 0; }
 <div class="toast" id="toast"></div>
 <audio id="au" src="1_转录/audio_seekable.mp3" preload="auto"></audio>
 
-<script type="module" src="js/review-guard.js?v=20260527-2"></script>
+<script type="module" src="js/review-guard.js?v=20260610-reviewflow-1"></script>
 <script>
 
-const __INJECTED_RAW = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data');
+const __QUERY = new URLSearchParams(location.search);
+const __PROJECT_ID = __QUERY.get('project') || '';
+const __SNAPSHOT_ID = __QUERY.get('snapshot') || '';
+const __REMOTE_BOOT = loadRemoteReviewData(__PROJECT_ID, __SNAPSHOT_ID);
+window.__CUT_PAYLOAD = __REMOTE_BOOT?.cutPayload || null;
+if ((__PROJECT_ID || __SNAPSHOT_ID) && !__REMOTE_BOOT?.payload) {
+  document.body.innerHTML = "<main style=\"padding:32px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;\"><h1 style=\"font-size:22px;margin-bottom:10px;\">没有打开这份剪辑档案</h1><p style=\"color:#666;\">可能是登录已过期、没有权限，或者这份档案不存在。请回到项目列表或后台重新打开。</p></main>";
+  throw new Error('remote_review_data_unavailable');
+}
+if (__REMOTE_BOOT?.payload && !__SNAPSHOT_ID) {
+  try {
+    const serialized = JSON.stringify(__REMOTE_BOOT.payload);
+    sessionStorage.setItem('jinqian_data', serialized);
+    localStorage.setItem('jinqian_data', serialized);
+  } catch (error) {
+    console.warn('远程项目缓存失败', error);
+  }
+}
+const __INJECTED_RAW = __REMOTE_BOOT?.payload
+  ? JSON.stringify(__REMOTE_BOOT.payload)
+  : (sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data'));
 if (__INJECTED_RAW) {
   try {
     const __INJECTED = JSON.parse(__INJECTED_RAW);
@@ -633,8 +1113,49 @@ if (__INJECTED_RAW) {
     window.__CHAPS_OVERRIDE = __INJECTED.CHAPS;
     window.__AUDIO_OVERRIDE = __INJECTED.audioUrl;
     window.__FILE_NAME = __INJECTED.fileName;
+    window.__DECISION_REPORT = __INJECTED.decisionReport;
+    window.__DECISION_ERROR = __INJECTED.decisionError || __INJECTED.decisionSaveError || '';
+    window.__PROJECT_ID = __PROJECT_ID || __INJECTED.projectId || '';
+    window.__SNAPSHOT_ID = __SNAPSHOT_ID;
+    window.__READ_ONLY = Boolean(__SNAPSHOT_ID);
+    window.__EDIT_STATE = __INJECTED.editState || null;
   } catch (error) {
     console.warn('注入数据解析失败，使用 demo 数据', error);
+  }
+}
+requestAnimationFrame(() => {
+  const snapshotCutBtn = document.getElementById('snapshot-cut-btn');
+  if (snapshotCutBtn && window.__READ_ONLY && window.__CUT_PAYLOAD?.audioUrl) {
+    snapshotCutBtn.hidden = false;
+  }
+});
+
+function loadRemoteReviewData(projectId, snapshotId) {
+  const endpoint = snapshotId
+    ? `/api/admin/snapshots/${encodeURIComponent(snapshotId)}`
+    : projectId
+      ? `/api/projects/${encodeURIComponent(projectId)}`
+      : '';
+  if (!endpoint) return null;
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', endpoint, false);
+    const token = readStoredToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send();
+    if (xhr.status < 200 || xhr.status >= 300) throw new Error(`HTTP ${xhr.status}`);
+    return JSON.parse(xhr.responseText || '{}');
+  } catch (error) {
+    console.warn('远程项目读取失败', error);
+    return null;
+  }
+}
+
+function readStoredToken() {
+  try {
+    return JSON.parse(localStorage.getItem('jinqian_token') || '{}')?.token || '';
+  } catch {
+    return '';
   }
 }
 
@@ -662,7 +1183,22 @@ const del=new Set(), um=new Set();
 // 半句删除：sentenceIdx → [{a,b,s,e}]（a/b=词索引范围，s/e=删除时间段）
 const pdel={};
 let curIdx=-1, curNav=-1;
+const spDisplayNames = {}; // original name → display name
+
+function displaySp(name) {
+  return spDisplayNames[name] || name;
+}
 S.forEach(x=>{ if(x.ai) del.add(x.idx); if(x.sug) del.add(x.idx); });
+
+if (window.__READ_ONLY) {
+  document.body.classList.add('readonly');
+  const status = document.getElementById('sv');
+  if (status) status.textContent = '只读审核快照';
+}
+
+let DECISION_REPORT = loadDecisionReport();
+let DECISION_ERROR = loadDecisionError();
+let decisionSections = [];
 
 const REFINE_SETTINGS_KEY = 'jinqian_refine_settings';
 const DEFAULT_REFINE_SETTINGS = {
@@ -674,7 +1210,7 @@ const DEFAULT_REFINE_SETTINGS = {
 let refineSettings = loadRefineSettings();
 
 function fm(s){ if(s<0)s=0; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=Math.floor(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${m}:${String(sc).padStart(2,'0')}`; }
-function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(t){ return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function loadRefineSettings(){
   try {
@@ -765,6 +1301,8 @@ function renderSidebar() {
   document.getElementById('d-from').textContent=fm(td);
   document.getElementById('d-to').textContent=fm(rc);
   document.getElementById('d-rm').textContent=fm(rd);
+  const mini = document.getElementById('d-mini');
+  if (mini) mini.textContent = `${fm(td)} → ${fm(rc)}`;
 
   // Summary
   const fill=['pre_show','tech_debug','production_talk','chit_chat'];
@@ -782,25 +1320,469 @@ function renderSidebar() {
   if(!summText) summText = '未做任何删减。';
   document.getElementById('summ').textContent = summText;
 
-  // Speaker legend (no pie chart)
+  // Speaker legend
   const en=spList.filter(sp=>sd[sp]>0).map(sp=>({n:sp,d:sd[sp]||0}));
-  if(en.length){
-    document.getElementById('spleg').innerHTML=en.map(e=>{
-      const p=Math.round(e.d/rc*100);
-      return`<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${e.n}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
+  if (en.length) {
+    document.getElementById('spleg').innerHTML = en.map(e => {
+      const p = Math.round(e.d / rc * 100);
+      return `<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${esc(displaySp(e.n))}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
     }).join('');
   }
 
-  // Navigator
-  document.getElementById('nav').innerHTML = CHAPS.map((ch,i)=>{
-    return`<div class="nav-item${i===curNav?' active':''}" onclick="navTo(${i})">
-      <span class="nav-num">${String(i+1).padStart(2,'0')}</span>
-      <div class="nav-body">
-        <div class="nav-title">${esc(ch.title)}</div>
-        <div class="nav-ts">${ch.time} · ${esc(ch.desc)}</div>
-      </div>
-    </div>`;
+  // Ensure decision sections populated
+  if (!decisionSections.length && DECISION_REPORT) {
+    decisionSections = parseDecisionSections(DECISION_REPORT).map((section, index) => normalizeDecisionSection(section, index));
+  }
+
+  // Unified chapter + act navigator
+  // If we have decision sections with proper act titles, use those as primary labels
+  const navItems = decisionSections.length
+    ? decisionSections.map((ds, dsIdx) => {
+        const chapIdx = ds.chapterIndex ?? mapDecisionToChapter(dsIdx);
+        const ch = CHAPS[chapIdx] || CHAPS[0] || {};
+        return { label: ds.title, ch, ds, navIdx: dsIdx };
+      })
+    : CHAPS.map((ch, i) => {
+        const dIdx = decisionIndexForChapter(i);
+        return { label: ch.title, ch, ds: decisionSections[dIdx] || null, navIdx: i };
+      });
+
+  const decisionNotice = DECISION_ERROR
+    ? `<div class="decision-empty nav-decision-alert"><strong>剪辑决策需要注意</strong><p>${esc(DECISION_ERROR)}</p></div>`
+    : !DECISION_REPORT
+      ? '<div class="decision-empty nav-decision-alert"><strong>这次没有真实剪辑决策</strong><p>系统没有拿到可用的前情总览和三幕方案。你仍然可以先编辑逐字稿，但不要把这里当作 AI 已经分析完成。</p></div>'
+      : '';
+
+  document.getElementById('nav').innerHTML = decisionNotice + navItems.map((item, i) => {
+    const activeNav = curNav >= 0 ? curNav : 0;
+    const isActive = i === activeNav;
+    const decContent = item.ds ? renderDecisionLines(item.ds.lines) : '';
+    return `<details class="nav-act-item${isActive ? ' active' : ''}" id="navact${i}"${isActive ? ' open' : ''}>
+      <summary onclick="navActClick(event, ${i})">
+        <div class="nav-body">
+          <div class="nav-title">${esc(item.label)}</div>
+        </div>
+      </summary>
+      ${decContent ? `<div class="nav-act-content">${decContent}</div>` : ''}
+    </details>`;
   }).join('');
+
+  renderDurInfo();
+}
+
+function switchSidebarTab() { /* tabs removed — sidebar is now single panel */ }
+
+function renderDecisionReport() {
+  const target = document.getElementById('decision-report');
+  if (!target) return;
+  const warningHtml = DECISION_ERROR
+    ? `<div class="decision-empty"><strong>剪辑决策需要注意</strong><p>${esc(DECISION_ERROR)}</p></div>`
+    : '';
+  if (!DECISION_REPORT) {
+    target.innerHTML = warningHtml || '<div class="decision-empty"><strong>这次没有真实剪辑决策</strong><p>系统没有拿到可用的前情总览和三幕方案。你仍然可以先编辑逐字稿，但不要把这里当作 AI 已经分析完成。</p></div>';
+    return;
+  }
+
+  decisionSections = parseDecisionSections(DECISION_REPORT).map((section, index) => normalizeDecisionSection(section, index));
+  target.innerHTML = warningHtml + decisionSections.map((section, index) => {
+    const open = index < 2 ? ' open' : '';
+    return `<details class="decision-block"${open}>
+      <summary>${esc(section.title)}</summary>
+      <div class="decision-content">${renderDecisionLines(section.lines)}</div>
+      <div class="decision-edit">
+        <div class="decision-field">
+          <label>标题</label>
+          <input class="decision-input" data-decision-title="${index}" value="${esc(section.title)}">
+        </div>
+        <div class="decision-field">
+          <label>建议</label>
+          <select class="decision-select" data-decision-action="${index}">
+            <option value="保留"${section.action === '保留' ? ' selected' : ''}>保留</option>
+            <option value="删除"${section.action === '删除' ? ' selected' : ''}>删除</option>
+            <option value="压缩"${section.action === '压缩' ? ' selected' : ''}>压缩</option>
+          </select>
+        </div>
+        <div class="decision-field">
+          <label>理由和备注</label>
+          <textarea class="decision-textarea" data-decision-note="${index}">${esc(section.note)}</textarea>
+        </div>
+      </div>
+      <div class="decision-tools">
+        <button class="decision-mini-btn" type="button" onclick="locateDecision(${index})">定位逐字稿</button>
+        <span class="decision-status" id="decision-status-${index}">可编辑</span>
+        <button class="decision-mini-btn" type="button" onclick="toggleDecisionEdit(${index})">编辑</button>
+      </div>
+    </details>`;
+  }).join('');
+  bindDecisionEditors();
+}
+
+function parseDecisionSections(report) {
+  const grouped = parseDecisionGroups(report);
+  if (grouped.length) return grouped;
+
+  const sections = [];
+  let current = null;
+  const start = (title, firstLine = '') => {
+    if (current) sections.push(current);
+    current = { title: title.replace(/[:：]\s*$/, '').trim() || '剪辑决策', lines: [] };
+    if (firstLine.trim()) current.lines.push(firstLine.trim());
+  };
+
+  String(report).split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    const heading = trimmed.match(/^#{1,3}\s+(.+)$/);
+    const strong = trimmed.match(/^\*\*([^*]{2,80})\*\*[:：]?\s*(.*)$/);
+
+    if (heading) {
+      start(heading[1]);
+      return;
+    }
+    if (strong) {
+      start(strong[1], strong[2] || '');
+      return;
+    }
+    if (!current) start('剪辑决策');
+    current.lines.push(line);
+  });
+
+  if (current) sections.push(current);
+  return sections
+    .map((section) => ({
+      ...section,
+      lines: section.lines.filter((line, index, lines) => line.trim() || (lines[index - 1]?.trim() && lines[index + 1]?.trim())),
+    }))
+    .filter((section) => section.title || section.lines.some((line) => line.trim()));
+}
+
+function parseDecisionGroups(report) {
+  const groups = [
+    { title: '前情总览', lines: [] },
+    { title: '第一幕', lines: [] },
+    { title: '第二幕', lines: [] },
+    { title: '第三幕', lines: [] },
+  ];
+  let current = groups[0];
+
+  String(report).split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    const isHeading = /^#{1,3}\s+/.test(trimmed);
+    const isStrongHeading = /^\*\*([^*]+)\*\*[:：]?\s*(.*)$/.test(trimmed);
+    if (!isHeading && !isStrongHeading) {
+      current.lines.push(line);
+      return;
+    }
+    const titleText = trimmed
+      .replace(/^#{1,3}\s+/, '')
+      .replace(/^\*\*([^*]+)\*\*[:：]?\s*(.*)$/, '$1 $2')
+      .trim();
+    if (/^前情总览/.test(titleText)) {
+      current = groups[0];
+      current.title = '前情总览';
+      return;
+    }
+    const act = titleText.match(/^(第一幕|第二幕|第三幕)[:：\s]*(.*)$/);
+    if (act) {
+      current = groups[{ '第一幕': 1, '第二幕': 2, '第三幕': 3 }[act[1]]];
+      current.title = act[2] ? `${act[1]}：${act[2].replace(/[\[\]]/g, '').trim()}` : act[1];
+      return;
+    }
+    current.lines.push(line);
+  });
+
+  const hasAct = groups.slice(1).some((group) => group.lines.some((line) => line.trim()));
+  if (!hasAct) return [];
+  return groups.map((group) => ({
+    ...group,
+    lines: group.lines.filter((line, index, lines) => line.trim() || (lines[index - 1]?.trim() && lines[index + 1]?.trim())),
+  }));
+}
+
+function renderDecisionLines(lines) {
+  const html = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return '';
+    const heading = trimmed.match(/^#{2,5}\s+(.+)$/);
+    if (heading) return `<div class="decision-subhead">${inlineDecisionMarkdown(heading[1])}</div>`;
+    const strongHeading = trimmed.match(/^\*\*([^*]{2,80})\*\*[:：]?\s*$/);
+    if (strongHeading) return `<div class="decision-subhead">${inlineDecisionMarkdown(strongHeading[1])}</div>`;
+    const bullet = /^[-*]\s+/.test(trimmed);
+    const text = bullet ? trimmed.replace(/^[-*]\s+/, '') : trimmed;
+    return `<p class="${bullet ? 'decision-bullet' : ''}">${inlineDecisionMarkdown(text)}</p>`;
+  }).filter(Boolean).join('');
+  return html || '<p>暂无详细内容。</p>';
+}
+
+function inlineDecisionMarkdown(text) {
+  return esc(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function normalizeDecisionSection(section, index) {
+  let action = section.action || '';
+  const lines = [];
+  section.lines.forEach((line) => {
+    const match = line.trim().match(/^[-*]?\s*建议[:：]\s*(保留|删除|压缩)\s*$/);
+    if (match) {
+      action = match[1];
+      return;
+    }
+    lines.push(line);
+  });
+  return {
+    ...section,
+    lines,
+    action: action || inferDecisionAction({ ...section, lines }),
+    note: section.note || lines.join('\n').trim(),
+    chapterIndex: section.chapterIndex ?? mapDecisionToChapter(index),
+  };
+}
+
+function loadDecisionReport() {
+  const injected = String(window.__DECISION_REPORT || '').trim();
+  if (window.__READ_ONLY && injected) return injected;
+  try {
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data');
+    const payload = raw ? JSON.parse(raw) : null;
+    return String(payload?.decisionReport || injected || '').trim();
+  } catch (error) {
+    return injected;
+  }
+}
+
+function loadDecisionError() {
+  const injected = String(window.__DECISION_ERROR || '').trim();
+  if (window.__READ_ONLY && injected) return injected;
+  try {
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data');
+    const payload = raw ? JSON.parse(raw) : null;
+    return String(payload?.decisionError || payload?.decisionSaveError || injected || '').trim();
+  } catch (error) {
+    return injected;
+  }
+}
+
+function inferDecisionAction(section) {
+  const text = `${section.title}\n${section.lines.join('\n')}`;
+  if (/删除|删掉|砍掉|不要/.test(text)) return '删除';
+  if (/压缩|精简|缩短|收紧/.test(text)) return '压缩';
+  return '保留';
+}
+
+function mapDecisionToChapter(index) {
+  if (!CHAPS.length) return 0;
+  return Math.min(Math.max(0, index), CHAPS.length - 1);
+}
+
+function bindDecisionEditors() {
+  document.querySelectorAll('[data-decision-title], [data-decision-action], [data-decision-note]').forEach((el) => {
+    el.addEventListener('input', () => saveDecisionFromEditors(false));
+    el.addEventListener('change', () => saveDecisionFromEditors(true));
+  });
+}
+
+function toggleDecisionEdit(index) {
+  if (window.__READ_ONLY) return;
+  const block = document.querySelectorAll('.decision-block')[index];
+  if (!block) return;
+  const editing = !block.classList.contains('editing');
+  block.classList.toggle('editing', editing);
+  const btn = block.querySelector('.decision-tools button:last-child');
+  if (btn) btn.textContent = editing ? '完成' : '编辑';
+  if (!editing) {
+    saveDecisionFromEditors(true);
+    renderDecisionReport();
+    openDecision(index);
+  }
+}
+
+function saveDecisionFromEditors(showSaved) {
+  if (window.__READ_ONLY) return;
+  if (!decisionSections.length) return;
+  decisionSections = decisionSections.map((section, index) => {
+    const title = document.querySelector(`[data-decision-title="${index}"]`)?.value.trim() || section.title;
+    const action = document.querySelector(`[data-decision-action="${index}"]`)?.value || section.action || '保留';
+    const note = document.querySelector(`[data-decision-note="${index}"]`)?.value.trim() || '';
+    return {
+      ...section,
+      title,
+      action,
+      note,
+      lines: note ? note.split(/\r?\n/) : section.lines,
+    };
+  });
+  DECISION_REPORT = decisionSectionsToMarkdown(decisionSections);
+  persistDecisionReport(DECISION_REPORT);
+  if (showSaved) {
+    const status = document.getElementById('sv');
+    if (status) status.textContent = '自动保存：剪辑决策已保存';
+    toast('剪辑决策已保存');
+  }
+}
+
+function decisionSectionsToMarkdown(sections) {
+  return sections.map((section) => {
+    const lines = String(section.note || '').split(/\r?\n/).filter(Boolean);
+    return [
+      `## ${section.title}`,
+      `- 建议：${section.action || '保留'}`,
+      ...lines,
+    ].join('\n');
+  }).join('\n\n');
+}
+
+function persistDecisionReport(report) {
+  if (window.__READ_ONLY) return;
+  try {
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data') || '{}';
+    const payload = JSON.parse(raw);
+    payload.decisionReport = report;
+    payload.projectId = window.__PROJECT_ID || payload.projectId;
+    const serialized = JSON.stringify(payload);
+    sessionStorage.setItem('jinqian_data', serialized);
+    localStorage.setItem('jinqian_data', serialized);
+    scheduleProjectSave();
+  } catch (error) {
+    console.warn('剪辑决策保存失败', error);
+  }
+}
+
+function locateDecision(index) {
+  const chapterIndex = decisionSections[index]?.chapterIndex ?? mapDecisionToChapter(index);
+  const ch = CHAPS[chapterIndex] || CHAPS[0];
+  const row = ch ? document.getElementById('r' + ch.startIdx) : null;
+  if (ch) {
+    curNav = chapterIndex;
+    renderSidebar();
+  }
+  openDecision(index);
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    row.classList.add('act');
+    setTimeout(() => row.classList.remove('act'), 1200);
+  }
+}
+
+function openDecision(index) {
+  // Decision content is now inline within each nav-act-item
+  const item = document.getElementById('navact' + index);
+  if (item) {
+    item.setAttribute('open', '');
+    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function decisionIndexForChapter(chapterIndex) {
+  if (!decisionSections.length) return 0;
+  return Math.min(Math.max(0, chapterIndex), decisionSections.length - 1);
+}
+
+// ===== GEAR POPUP =====
+function toggleGear() {
+  const popup = document.getElementById('gear-popup');
+  if (popup) popup.classList.toggle('vis');
+}
+document.addEventListener('click', e => {
+  const popup = document.getElementById('gear-popup');
+  const btn = document.getElementById('gearbtn');
+  if (popup && popup.classList.contains('vis') && !popup.contains(e.target) && e.target !== btn) {
+    popup.classList.remove('vis');
+  }
+});
+
+// ===== DUR INFO BAR =====
+function renderDurInfo() {
+  const bar = document.getElementById('dur-info-bar');
+  if (!bar) return;
+  const { rc, sd } = computeStats();
+  let html = '';
+  spList.filter(sp => sd[sp] > 0).forEach(sp => {
+    const pct = Math.round(sd[sp] / rc * 100);
+    const color = spCMap[sp] || '#888';
+    const dName = displaySp(sp);
+    html += `<span class="sp-chip" onclick="startRenameSp('${esc(sp)}')" title="点击改名"><span class="sp-chip-dot" style="background:${color}"></span><span class="sp-chip-name" id="spchip-${esc(sp)}">${esc(dName)}</span><span class="sp-chip-pct">${pct}%</span></span>`;
+  });
+  bar.innerHTML = html;
+}
+
+function startRenameSp(origName) {
+  if (window.__READ_ONLY) return;
+  const nameEl = document.getElementById('spchip-' + origName);
+  if (!nameEl) return;
+  const current = displaySp(origName);
+  const input = document.createElement('input');
+  input.className = 'sp-rename-input';
+  input.value = current;
+  input.style.width = Math.max(60, current.length * 10) + 'px';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const newName = input.value.trim();
+    if (newName) spDisplayNames[origName] = newName;
+    renderDurInfo();
+    renderTx();
+    // update sidebar speaker legend
+    const { rc, sd } = computeStats();
+    const en = spList.filter(sp => sd[sp] > 0).map(sp => ({ n: sp, d: sd[sp] || 0 }));
+    if (en.length) {
+      document.getElementById('spleg').innerHTML = en.map(e => {
+        const p = Math.round(e.d / rc * 100);
+        return `<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${esc(displaySp(e.n))}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
+      }).join('');
+    }
+    sv();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  });
+}
+
+function toast(message) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.add('vis');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => el.classList.remove('vis'), 1800);
+}
+
+function initSidebarResize() {
+  const splitter = document.getElementById('splitter');
+  if (!splitter) return;
+  const saved = Number(localStorage.getItem('jinqian_sidebar_width') || 0);
+  if (saved) setSidebarWidth(saved);
+
+  let dragging = false;
+  const onMove = (event) => {
+    if (!dragging) return;
+    setSidebarWidth(event.clientX);
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing-sidebar');
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      localStorage.setItem('jinqian_sidebar_width', String(Math.round(sidebar.getBoundingClientRect().width)));
+    }
+  };
+
+  splitter.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    document.body.classList.add('resizing-sidebar');
+    splitter.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+function setSidebarWidth(rawWidth) {
+  const max = Math.min(560, Math.max(360, window.innerWidth * 0.46));
+  const width = Math.max(280, Math.min(max, Number(rawWidth) || 340));
+  document.documentElement.style.setProperty('--sidebar-w', `${Math.round(width)}px`);
 }
 
 // ===== TRANSCRIPT =====
@@ -812,9 +1794,18 @@ function renderTx() {
   const cm={};CHAPS.forEach((ch,i)=>{if(ch.startIdx!==undefined)cm[ch.startIdx]={...ch,num:i+1}});
 
   let lb=null;
-  S.forEach(x=>{
+  // Speaker grouping: track previous speaker, reset on chapter/block boundaries
+  let prevSp=null, resetNext=false;
+
+  S.forEach((x, si)=>{
+    const isChapBoundary = !!cm[x.idx];
+    const b=bm[x.idx];
+    const isBlockBoundary = b && b!==lb;
+
+    if (isChapBoundary || isBlockBoundary) resetNext = true;
+
     // Chapter header — content section divider
-    if(cm[x.idx]){
+    if(isChapBoundary){
       const ch=cm[x.idx];
       h+=`<div class="chap-hdr" id="chap${ch.num}">
         <span class="chap-num">${String(ch.num).padStart(2,'0')}</span>
@@ -824,19 +1815,32 @@ function renderTx() {
     }
 
     // Block header — deleted section
-    const b=bm[x.idx];
     if(b&&b!==lb){
       const ck=isBD(b);
       h+=`<div class="blk"><div class="chk ${ck?'on':''}" onclick="tgB(${b.id})">✕</div><span class="blk-tag">${TL[b.type]||b.type}</span><span class="blk-rsn">${b.reason}</span><span class="blk-dur mono">${b.dur}</span></div>`;
       lb=b;
     }
 
+    // Speaker grouping
+    const sameSp = !resetNext && x.sp === prevSp;
+    const nextX = S[si+1];
+    const nextChap = nextX && !!cm[nextX.idx];
+    const nextBlock = nextX && bm[nextX.idx] && bm[nextX.idx] !== b;
+    const isLast = !nextX || nextX.sp !== x.sp || nextChap || nextBlock;
+    resetNext = false;
+    prevSp = x.sp;
+
     // Sentence row
     const id=del.has(x.idx);
-    const isSug = x.sug && id; // suggested + currently deleted
-    let cl='row';if(id)cl+=' del';if(isSug)cl+=' sug';if(x.idx===curIdx)cl+=' act';
+    const isSug = x.sug && id;
+    let cl='row';
+    if(id) cl+=' del';
+    if(isSug) cl+=' sug';
+    if(x.idx===curIdx) cl+=' act';
+    if(sameSp) cl+=' same-sp';
+    if(isLast) cl+=' sp-last';
     const reasonTag = (isSug && x.sugReason) ? `<span class="sug-reason">${esc(x.sugReason)}</span>` : '';
-    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div></div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${x.sp}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x)}${reasonTag}</div></div>`;
+    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div></div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${esc(displaySp(x.sp))}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x)}${reasonTag}</div></div>`;
   });
   c.innerHTML=h;
 }
@@ -845,8 +1849,8 @@ function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;retu
 function renderAll(){renderSidebar();renderTx()}
 
 // ===== INTERACTIONS =====
-function tgS(i){del.has(i)?del.delete(i):del.add(i);um.add(i);renderAll();sv()}
-function tgB(id){const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){ad?del.delete(i):del.add(i);um.add(i)}renderAll();sv()}
+function tgS(i){if(window.__READ_ONLY)return;del.has(i)?del.delete(i):del.add(i);um.add(i);renderAll();sv()}
+function tgB(id){if(window.__READ_ONLY)return;const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){ad?del.delete(i):del.add(i);um.add(i)}renderAll();sv()}
 
 // ===== 半句删除（选区 → 词 → 时间段）=====
 const selbtn=document.createElement('div');
@@ -858,6 +1862,7 @@ function hideSelBtn(){ selbtn.style.display='none'; }
 document.addEventListener('mousedown',e=>{ if(e.target!==selbtn) hideSelBtn(); });
 
 document.getElementById('tx').addEventListener('mouseup',e=>{
+  if (window.__READ_ONLY) return;
   // 点到已划掉的词 → 恢复该段
   if(e.target.classList && e.target.classList.contains('pd')){
     const row=e.target.closest('.row'); if(!row) return;
@@ -878,6 +1883,7 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
 });
 
 function delSel(){
+  if (window.__READ_ONLY) return;
   const sel=window.getSelection(); if(!sel||sel.isCollapsed) return;
   const range=sel.getRangeAt(0);
   const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
@@ -932,13 +1938,29 @@ function goTo(idx){
   if(x) updateNav(x.s);
 }
 
+function navActClick(event, i) {
+  event.preventDefault(); // prevent native <details> toggle — we control it
+  const item = document.getElementById('navact' + i);
+  if (item) {
+    const wasOpen = item.hasAttribute('open');
+    item.toggleAttribute('open', !wasOpen);
+  }
+  // Navigate to chapter
+  curNav = i;
+  document.querySelectorAll('.nav-act-item').forEach((el, idx) => el.classList.toggle('active', idx === i));
+  const ch = CHAPS[i];
+  const x = S.find(s => s.idx === ch.startIdx);
+  if (x) { sk(x.s); au.play(); }
+  const r = document.getElementById('r' + ch.startIdx);
+  if (r) r.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
 function navTo(i){
   curNav=i;
   const ch=CHAPS[i];
   const x=S.find(s=>s.idx===ch.startIdx);
   if(x){sk(x.s);au.play()}
-  document.querySelectorAll('.nav-item.active').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.nav-item')[i]?.classList.add('active');
+  document.querySelectorAll('.nav-act-item').forEach((el,idx)=>el.classList.toggle('active',idx===i));
   const r=document.getElementById('r'+ch.startIdx);
   if(r) r.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -951,8 +1973,7 @@ function updateNav(time){
   }
   if(active!==curNav){
     curNav=active;
-    document.querySelectorAll('.nav-item.active').forEach(el=>el.classList.remove('active'));
-    document.querySelectorAll('.nav-item')[active]?.classList.add('active');
+    document.querySelectorAll('.nav-act-item').forEach((el,idx)=>el.classList.toggle('active',idx===active));
   }
 }
 
@@ -1105,7 +2126,8 @@ au.addEventListener('timeupdate',()=>{
 });
 
 // ===== EXPORT =====
-function doExport(){
+async function doExport(options = {}){
+  if (window.__READ_ONLY) return;
   // 收集所有删除时间段：整句删除 + 半句删除，排序后合并相邻（间隙<1.5s）
   let ranges=[];
   S.forEach(x=>{ if(del.has(x.idx)) ranges.push([x.s,x.e]); });
@@ -1140,18 +2162,177 @@ function doExport(){
   const serializedCutPayload = JSON.stringify(cutPayload);
   sessionStorage.setItem('jinqian_cut_data', serializedCutPayload);
   try { localStorage.setItem('jinqian_cut_data', serializedCutPayload); } catch(e) {}
+  await saveProjectNow(false);
+  if (options.next === 'cut') {
+    location.href = 'cut.html';
+    return;
+  }
+  const snapshotResult = await createReviewSnapshot(cutPayload, data);
+  if (snapshotResult) {
+    toast('已提交给助教审核');
+    setTimeout(() => { location.href = 'projects.html'; }, 500);
+    return;
+  }
+  toast('已保存剪辑，但审核快照暂时没有提交成功');
+}
+
+function downloadSnapshotCut(){
+  const cutPayload = window.__CUT_PAYLOAD;
+  if (!cutPayload?.audioUrl || !Array.isArray(cutPayload.segments)) {
+    toast('这份审核记录里没有可生成 MP3 的音频数据');
+    return;
+  }
+  const serializedCutPayload = JSON.stringify(cutPayload);
+  sessionStorage.setItem('jinqian_cut_data', serializedCutPayload);
+  try { localStorage.setItem('jinqian_cut_data', serializedCutPayload); } catch(e) {}
   location.href = 'cut.html';
+}
+
+async function createReviewSnapshot(cutPayload, metricsSource) {
+  if (!window.__PROJECT_ID) return null;
+  const payload = persistCurrentPayload();
+  if (!payload) return null;
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(window.__PROJECT_ID)}/snapshots`, {
+      method: 'POST',
+      headers: buildJsonHeaders(),
+      body: JSON.stringify({
+        fileName: payload.fileName || window.__FILE_NAME || '未命名音频',
+        audioUrl: payload.audioUrl || window.__AUDIO_OVERRIDE || document.getElementById('au').src,
+        payload,
+        cutPayload,
+        metrics: {
+          originalDuration: metricsSource.original_duration,
+          roughcutDuration: metricsSource.roughcut_duration,
+          removedDuration: metricsSource.removed_duration,
+        },
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  } catch (error) {
+    console.warn('审核快照保存失败，继续导出', error);
+    toast('审核快照暂时保存失败，已继续导出');
+    return null;
+  }
 }
 
 // Persistence
 // Version key = title + sentence count + delete count, so stale cache is ignored
 const DATA_VER = document.title + '_' + (window.__FILE_NAME || 'demo') + '_' + S.length + '_' + S.filter(x=>x.ai||x.sug).length;
 const SK='rc6_'+DATA_VER;
-function sv(){try{localStorage.setItem(SK,JSON.stringify({v:DATA_VER,d:Array.from(del),m:Array.from(um),p:pdel}))}catch(e){}}
-function rs(){try{const r=localStorage.getItem(SK);if(!r)return;const s=JSON.parse(r);if(s.v!==DATA_VER)return;if(s.d){del.clear();s.d.forEach(i=>del.add(i))}if(s.m)s.m.forEach(i=>um.add(i));if(s.p){for(const k in pdel)delete pdel[k];Object.assign(pdel,s.p)}}catch(e){}}
+let projectSaveTimer = null;
+let projectSaveInFlight = null;
+
+function sv(){
+  const state = buildEditState();
+  try{localStorage.setItem(SK,JSON.stringify({v:DATA_VER,...state}))}catch(e){}
+  persistCurrentPayload(state);
+  scheduleProjectSave();
+}
+function rs(){
+  try{
+    const remote = window.__EDIT_STATE;
+    if(remote){applyEditState(remote);return;}
+    const r=localStorage.getItem(SK);if(!r)return;const s=JSON.parse(r);if(s.v!==DATA_VER)return;applyEditState(s);
+  }catch(e){}
+}
+function buildEditState(){
+  return {d:Array.from(del),m:Array.from(um),p:pdel,sp:spDisplayNames};
+}
+function applyEditState(s){
+  if(s.d){del.clear();s.d.forEach(i=>del.add(i))}
+  if(s.m)s.m.forEach(i=>um.add(i));
+  if(s.p){for(const k in pdel)delete pdel[k];Object.assign(pdel,s.p)}
+  if(s.sp && typeof s.sp === 'object') Object.assign(spDisplayNames, s.sp);
+}
+function persistCurrentPayload(editState = buildEditState()){
+  if (window.__READ_ONLY) return null;
+  try {
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data') || '{}';
+    const payload = JSON.parse(raw);
+    payload.projectId = window.__PROJECT_ID || payload.projectId;
+    payload.decisionReport = DECISION_REPORT;
+    payload.editState = editState;
+    const serialized = JSON.stringify(payload);
+    sessionStorage.setItem('jinqian_data', serialized);
+    localStorage.setItem('jinqian_data', serialized);
+    return payload;
+  } catch (error) {
+    console.warn('当前项目状态缓存失败', error);
+    return null;
+  }
+}
+function scheduleProjectSave(){
+  if (window.__READ_ONLY || !window.__PROJECT_ID) return;
+  clearTimeout(projectSaveTimer);
+  projectSaveTimer = setTimeout(() => saveProjectNow(false), 1500);
+}
+async function saveProjectNow(showSaved = true){
+  if (window.__READ_ONLY || !window.__PROJECT_ID) return null;
+  clearTimeout(projectSaveTimer);
+  const payload = persistCurrentPayload();
+  if (!payload) return null;
+  const metrics = buildCurrentMetrics();
+  projectSaveInFlight = fetch(`/api/projects/${encodeURIComponent(window.__PROJECT_ID)}`, {
+    method: 'PATCH',
+    headers: buildJsonHeaders(),
+    body: JSON.stringify({
+      fileName: payload.fileName || window.__FILE_NAME || '未命名音频',
+      audioUrl: payload.audioUrl || window.__AUDIO_OVERRIDE || document.getElementById('au').src,
+      payload,
+      metrics,
+    }),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (showSaved) {
+      const status = document.getElementById('sv');
+      if (status) status.textContent = '自动保存：已保存到服务器';
+    }
+    return res.json();
+  }).catch((error) => {
+    const status = document.getElementById('sv');
+    if (status) status.textContent = '自动保存：服务器暂时失败，本机已保存';
+    console.warn('项目保存失败', error);
+    return null;
+  });
+  return projectSaveInFlight;
+}
+function buildCurrentMetrics(){
+  const stats = computeStats();
+  return {
+    originalDuration: Math.round(stats.td || 0),
+    roughcutDuration: Math.round(stats.rc || 0),
+    removedDuration: Math.round(stats.rd || 0),
+  };
+}
+function buildJsonHeaders(){
+  const headers = {'Content-Type':'application/json'};
+  const token = readStoredToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+window.addEventListener('pagehide', () => {
+  if (window.__READ_ONLY || !window.__PROJECT_ID) return;
+  const payload = persistCurrentPayload();
+  if (!payload) return;
+  try {
+    fetch(`/api/projects/${encodeURIComponent(window.__PROJECT_ID)}`, {
+      method: 'PATCH',
+      headers: buildJsonHeaders(),
+      body: JSON.stringify({
+        fileName: payload.fileName || window.__FILE_NAME || '未命名音频',
+        audioUrl: payload.audioUrl || window.__AUDIO_OVERRIDE || document.getElementById('au').src,
+        payload,
+        metrics: buildCurrentMetrics(),
+      }),
+      keepalive: true,
+    });
+  } catch {}
+});
 function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
 
-rs();renderAll();initRefineBar();
+rs();renderAll();initRefineBar();initSidebarResize();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
 
 </script>

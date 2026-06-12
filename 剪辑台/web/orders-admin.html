@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 接单台后台</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260610a">
+  <style>
+    body.has-station-nav .top-chrome { display: none; }
+    [hidden] { display: none !important; }
+    .admin-grid { display: grid; gap: 20px; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); }
+    @media (max-width: 860px) { .admin-grid { grid-template-columns: 1fr; } }
+    .field { margin-bottom: 14px; }
+    .field label { color: var(--ink); display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    .field input, .field textarea {
+      background: #fff; border: 1px solid var(--hairline); border-radius: 10px;
+      box-sizing: border-box; font: inherit; padding: 10px 12px; width: 100%;
+    }
+    .field textarea { min-height: 142px; resize: vertical; }
+    .check-row { align-items: center; display: flex; gap: 8px; margin: 14px 0; }
+    .check-row input { height: 18px; width: 18px; }
+    .upload-box {
+      align-items: center; background: linear-gradient(180deg, #fffdf9, #fff7ea);
+      border: 1.5px dashed var(--hairline-strong); border-radius: 14px; cursor: pointer;
+      display: flex; gap: 12px; min-height: 116px; padding: 16px; transition: all 0.16s;
+    }
+    .upload-box:hover { border-color: var(--accent); box-shadow: var(--shadow-accent); }
+    .upload-icon {
+      align-items: center; background: #fff; border: 1px solid var(--hairline);
+      border-radius: 12px; display: flex; font-size: 24px; height: 48px; justify-content: center; width: 48px;
+    }
+    .upload-main { flex: 1; min-width: 0; }
+    .upload-title { color: var(--ink); font-size: 14px; font-weight: 800; }
+    .upload-status { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin-top: 4px; word-break: break-all; }
+    .upload-progress {
+      background: #f0e3c6; border-radius: 999px; height: 6px; margin-top: 10px; overflow: hidden;
+    }
+    .upload-progress > div { background: var(--accent-grad); height: 100%; width: 0%; }
+    #f-audio { display: none; }
+    #material-link { color: var(--accent-deep); display: none; font-size: 12px; font-weight: 700; margin-top: 8px; }
+    #material-link.visible { display: inline-block; }
+    .task-item {
+      background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 14px;
+      margin-bottom: 12px; padding: 14px 16px;
+    }
+    .task-item.draft { opacity: 0.82; border-style: dashed; }
+    .task-head { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
+    .task-title { font-size: 15px; font-weight: 750; }
+    .badge { border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 10px; }
+    .badge.pub { background: #e6f4ea; color: #1e7a3c; }
+    .badge.draft { background: #fdecea; color: #c0392b; }
+    .task-meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .task-demand { color: var(--ink-2); font-size: 13px; line-height: 1.6; margin-top: 8px; white-space: pre-wrap; }
+    .task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .task-actions button, .task-actions a { min-height: 34px; padding: 0 12px; }
+    .danger-btn { color: #c0392b; }
+    .empty { color: var(--muted); padding: 24px; text-align: center; }
+    .section-label { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <main class="shell shell-wide">
+    <header class="top-chrome">
+      <div>
+        <div class="top-title">接单台后台</div>
+        <div class="top-sub">上传一条训练音频，写清楚需求，学员端就能直接开始剪。</div>
+      </div>
+      <div class="top-actions">
+        <a class="secondary-btn inline-btn" href="/orders/">学员端预览</a>
+        <a class="secondary-btn inline-btn" href="/">回到工具</a>
+        <span class="user-chip" id="user-phone"></span>
+        <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
+      </div>
+    </header>
+
+    <div class="error" id="error"></div>
+    <div id="not-admin" hidden>
+      <section class="card"><div class="empty">这个页面只有管理员能进。请用管理员手机号登录。</div></section>
+    </div>
+
+    <div class="admin-grid" id="admin-grid" hidden>
+      <section class="card">
+        <div class="section-label" id="form-title">新增接单任务</div>
+        <div class="field">
+          <label for="f-title">任务标题</label>
+          <input id="f-title" type="text" placeholder="不填也可以，会自动用音频文件名">
+        </div>
+        <div class="field">
+          <label>上传音频素材 *</label>
+          <div class="upload-box" id="upload-box" tabindex="0" role="button" aria-label="上传音频素材">
+            <div class="upload-icon">🎙️</div>
+            <div class="upload-main">
+              <div class="upload-title">点击上传 mp3 / wav / m4a</div>
+              <div class="upload-status" id="upload-status">上传完成后，学员点任务就能直接进入剪辑台。</div>
+              <div class="upload-progress"><div id="upload-fill"></div></div>
+              <a id="material-link" href="#" target="_blank" rel="noopener">查看已上传音频</a>
+            </div>
+          </div>
+          <input id="f-audio" type="file" accept="audio/*">
+          <input id="f-material" type="hidden">
+        </div>
+        <div class="field">
+          <label for="f-demand">任务需求 *</label>
+          <textarea id="f-demand" placeholder="直接写给学员看的任务要求：这条音频要剪成什么感觉、重点保留什么、哪里可以压缩、最终交付时注意什么。"></textarea>
+        </div>
+        <div class="check-row">
+          <input id="f-published" type="checkbox">
+          <label for="f-published" style="margin:0">立即发布（不勾选则存为草稿，学员看不到）</label>
+        </div>
+        <div class="actions">
+          <button class="primary-btn" id="save-btn" type="button">保存</button>
+          <button class="secondary-btn inline-btn" id="reset-btn" type="button" hidden>取消编辑</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="toolbar-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+          <div class="section-label" style="margin:0">全部任务（含草稿）</div>
+          <a class="secondary-btn inline-btn" id="export-btn" href="#" download>导出备份</a>
+        </div>
+        <div id="task-list"><div class="empty">加载中…</div></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { ensureLoggedIn, apiJson, getToken, setupSessionChrome } from './js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from './js/station-nav.js?v=20260610-ux2';
+    import { uploadAudioToOSS } from './js/upload.js?v=20260610-reviewflow-1';
+
+    const navAuth = await initStationNav({ active: 'orders' });
+    const auth = navAuth || ensureLoggedIn();
+    let editingId = null;
+    let selectedAudioFile = null;
+    let uploadedAudioUrl = '';
+
+    const els = {
+      error: document.getElementById('error'),
+      notAdmin: document.getElementById('not-admin'),
+      grid: document.getElementById('admin-grid'),
+      list: document.getElementById('task-list'),
+      formTitle: document.getElementById('form-title'),
+      saveBtn: document.getElementById('save-btn'),
+      resetBtn: document.getElementById('reset-btn'),
+      exportBtn: document.getElementById('export-btn'),
+      title: document.getElementById('f-title'),
+      demand: document.getElementById('f-demand'),
+      audio: document.getElementById('f-audio'),
+      uploadBox: document.getElementById('upload-box'),
+      uploadStatus: document.getElementById('upload-status'),
+      uploadFill: document.getElementById('upload-fill'),
+      material: document.getElementById('f-material'),
+      materialLink: document.getElementById('material-link'),
+      published: document.getElementById('f-published'),
+    };
+
+    function showError(msg) { els.error.textContent = msg || ''; els.error.classList.toggle('visible', !!msg); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+    async function init() {
+      if (auth) setupSessionChrome();
+      let me;
+      try { me = await apiJson('/api/auth/me'); } catch (_) { me = null; }
+      if (!me?.user?.isAdmin) { els.notAdmin.hidden = false; return; }
+      els.grid.hidden = false;
+      els.exportBtn.href = `/api/orders/admin/tasks.json`;
+      els.published.checked = true;
+      bind();
+      await load();
+    }
+
+    function bind() {
+      els.saveBtn.addEventListener('click', save);
+      els.resetBtn.addEventListener('click', resetForm);
+      els.uploadBox.addEventListener('click', () => els.audio.click());
+      els.uploadBox.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        els.audio.click();
+      });
+      els.audio.addEventListener('change', () => {
+        const file = els.audio.files?.[0];
+        if (!file) return;
+        selectedAudioFile = file;
+        uploadedAudioUrl = '';
+        els.material.value = '';
+        els.uploadFill.style.width = '0%';
+        els.uploadStatus.textContent = `已选择：${file.name}，保存时会自动上传。`;
+        els.materialLink.classList.remove('visible');
+        if (!els.title.value.trim()) {
+          els.title.value = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
+        }
+      });
+      // 让导出带上鉴权：点击时改用 fetch + token 触发下载
+      els.exportBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const res = await fetch('/api/orders/admin/tasks.json', { headers: { Authorization: `Bearer ${getToken()}` } });
+        if (!res.ok) { showError('导出失败'); return; }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '接单任务备份.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    }
+
+    function readForm() {
+      return {
+        title: els.title.value.trim(),
+        client: '',
+        budget: '',
+        demand: els.demand.value.trim(),
+        delivery: '',
+        difficulty: '',
+        sortOrder: 0,
+        materialLink: uploadedAudioUrl || els.material.value.trim(),
+        published: els.published.checked,
+      };
+    }
+
+    function resetForm() {
+      editingId = null;
+      selectedAudioFile = null;
+      uploadedAudioUrl = '';
+      els.formTitle.textContent = '新增接单任务';
+      els.resetBtn.hidden = true;
+      els.title.value = els.demand.value = els.material.value = '';
+      els.audio.value = '';
+      els.uploadStatus.textContent = '上传完成后，学员点任务就能直接进入剪辑台。';
+      els.uploadFill.style.width = '0%';
+      els.materialLink.classList.remove('visible');
+      els.materialLink.href = '#';
+      els.published.checked = true;
+      showError('');
+    }
+
+    async function save() {
+      const body = readForm();
+      if (!body.demand) { showError('请先写任务需求。'); return; }
+      els.saveBtn.disabled = true;
+      try {
+        body.materialLink = await ensureMaterialUploaded();
+        if (!body.materialLink) { showError('请先上传音频素材。'); return; }
+        if (!body.title) body.title = selectedAudioFile?.name?.replace(/\.[^.]+$/, '').slice(0, 80) || '未命名接单任务';
+        if (editingId) {
+          await apiJson(`/api/orders/admin/tasks/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        } else {
+          await apiJson('/api/orders/admin/tasks', { method: 'POST', body: JSON.stringify(body) });
+        }
+        resetForm();
+        await load();
+      } catch (err) {
+        showError(err?.message || '保存失败');
+      } finally {
+        els.saveBtn.disabled = false;
+      }
+    }
+
+    async function ensureMaterialUploaded() {
+      const current = uploadedAudioUrl || els.material.value.trim();
+      if (current && !selectedAudioFile) return current;
+      if (!selectedAudioFile) return current;
+      els.uploadStatus.textContent = `正在上传：${selectedAudioFile.name}`;
+      els.uploadFill.style.width = '2%';
+      const uploaded = await uploadAudioToOSS(selectedAudioFile, {
+        onProgress: (percentage) => {
+          els.uploadFill.style.width = `${percentage}%`;
+          els.uploadStatus.textContent = `正在上传：${selectedAudioFile.name} · ${percentage}%`;
+        },
+      });
+      uploadedAudioUrl = uploaded.audioUrl;
+      els.material.value = uploadedAudioUrl;
+      els.uploadFill.style.width = '100%';
+      els.uploadStatus.textContent = `已上传：${selectedAudioFile.name}`;
+      els.materialLink.href = uploadedAudioUrl;
+      els.materialLink.classList.add('visible');
+      selectedAudioFile = null;
+      return uploadedAudioUrl;
+    }
+
+    function startEdit(task) {
+      editingId = task.id;
+      els.formTitle.textContent = `编辑任务 #${task.id}`;
+      els.resetBtn.hidden = false;
+      els.title.value = task.title || '';
+      els.demand.value = task.demand || '';
+      els.material.value = task.materialLink || '';
+      selectedAudioFile = null;
+      uploadedAudioUrl = '';
+      els.audio.value = '';
+      els.uploadFill.style.width = task.materialLink ? '100%' : '0%';
+      els.uploadStatus.textContent = task.materialLink ? '已使用之前上传的音频。需要更换时重新上传即可。' : '这条任务还没有音频素材。';
+      els.materialLink.href = task.materialLink || '#';
+      els.materialLink.classList.toggle('visible', !!task.materialLink);
+      els.published.checked = !!task.published;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function togglePublish(task) {
+      try {
+        await apiJson(`/api/orders/admin/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ published: !task.published }) });
+        await load();
+      } catch (err) { showError(err?.message || '操作失败'); }
+    }
+
+    async function removeTask(task) {
+      if (!window.confirm(`确认删除「${task.title}」？删除前可以先点导出备份。`)) return;
+      try {
+        await apiJson(`/api/orders/admin/tasks/${task.id}`, { method: 'DELETE' });
+        await load();
+      } catch (err) { showError(err?.message || '删除失败'); }
+    }
+
+    async function load() {
+      try {
+        const data = await apiJson('/api/orders/admin/tasks');
+        render(data.tasks || []);
+      } catch (err) {
+        els.list.innerHTML = `<div class="empty">加载失败：${esc(err?.message || '')}</div>`;
+      }
+    }
+
+    function render(tasks) {
+      if (!tasks.length) { els.list.innerHTML = '<div class="empty">还没有任务，先在左边新增一个。</div>'; return; }
+      els.list.innerHTML = '';
+      tasks.forEach((task) => {
+        const item = document.createElement('div');
+        item.className = `task-item ${task.published ? '' : 'draft'}`;
+        const meta = [task.client, task.budget, task.difficulty].filter(Boolean).map(esc).join(' · ');
+        const material = task.materialLink
+          ? `<div class="task-meta">音频素材：<a href="${esc(task.materialLink)}" target="_blank" rel="noopener">打开音频</a></div>`
+          : '';
+        item.innerHTML = `
+          <div class="task-head">
+            <span class="task-title">${esc(task.title)}</span>
+            <span class="badge ${task.published ? 'pub' : 'draft'}">${task.published ? '已发布' : '草稿'}</span>
+          </div>
+          ${meta ? `<div class="task-meta">${meta}</div>` : ''}
+          ${task.demand ? `<div class="task-demand">${esc(task.demand)}</div>` : ''}
+          ${task.delivery ? `<div class="task-meta">交付：${esc(task.delivery)}</div>` : ''}
+          ${material}
+          <div class="task-actions">
+            <button class="secondary-btn inline-btn" data-act="publish" type="button">${task.published ? '下架' : '发布'}</button>
+            <button class="secondary-btn inline-btn" data-act="edit" type="button">编辑</button>
+            <button class="secondary-btn inline-btn danger-btn" data-act="del" type="button">删除</button>
+          </div>`;
+        item.querySelector('[data-act=publish]').addEventListener('click', () => togglePublish(task));
+        item.querySelector('[data-act=edit]').addEventListener('click', () => startEdit(task));
+        item.querySelector('[data-act=del]').addEventListener('click', () => removeTask(task));
+        els.list.appendChild(item);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

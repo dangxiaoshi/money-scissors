@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 · 剪辑台</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #c8952a;
+  --gold-dark: #b8821e;
+  --gold-light: #f5d06a;
+  --main-bg: #ede8e0;
+  --sidebar-bg: #f5f0e8;
+  --card-bg: #FFFFFF;
+  --border: rgba(200,149,42,0.15);
+  --text-1: #1a1209;
+  --text-2: #5a4a2a;
+  --text-3: #9a8a6a;
+  --shadow-xs: 0 1px 3px rgba(200,149,42,0.08);
+  --shadow-sm: 0 2px 8px rgba(200,149,42,0.1);
+  --shadow-md: 0 4px 18px rgba(200,149,42,0.13);
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --topbar-h: 58px;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--main-bg);
+  color: var(--text-1);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* ═══════════════════════════════════════
+   全站顶部导航
+═══════════════════════════════════════ */
+.topbar {
+  height: var(--topbar-h);
+  background: #fffdf8;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 22px;
+  position: relative;
+  z-index: 50;
+  box-shadow: var(--shadow-xs);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.brand .logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(145deg, #f5d06a, #b8821e);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(212,160,21,0.35);
+}
+.brand .brand-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-1);
+  letter-spacing: 0.2px;
+}
+
+/* 一级导航：训练台 / 剪辑台 / 接单台 */
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+.top-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 16px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  position: relative;
+  border-bottom: 2.5px solid transparent;
+  transition: color 0.15s;
+  user-select: none;
+}
+.top-nav-item:hover { color: var(--text-1); }
+.top-nav-item.active {
+  color: var(--gold-dark);
+  border-bottom-color: var(--gold);
+}
+
+.top-spacer { flex: 1; }
+
+/* 右上角：通知 + 用户下拉 */
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bell-btn {
+  width: 38px;
+  height: 38px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  color: var(--text-2);
+  flex-shrink: 0;
+  position: relative;
+}
+.bell-btn .dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  background: #ef4444;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+}
+
+/* 用户下拉 */
+.user-menu { position: relative; }
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px 5px 6px;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.user-trigger:hover { background: rgba(0,0,0,0.045); }
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #8B78F5, #5E4CE0);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.user-avatar.admin { background: linear-gradient(135deg, #f5d06a, #c8952a); }
+.user-trigger .u-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); }
+.user-trigger .u-caret { color: #bbb; }
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 246px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 30px rgba(80,60,10,0.18);
+  padding: 8px;
+  display: none;
+  z-index: 60;
+}
+.dropdown.open { display: block; }
+.dd-head {
+  padding: 10px 10px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.dd-head .n { font-size: 14px; font-weight: 700; }
+.dd-head .r { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.dd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.13s;
+}
+.dd-item:hover { background: rgba(0,0,0,0.045); color: var(--text-1); }
+.dd-item .badge {
+  margin-left: auto;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+.dd-item.admin-only { color: var(--gold-dark); font-weight: 600; }
+.dd-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+.dd-item.logout { color: #d9534f; }
+
+/* 管理员专属：默认隐藏，登录态为管理员时显示 */
+.admin-block { display: none; }
+.admin-block.show { display: block; }
+.dd-item.admin-block.show { display: flex; }
+
+/* ═══════════════════════════════════════
+   主体：左侧栏 + 内容
+═══════════════════════════════════════ */
+.body-wrap {
+  display: flex;
+  height: calc(100vh - var(--topbar-h));
+  width: 100%;
+}
+
+/* ───── 左侧栏 ───── */
+.sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.side-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: 0.5px;
+  padding: 16px 18px 6px;
+}
+.nav {
+  flex: 1;
+  padding: 4px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+.nav::-webkit-scrollbar { width: 0; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.nav-item:hover { background: rgba(0,0,0,0.042); color: var(--text-1); }
+.nav-item.active {
+  background: rgba(212,160,21,0.12);
+  color: #A87410;
+  font-weight: 600;
+}
+.nav-item svg { flex-shrink: 0; }
+
+/* AI 工具箱（折叠菜单） */
+.toolbox {
+  margin: 6px 0;
+  background: linear-gradient(140deg, #FFFCEF, #FFF6D6);
+  border: 1px solid rgba(212,160,21,0.22);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.toolbox-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--gold-dark);
+  user-select: none;
+}
+.toolbox-head .tb-chevron {
+  margin-left: auto;
+  font-size: 12px;
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+.toolbox.open .tb-chevron { transform: rotate(90deg); }
+.toolbox-body {
+  display: none;
+  flex-direction: column;
+  padding: 2px 8px 8px;
+  gap: 1px;
+}
+.toolbox.open .toolbox-body { display: flex; }
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 12.8px;
+  font-weight: 500;
+  transition: all 0.13s;
+  user-select: none;
+}
+.tool-item:hover { background: rgba(255,255,255,0.7); color: var(--text-1); }
+.tool-emoji { width: 18px; text-align: center; flex-shrink: 0; }
+.tool-tag {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(200,149,42,0.16);
+  color: var(--gold-dark);
+  white-space: nowrap;
+}
+
+/* 管理员侧栏入口的红点角标 */
+.nav-item.admin-item .badge {
+  margin-left: auto;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+/* 左下角：课程信息卡 */
+.sidebar-footer {
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.course-card {
+  background: linear-gradient(145deg, #FFFCEF, #FFF6D6);
+  border: 1px solid rgba(212,160,21,0.2);
+  border-radius: var(--r-md);
+  padding: 13px;
+}
+.course-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #f5d06a, #c8952a);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 30px;
+  margin-bottom: 10px;
+}
+.course-task {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.course-task .dot-t {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gold); margin-top: 5px; flex-shrink: 0;
+}
+.course-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 5px;
+}
+.course-progress-label b { color: var(--gold-dark); font-weight: 700; }
+.progress { height: 5px; background: rgba(0,0,0,0.08); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; width: 33%; background: linear-gradient(90deg, #f5d06a, #c8952a); border-radius: 3px; }
+
+/* ───── 中间主区域 ───── */
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, #F4F1EA 0%, #EAE6DD 100%);
+}
+.bg-glow {
+  position: absolute;
+  top: -90px;
+  right: -100px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(248,205,60,0.16) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 28px;
+  position: relative;
+  z-index: 1;
+}
+.scroll-area::-webkit-scrollbar { width: 5px; }
+.scroll-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+
+.greeting { margin-bottom: 18px; }
+.greeting h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 4px; }
+.greeting p { font-size: 13px; color: var(--text-2); }
+
+/* 导入音频 —— 第一优先级 */
+.import-zone {
+  background: #fff;
+  border: 2px dashed rgba(200,149,42,0.4);
+  border-radius: var(--r-lg);
+  padding: 34px 28px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.import-zone:hover {
+  border-color: var(--gold);
+  background: rgba(247,202,69,0.05);
+  box-shadow: var(--shadow-md);
+}
+.import-icon {
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  background: linear-gradient(140deg, #FFF3CC, #FCE19A);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold-dark);
+  box-shadow: 0 4px 14px rgba(212,160,21,0.22);
+}
+.import-text { flex: 1; min-width: 0; }
+.import-text h2 { font-size: 19px; font-weight: 800; margin-bottom: 6px; }
+.import-text p { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+.import-text .formats { font-size: 11.5px; color: var(--text-3); margin-top: 7px; }
+.import-btn {
+  flex-shrink: 0;
+  padding: 13px 26px;
+  background: linear-gradient(135deg, #f5d06a, #c8952a);
+  color: #fff;
+  border: none;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(212,160,21,0.38);
+  font-family: inherit;
+  transition: opacity 0.18s;
+  white-space: nowrap;
+}
+.import-btn:hover { opacity: 0.9; }
+
+/* 区块标题 */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+.section-title { font-size: 16px; font-weight: 700; }
+.section-link { font-size: 13px; color: var(--gold); cursor: pointer; }
+
+/* 最近项目 */
+.projects-card {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: 8px 20px 14px;
+  box-shadow: var(--shadow-sm);
+}
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.proj-row:last-child { border-bottom: none; }
+.proj-row:hover { background: rgba(0,0,0,0.02); padding-left: 8px; padding-right: 8px; margin: 0 -8px; }
+.thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px 7px;
+  overflow: hidden;
+  position: relative;
+}
+.thumb-label { font-size: 9px; font-weight: 800; color: #fff; line-height: 1.25; position: relative; z-index: 1; }
+.thumb-mic { position: absolute; top: 6px; right: 7px; font-size: 15px; opacity: 0.6; }
+.proj-info { flex: 1; min-width: 0; }
+.proj-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.proj-meta { display: flex; align-items: center; gap: 10px; }
+.proj-date { font-size: 12px; color: var(--text-3); }
+.status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.st-draft   { background: rgba(0,0,0,0.06);       color: var(--text-2); }
+.st-review  { background: rgba(245,158,11,0.15);  color: #b45309; }
+.st-pass    { background: rgba(34,197,94,0.15);   color: #15803d; }
+.st-reject  { background: rgba(239,68,68,0.13);   color: #b91c1c; }
+.st-done    { background: rgba(99,102,241,0.13);  color: #4f46e5; }
+.waveform { width: 120px; height: 30px; flex-shrink: 0; display: flex; align-items: center; gap: 2px; }
+.wv-bar { display: inline-block; width: 3px; border-radius: 2px; background: rgba(180,155,100,0.32); flex-shrink: 0; }
+.proj-dur { font-size: 13px; font-weight: 500; color: var(--text-2); width: 44px; text-align: right; flex-shrink: 0; }
+
+/* ───── 助教审核视图 ───── */
+.review-view { display: none; }
+.review-view.show { display: block; }
+.review-card {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.rv-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+}
+.rv-row:last-child { border-bottom: none; }
+.rv-info { flex: 1; min-width: 0; }
+.rv-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.rv-sub { font-size: 12px; color: var(--text-3); }
+.rv-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rv-btn {
+  padding: 7px 15px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-2);
+  transition: all 0.15s;
+}
+.rv-btn:hover { background: rgba(0,0,0,0.04); }
+.rv-btn.pass { background: linear-gradient(135deg,#34d399,#10b981); color:#fff; border:none; }
+.rv-btn.reject { color: #b91c1c; border-color: rgba(239,68,68,0.3); }
+.rv-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f1ece2;
+  color: var(--text-3);
+  border-color: var(--border);
+}
+.rv-btn.pass:disabled { background: #e7e2d6; color: var(--text-3); }
+
+/* ───── 移动端：仅保证不崩，不重排结构 ───── */
+@media (max-width: 760px) {
+  body { overflow: auto; height: auto; }
+  .topbar { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px 14px; }
+  .top-nav { order: 3; width: 100%; }
+  .top-spacer { display: none; }
+  .user-trigger .u-name { display: none; }
+  .body-wrap { flex-direction: column; height: auto; }
+  .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .main { height: auto; }
+  .import-zone { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ 全站顶部导航 ═══ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="6" cy="6" r="2.5" fill="white"/>
+        <circle cx="6" cy="18" r="2.5" fill="white"/>
+        <path d="M8.5 6.5 L20 12 L8.5 17.5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <span class="brand-name">金钱剪刀</span>
+  </div>
+
+  <nav class="top-nav">
+    <a class="top-nav-item" href="/training/path.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      训练台
+    </a>
+    <a class="top-nav-item active" href="/edit">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+      剪辑台
+    </a>
+    <a class="top-nav-item" href="/orders/">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M9 7V5h6v2"/></svg>
+      接单台
+    </a>
+  </nav>
+
+  <div class="top-spacer"></div>
+
+  <div class="top-right">
+    <div class="bell-btn" onclick="toggleDropdown()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="dot"></span>
+    </div>
+
+    <div class="user-menu">
+      <div class="user-trigger" onclick="toggleDropdown()">
+        <div class="user-avatar" id="userAvatar">小</div>
+        <span class="u-name" id="userName">小石</span>
+        <svg class="u-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+
+      <div class="dropdown" id="userDropdown">
+        <div class="dd-head">
+          <div class="n" id="ddName">小石</div>
+          <div class="r" id="ddRole">学员 · 第四期剪辑营</div>
+        </div>
+        <a class="dd-item" href="/notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          通知消息 <span class="badge">3</span>
+        </a>
+        <a class="dd-item" href="/projects">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          我的审核状态 <span class="badge">1</span>
+        </a>
+        <!-- 管理员快捷入口：仅助教/管理员登录态显示 -->
+        <div class="dd-item admin-only admin-block" id="ddAdminEntry" onclick="showReview()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          助教审核台 <span class="badge">2</span>
+        </div>
+        <a class="dd-item" href="/account">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9z"/></svg>
+          账号设置
+        </a>
+        <div class="dd-divider"></div>
+        <a class="dd-item logout" href="/logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          退出登录
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ 主体 ═══ -->
+<div class="body-wrap">
+
+  <!-- 左侧栏 -->
+  <aside class="sidebar">
+    <div class="side-section-label">剪辑台</div>
+    <nav class="nav">
+      <div class="nav-item active" id="navHome" onclick="showWorkspace()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        剪辑首页
+      </div>
+      <a class="nav-item" href="/projects">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        我的项目
+      </a>
+      <a class="nav-item" href="/projects">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        导出记录
+      </a>
+
+      <!-- AI 工具箱（折叠） -->
+      <div class="toolbox open" id="toolbox">
+        <div class="toolbox-head" onclick="toggleToolbox()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          AI 工具箱
+          <span class="tb-chevron">›</span>
+        </div>
+        <div class="toolbox-body">
+          <a class="tool-item" href="/tools/shownotes">
+            <span class="tool-emoji">📝</span> Show Notes 助手
+          </a>
+          <a class="tool-item" href="/tools/clip-decision">
+            <span class="tool-emoji">🎯</span> 剪辑决策助手
+          </a>
+          <a class="tool-item" href="/tools/narration">
+            <span class="tool-emoji">🔊</span> 旁白生成
+          </a>
+          <a class="tool-item" href="/tools/promo-card">
+            <span class="tool-emoji">📱</span> 播客小红书推广卡片
+          </a>
+          <a class="tool-item" href="/tools/voice-clone">
+            <span class="tool-emoji">🎙</span> 当小时声音克隆
+            <span class="tool-tag">实验·内部授权</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- 管理员/助教专属：默认隐藏 -->
+      <div class="admin-block" id="adminNavBlock">
+        <div class="side-section-label" style="padding-top:8px;">助教 / 管理员</div>
+        <div class="nav-item admin-item" onclick="showReview()">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          助教审核
+          <span class="badge">2</span>
+        </div>
+        <a class="nav-item admin-item" href="/admin">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          系统后台
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="course-card">
+        <div class="course-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          第四期剪辑营
+        </div>
+        <div class="course-task">
+          <span class="dot-t"></span>
+          今日任务：剪辑 E29 并提交助教审核
+        </div>
+        <div class="course-progress-label">
+          <span>21 天训练进度</span>
+          <span><b>第 7 天</b> / 21</span>
+        </div>
+        <div class="progress"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <main class="main">
+    <div class="bg-glow"></div>
+    <div class="scroll-area">
+
+      <!-- 学员剪辑首页视图 -->
+      <div class="workspace-view" id="workspaceView">
+        <div class="greeting">
+          <h1 id="greetName">上午好，小石 👋</h1>
+          <p>今天想剪辑哪一期？先导入音频，把声音变成钱。</p>
+        </div>
+
+        <!-- 导入音频：第一优先级 -->
+        <a class="import-zone" href="/edit">
+          <div class="import-icon">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="import-text">
+            <h2>导入音频，开始剪辑</h2>
+            <p>把录好的播客拖到这里，或点击上传。进入转录 → AI 分析 → 审查 → 导出粗剪。</p>
+            <div class="formats">支持 MP3 / WAV / M4A / AAC，单文件最大 500MB</div>
+          </div>
+          <button class="import-btn">＋ 上传音频</button>
+        </a>
+
+        <!-- 最近项目 -->
+        <div class="section-header">
+          <span class="section-title">最近项目</span>
+          <a class="section-link" href="/projects">全部项目 ›</a>
+        </div>
+        <div class="projects-card">
+          <div id="projectList"></div>
+        </div>
+      </div>
+
+      <!-- 助教审核视图 -->
+      <div class="review-view" id="reviewView">
+        <div class="greeting">
+          <h1>助教审核台</h1>
+          <p>学员提交的剪辑等你审。通过、打回或查看详情。</p>
+        </div>
+        <div class="review-card" id="reviewList"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   模拟真实登录态（上线后由后端注入真实用户）
+   学员示例：{ name:'小石', role:'student', isAdmin:false }
+   助教示例：{ name:'王助教', role:'admin', isAdmin:true }
+   预览助教版只需改这里，页面上不提供切换器。
+═══════════════════════════════════════ */
+const currentUser = {
+  name: '小石',
+  role: 'student',
+  isAdmin: false
+};
+
+/* ───── 根据登录态渲染身份相关 UI ───── */
+(function applyUser() {
+  const u = currentUser;
+  document.getElementById('userAvatar').textContent = u.name.charAt(0);
+  document.getElementById('userAvatar').classList.toggle('admin', u.isAdmin);
+  document.getElementById('userName').textContent = u.name;
+  document.getElementById('ddName').textContent = u.name;
+  document.getElementById('ddRole').textContent = u.isAdmin ? '助教 · 剪辑营审核' : '学员 · 第四期剪辑营';
+  document.getElementById('greetName').textContent = '上午好，' + u.name + ' 👋';
+
+  // 管理员专属入口仅在 isAdmin 时显示
+  if (u.isAdmin) {
+    document.getElementById('adminNavBlock').classList.add('show');
+    document.getElementById('ddAdminEntry').classList.add('show');
+  }
+})();
+
+/* ───── 视图切换（剪辑首页 / 助教审核）───── */
+function showWorkspace() {
+  document.getElementById('workspaceView').style.display = 'block';
+  document.getElementById('reviewView').classList.remove('show');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('navHome').classList.add('active');
+}
+function showReview() {
+  if (!currentUser.isAdmin) return;   // 学员无此入口，双保险
+  closeDropdown();
+  document.getElementById('workspaceView').style.display = 'none';
+  document.getElementById('reviewView').classList.add('show');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+}
+
+/* ───── 顶部用户下拉 ───── */
+function toggleDropdown() { document.getElementById('userDropdown').classList.toggle('open'); }
+function closeDropdown() { document.getElementById('userDropdown').classList.remove('open'); }
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.user-menu') && !e.target.closest('.bell-btn')) closeDropdown();
+});
+
+/* ───── AI 工具箱折叠 ───── */
+function toggleToolbox() { document.getElementById('toolbox').classList.toggle('open'); }
+
+/* ───── 波形 ───── */
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = Math.imul(1664525, s) + 1013904223 | 0; return (s >>> 0) / 4294967296; };
+}
+function buildWaveform(el, seed) {
+  const rng = makeRng(seed);
+  const count = 32;
+  for (let i = 0; i < count; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'wv-bar';
+    const pos = i / count;
+    const envelope = Math.sin(pos * Math.PI) * 0.55 + 0.35;
+    const h = Math.max(3, (envelope + rng() * 0.5 - 0.08) * 28);
+    bar.style.height = h + 'px';
+    el.appendChild(bar);
+  }
+}
+
+/* ───── 最近项目（占位数据，后端接入后替换为真实项目）───── */
+const statusMap = {
+  draft:  ['草稿',      'st-draft'],
+  review: ['待助教审核', 'st-review'],
+  pass:   ['助教已通过', 'st-pass'],
+  reject: ['助教打回',   'st-reject'],
+  done:   ['已导出',     'st-done'],
+};
+const projects = [
+  { id:1, name:'搞钱搞流量', bg:'linear-gradient(145deg,#0F2A2A,#1A4A3A)', title:'E29 | 如何打造个人品牌并实现商业变现', date:'今天 14:30', dur:'42:18', seed:42, status:'review' },
+  { id:2, name:'成都搞钱', bg:'linear-gradient(145deg,#3A2010,#7A4A28)', title:'成都老板访谈 · 火锅店老板的现金流秘密', date:'昨天 10:15', dur:'56:42', seed:137, status:'draft' },
+  { id:3, name:'搞钱搞流量', bg:'linear-gradient(145deg,#2D1060,#5E2DA0)', title:'E28 | 我的第一桶金：从0到1的经验分享', date:'06-09 09:45', dur:'38:56', seed:255, status:'pass' },
+  { id:4, name:'搞钱搞流量', bg:'linear-gradient(145deg,#101828,#1E3A5A)', title:'E27 | 播客如何获取精准流量和长期增长', date:'06-07 16:20', dur:'47:33', seed:99, status:'done' },
+];
+const list = document.getElementById('projectList');
+projects.forEach(p => {
+  const [stLabel, stClass] = statusMap[p.status];
+  const row = document.createElement('div');
+  row.className = 'proj-row';
+  // 暂无真实 project id 页面，统一进我的项目列表
+  row.onclick = () => { location.href = '/projects'; };
+  row.innerHTML = `
+    <div class="thumb" style="background:${p.bg}">
+      <span class="thumb-label">${p.name}</span>
+      <span class="thumb-mic">🎙</span>
+    </div>
+    <div class="proj-info">
+      <div class="proj-title">${p.title}</div>
+      <div class="proj-meta">
+        <span class="proj-date">${p.date}</span>
+        <span class="status-pill ${stClass}">${stLabel}</span>
+      </div>
+    </div>
+    <div class="waveform" id="wv-${p.id}"></div>
+    <div class="proj-dur">${p.dur}</div>
+  `;
+  list.appendChild(row);
+  buildWaveform(document.getElementById('wv-' + p.id), p.seed);
+});
+
+/* ───── 助教审核列表（占位数据，后端接入后替换）───── */
+const reviewItems = [
+  { title:'E29 | 如何打造个人品牌并实现商业变现', who:'小石', time:'今天 14:30 提交' },
+  { title:'成都老板访谈 · 奶茶加盟的坑', who:'阿may', time:'今天 11:02 提交' },
+];
+const rList = document.getElementById('reviewList');
+reviewItems.forEach(it => {
+  const row = document.createElement('div');
+  row.className = 'rv-row';
+  row.innerHTML = `
+    <div class="rv-info">
+      <div class="rv-title">${it.title}</div>
+      <div class="rv-sub">${it.who} · ${it.time}</div>
+    </div>
+    <div class="rv-actions">
+      <a class="rv-btn" href="/projects">查看</a>
+      <button class="rv-btn reject" disabled>打回</button>
+      <button class="rv-btn pass" disabled>通过</button>
+    </div>
+  `;
+  rList.appendChild(row);
+});
+</script>
+</body>
+</html>

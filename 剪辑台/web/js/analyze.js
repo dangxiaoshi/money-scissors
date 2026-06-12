@@ -1,4 +1,4 @@
-import { apiJson } from './api.js?v=20260606-1';
+import { apiJson } from './api.js?v=20260610-reviewflow-1';
 
 const ROUGH_TYPES = [
   'pre_show',
@@ -19,7 +19,9 @@ export async function analyzeEditing(sentences, { onProgress } = {}) {
   const blocks = [];
   for (let i = 0; i < roughBatches.length; i += 1) {
     onProgress?.(`粗剪分析 第 ${i + 1}/${roughBatches.length} 批`);
-    const result = await callJson(roughSystemPrompt(), roughUserPrompt(roughBatches[i]));
+    const result = await callJson(roughSystemPrompt(), roughUserPrompt(roughBatches[i]), {
+      fallback: { blocks: [], sentences: [] },
+    });
     if (Array.isArray(result.sentences)) sentenceDecisions.push(...result.sentences);
     if (Array.isArray(result.blocks)) blocks.push(...result.blocks);
   }
@@ -68,7 +70,7 @@ async function analyzeEditingStrategy(sentences) {
   return String(data.choices?.[0]?.message?.content || '').trim();
 }
 
-async function callJson(system, user) {
+async function callJson(system, user, { fallback = null } = {}) {
   const data = await apiJson('/api/deepseek/chat', {
     method: 'POST',
     body: JSON.stringify({
@@ -83,17 +85,49 @@ async function callJson(system, user) {
   });
 
   const content = data.choices?.[0]?.message?.content || '';
-  return parseJson(content);
+  try {
+    return parseJson(content);
+  } catch (error) {
+    console.warn('DeepSeek JSON parse failed:', error, content.slice(0, 600));
+    if (fallback) return fallback;
+    throw error;
+  }
 }
 
 function parseJson(content) {
+  const normalized = stripJsonWrapper(content);
   try {
-    return JSON.parse(content);
+    return JSON.parse(normalized);
   } catch (error) {
-    const match = content.match(/\{[\s\S]*\}/);
+    const match = normalized.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('DeepSeek 没有返回合法 JSON');
-    return JSON.parse(match[0]);
+    const extracted = match[0];
+    try {
+      return JSON.parse(extracted);
+    } catch (innerError) {
+      const repaired = repairCommonJsonMistakes(extracted);
+      try {
+        return JSON.parse(repaired);
+      } catch {
+        throw new Error(`DeepSeek 返回的 JSON 格式有误：${innerError.message}`);
+      }
+    }
   }
+}
+
+function stripJsonWrapper(content) {
+  return String(content || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
+function repairCommonJsonMistakes(json) {
+  return String(json)
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/}\s*(?={\s*")/g, '},')
+    .replace(/]\s*(?="\w+"\s*:)/g, '],');
 }
 
 function roughSystemPrompt() {

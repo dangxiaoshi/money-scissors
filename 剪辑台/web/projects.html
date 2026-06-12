@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 我的项目</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260529b">
+  <style>
+    .project-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .project-card {
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 16px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .project-card:hover {
+      border-color: rgba(245,166,35,.45);
+      box-shadow: var(--shadow-card);
+    }
+    .project-title {
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .project-meta {
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 12px;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .status-pill {
+      background: var(--surface-2);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: var(--ink-2);
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 650;
+      padding: 3px 9px;
+    }
+    .status-pill.exported {
+      background: var(--accent-soft);
+      border-color: rgba(245,166,35,.28);
+      color: var(--accent-deep);
+    }
+    .status-pill.pending_review {
+      background: rgba(245, 166, 35, .12);
+      border-color: rgba(245,166,35,.32);
+      color: var(--accent-deep);
+    }
+    .status-pill.approved {
+      background: rgba(245, 166, 35, .18);
+      border-color: rgba(245,166,35,.42);
+      color: var(--accent-deep);
+    }
+    .status-pill.rejected {
+      background: rgba(176, 74, 48, .10);
+      border-color: rgba(176, 74, 48, .24);
+      color: #8f3924;
+    }
+    .empty-state {
+      color: var(--muted);
+      padding: 28px 0 4px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top-chrome">
+      <div class="top-brand">
+        <span class="top-mark">✂️</span>
+        <div>
+          <div class="top-title">我的项目</div>
+          <div class="top-sub">重新打开之前的音频，继续剪辑。</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <a class="secondary-btn inline-btn" href="/training/path.html">训练台</a>
+        <a class="secondary-btn inline-btn" href="/orders/">接单台</a>
+        <a class="secondary-btn inline-btn" href="/edit">上传新音频</a>
+        <a class="secondary-btn inline-btn" id="admin-link" href="admin.html" hidden>后台</a>
+        <span class="user-chip" id="user-phone"></span>
+        <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="label">项目列表</div>
+      <div class="error" id="error"></div>
+      <div class="project-grid" id="project-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/projects.js?v=20260610-reviewflow-1"></script>
+</body>
+</html>

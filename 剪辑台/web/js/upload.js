@@ -1,4 +1,4 @@
-import { getAuthHeaders } from './api.js?v=20260606-1';
+import { getAuthHeaders } from './api.js?v=20260610-reviewflow-1';
 
 export async function uploadAudioToOSS(file, { onProgress } = {}) {
   return uploadAudioToServer(file, { onProgress });

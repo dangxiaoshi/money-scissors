@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 接单排行榜</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #f5f0e8;
+      --surface: #fffcf0;
+      --line: rgba(200, 149, 42, 0.22);
+      --gold: #c8952a;
+      --gold-deep: #b8821e;
+      --ink: #1a1209;
+      --muted: #7d6b48;
+      --soft: #f5e8c0;
+    }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      margin: 0;
+      min-height: 100vh;
+    }
+    main {
+      margin: 0 auto;
+      max-width: 960px;
+      padding: 28px 18px 60px;
+    }
+    .hero {
+      align-items: flex-end;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      color: var(--gold-deep);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      line-height: 1.1;
+      margin: 0 0 8px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin: 0;
+    }
+    .btn {
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--gold-deep);
+      display: inline-flex;
+      font-size: 14px;
+      font-weight: 850;
+      min-height: 38px;
+      padding: 0 16px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .grid {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1.2fr 0.8fr;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card h2 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+    .rank-list {
+      display: grid;
+      gap: 8px;
+    }
+    .rank-item {
+      align-items: center;
+      border: 1px solid rgba(200, 149, 42, 0.14);
+      border-radius: 12px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      padding: 10px 12px;
+    }
+    .badge {
+      align-items: center;
+      background: var(--soft);
+      border-radius: 8px;
+      color: var(--gold-deep);
+      display: flex;
+      font-size: 13px;
+      font-weight: 900;
+      height: 30px;
+      justify-content: center;
+      width: 30px;
+    }
+    .badge.top {
+      background: linear-gradient(135deg, #b8821e, #e8b84b);
+      color: #fff;
+    }
+    .name {
+      font-size: 15px;
+      font-weight: 850;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .money {
+      color: var(--gold-deep);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .points {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .summary {
+      display: grid;
+      gap: 10px;
+    }
+    .summary-row {
+      align-items: center;
+      background: #fff7df;
+      border: 1px solid rgba(200, 149, 42, 0.14);
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      padding: 13px;
+    }
+    .summary-label { color: var(--muted); font-size: 13px; }
+    .summary-value { font-size: 22px; font-weight: 900; }
+    .empty {
+      color: var(--muted);
+      padding: 24px;
+      text-align: center;
+    }
+    @media (max-width: 760px) {
+      .hero { align-items: stretch; flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .rank-item { grid-template-columns: auto minmax(0, 1fr); }
+      .money, .points { grid-column: 2; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <div class="eyebrow">接单台</div>
+        <h1>营内排行榜</h1>
+        <p class="sub">实时看接单数、收入和积分。数据来自接单台汇总表。</p>
+      </div>
+      <a class="btn" href="/orders/">回接单台</a>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h2>学员收入排行</h2>
+        <div class="rank-list" id="ranking">
+          <div class="empty">正在加载...</div>
+        </div>
+      </article>
+      <aside class="card">
+        <h2>本期总结</h2>
+        <div class="summary" id="summary"></div>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module">
+    import { apiJson } from '../js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from '../js/station-nav.js?v=20260610-ux2';
+
+    const auth = await initStationNav({ active: 'orders', requireDay1: true });
+    if (auth) loadData();
+
+    async function loadData() {
+      try {
+        const data = await apiJson('/api/orders/data');
+        render(data);
+      } catch (error) {
+        document.getElementById('ranking').innerHTML = `<div class="empty">${escapeHtml(error.message || '数据加载失败，请刷新。')}</div>`;
+      }
+    }
+
+    function render(data) {
+      const overview = data.overview || {};
+      const ranking = Array.isArray(data.ranking) ? data.ranking : [];
+      const totalEarnings = ranking.reduce((sum, item) => sum + Number(item.earnings || 0), 0);
+      document.getElementById('summary').innerHTML = [
+        ['总单数', `${overview.total_orders ?? '-'} 单`],
+        ['已完成', `${overview.completed_orders ?? '-'} 单`],
+        ['完成率', `${overview.completion_rate ?? '-'}%`],
+        ['参与学员', `${overview.student_count ?? '-'} 人`],
+        ['学员总收入', `¥${totalEarnings.toLocaleString()}`],
+      ].map(([label, value]) => `
+        <div class="summary-row">
+          <span class="summary-label">${escapeHtml(label)}</span>
+          <span class="summary-value">${escapeHtml(value)}</span>
+        </div>
+      `).join('');
+
+      if (!ranking.length) {
+        document.getElementById('ranking').innerHTML = '<div class="empty">还没有排行数据。</div>';
+        return;
+      }
+
+      document.getElementById('ranking').innerHTML = ranking.map((item) => `
+        <div class="rank-item">
+          <div class="badge ${Number(item.rank) <= 3 ? 'top' : ''}">${escapeHtml(item.rank)}</div>
+          <div>
+            <div class="name">${escapeHtml(item.name)}</div>
+            <div class="small">已接 ${escapeHtml(item.orders)} 单</div>
+          </div>
+          <div class="money">¥${escapeHtml(item.earnings)}</div>
+          <div class="points">${escapeHtml(item.points)} 分</div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

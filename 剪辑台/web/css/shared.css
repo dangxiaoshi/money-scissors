@@ -922,39 +922,38 @@ body.auth-body .shell {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 32px 20px;
+  padding: 0;
   background:
-    radial-gradient(80% 70% at 78% 30%, rgba(240, 200, 120, 0.22) 0%, rgba(240, 200, 120, 0) 55%),
-    radial-gradient(90% 80% at 12% 12%, rgba(255, 252, 245, 0.9) 0%, rgba(255, 252, 245, 0) 60%),
+    linear-gradient(90deg, rgba(248, 250, 255, 0.96) 0%, rgba(248, 250, 255, 0.88) 32%, rgba(248, 250, 255, 0.22) 62%, rgba(248, 250, 255, 0) 100%),
+    url("../assets/hero.png") right center / auto 100% no-repeat,
     linear-gradient(135deg, #f7f1e6 0%, #fbf7ef 45%, #f4ece0 100%);
+  overflow-x: hidden;
 }
 
 .welcome-frame {
-  width: min(1180px, 100%);
-  border-radius: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.28));
-  box-shadow: 0 30px 80px -30px rgba(150, 110, 40, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  overflow: hidden;
+  width: 100%;
+  min-height: 100vh;
 }
 
 .welcome-grid {
   display: grid;
-  grid-template-columns: 1.08fr 0.92fr;
+  grid-template-columns: minmax(420px, 0.48fr) 1fr;
   align-items: center;
+  min-height: 100vh;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 58px clamp(54px, 8vw, 112px);
 }
 
 .welcome-left {
-  padding: 56px clamp(32px, 4vw, 60px);
+  padding: 0;
 }
 
 .welcome-logo {
   align-items: center;
   display: flex;
   gap: 12px;
-  margin-bottom: 40px;
+  margin-bottom: 52px;
 }
 
 .welcome-logo-mark {
@@ -980,7 +979,7 @@ body.auth-body .shell {
 .welcome-title {
   font-size: clamp(38px, 4.6vw, 58px);
   font-weight: 850;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   line-height: 1.16;
 }
 
@@ -1010,12 +1009,14 @@ body.auth-body .shell {
 }
 
 .feat {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.62);
   border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 6px 18px -12px rgba(150, 110, 40, 0.4);
   padding: 16px 10px;
   text-align: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .feat-ic {
@@ -1080,12 +1081,7 @@ body.auth-body .shell {
 }
 
 .welcome-art {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  padding: 20px 10px;
+  display: none;
 }
 
 .welcome-art img {
@@ -1096,7 +1092,12 @@ body.auth-body .shell {
 }
 
 @media (max-width: 860px) {
-  .welcome-body { padding: 0; }
+  .welcome-body {
+    background:
+      linear-gradient(180deg, rgba(248, 250, 255, 0.16) 0%, rgba(248, 250, 255, 0.7) 28%, rgba(248, 250, 255, 0.98) 46%, rgba(251, 247, 239, 1) 100%),
+      url("../assets/hero.png") center top / auto 330px no-repeat,
+      linear-gradient(135deg, #f7f1e6 0%, #fbf7ef 45%, #f4ece0 100%);
+  }
   .welcome-frame {
     border-radius: 0;
     min-height: 100vh;
@@ -1104,19 +1105,20 @@ body.auth-body .shell {
   }
   .welcome-grid {
     grid-template-columns: 1fr;
+    align-items: start;
+    min-height: 100vh;
+    padding: 246px 22px 30px;
   }
-  .welcome-art {
-    order: -1;
-    max-height: 270px;
-    overflow: hidden;
-    padding: 0;
-  }
-  .welcome-art img { max-height: 300px; }
-  .welcome-left { padding: 28px 24px 40px; }
-  .welcome-logo { margin-bottom: 22px; }
+  .welcome-left { padding: 0; }
+  .welcome-logo { margin-bottom: 16px; }
+  .welcome-title { font-size: clamp(30px, 8.4vw, 40px); line-height: 1.14; letter-spacing: 0; }
+  .welcome-lead { font-size: 14.5px; line-height: 1.68; margin-top: 14px; }
   .welcome-features {
     grid-template-columns: repeat(2, 1fr);
-    margin: 26px 0;
+    gap: 10px;
+    margin: 18px 0;
   }
-  .welcome-cta { width: 100%; }
+  .feat { padding: 13px 8px; }
+  .welcome-cta { width: 100%; min-height: 54px; font-size: 17px; }
+  .welcome-login { margin-top: 16px; }
 }

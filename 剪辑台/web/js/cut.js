@@ -1,6 +1,4 @@
-import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
-import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm';
-import { apiFetch, ensureLoggedIn, postUsage, setupSessionChrome } from './api.js?v=20260606-1';
+import { apiFetch, ensureLoggedIn, postUsage, setupSessionChrome } from './api.js?v=20260610-reviewflow-1';
 
 const els = {};
 let outputUrl = '';
@@ -20,12 +18,23 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSessionChrome();
 
   els.download.addEventListener('click', async () => {
-    if (!outputUrl) return;
+    if (!outputUrl) {
+      showError('MP3 还没准备好，请等页面显示“备用 MP3 已生成”后再点下载。');
+      return;
+    }
+    const label = els.download.textContent;
+    clearError();
+    els.download.disabled = true;
+    els.download.textContent = '正在下载…';
     try {
       postUsage('download').catch(() => {});
       await triggerDownload(outputUrl, outputName || buildOutputName(false));
+      setStatus('下载已开始', '如果没有看到文件，请看一下浏览器右上角下载记录或下载文件夹。', 100);
     } catch (error) {
       showError(error.message || String(error));
+    } finally {
+      els.download.disabled = false;
+      els.download.textContent = label;
     }
   });
 
@@ -37,38 +46,67 @@ async function runCut() {
   if (!data.audioUrl) throw new Error('缺少原始音频 URL，请从审查页重新导出。');
   if (!Array.isArray(data.segments)) throw new Error('缺少删除段数据，请从审查页重新导出。');
 
-  setStatus('加载剪辑引擎', '首次加载约 30MB，请保持页面打开。', 5);
-  const ffmpeg = new FFmpeg();
-  ffmpeg.on('progress', ({ progress }) => {
-    const pct = 45 + Math.round((progress || 0) * 45);
-    setProgress(pct);
-  });
-  await loadFFmpeg(ffmpeg);
+  setStatus('提交剪辑任务', '服务器正在准备生成 MP3，请保持页面打开。', 5);
+  const cutJob = await startServerCut(data);
+  const cutResult = await pollServerCut(cutJob.jobId);
+  if (!cutResult) throw new Error('剪辑任务未完成');
 
-  setStatus('读取原始音频', '正在下载原始音频。', 20);
-  await ffmpeg.writeFile('input', await fetchFile(data.audioUrl));
-
-  const duration = Number(data.original_duration) || await readDuration(data.audioUrl);
-  const keepSegments = invertDeleteSegments(data.segments, duration);
-  if (!keepSegments.length) throw new Error('所有音频都被标记删除了，无法生成成品。');
-
-  setStatus('正在生成粗剪 MP3', `保留 ${keepSegments.length} 段，正在编码 MP3。`, 45);
-  await ffmpeg.exec(buildFfmpegArgs(keepSegments));
-
-  setStatus('生成下载链接', '正在写出 MP3 文件。', 92);
-  const output = await ffmpeg.readFile('output.mp3');
-  const blob = new Blob([output.buffer], { type: 'audio/mpeg' });
+  setStatus('生成下载链接', '正在准备 MP3 下载。', 92);
+  const roughcutUrl = `/api/cut/download/${encodeURIComponent(cutJob.jobId)}`;
 
   const refineSettings = data.refineSettings || {};
   if (shouldRefine(refineSettings)) {
+    const roughcutResp = await apiFetch(roughcutUrl);
+    if (!roughcutResp.ok) {
+      const errorData = await roughcutResp.json().catch(() => ({}));
+      throw new Error(errorData.message || errorData.error || `粗剪文件读取失败：HTTP ${roughcutResp.status}`);
+    }
+    const blob = await roughcutResp.blob();
     await runRefine(blob, data.fileName || buildOutputName(false), refineSettings);
     return;
   }
 
-  setDownload(blob, buildOutputName(false), '下载粗剪 MP3');
-  setStatus('剪辑完成', '这份 MP3 已完成粗剪，可直接下载。', 100);
+  outputUrl = roughcutUrl;
+  outputName = buildOutputName(false);
+  els.download.textContent = '下载粗剪 MP3';
+  setStatus('备用 MP3 已生成', '可以下载自己先听；正式作业状态请回我的项目查看。', 100);
   els.download.disabled = false;
   els.download.classList.add('ready');
+}
+
+async function startServerCut(data) {
+  const resp = await apiFetch('/api/cut/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      audioUrl: data.audioUrl,
+      segments: data.segments,
+      originalDuration: data.original_duration || data.originalDuration || 0,
+      fileName: data.fileName || 'podcast.mp3',
+    }),
+  });
+  const payload = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(payload.message || payload.error || `剪辑提交失败：HTTP ${resp.status}`);
+  if (!payload.jobId) throw new Error('剪辑任务缺少 jobId');
+  return payload;
+}
+
+async function pollServerCut(jobId) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 30 * 60 * 1000) {
+    await wait(1800);
+    const resp = await apiFetch(`/api/cut/status/${encodeURIComponent(jobId)}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.message || data.error || `剪辑状态读取失败：HTTP ${resp.status}`);
+
+    const progress = Number(data.progress);
+    if (Number.isFinite(progress)) setProgress(Math.max(5, Math.min(99, progress)));
+    if (data.status === 'done' || data.stage === 'done') return true;
+    if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || '剪辑处理失败');
+    if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频。', Math.max(10, Math.min(30, progress || 10)));
+    else setStatus('正在生成粗剪 MP3', '服务器正在剪辑并编码 MP3。', Math.max(30, Math.min(95, progress || 30)));
+  }
+  throw new Error('剪辑等待超时，请稍后重试。');
 }
 
 async function runRefine(blob, filename, refineSettings) {
@@ -102,7 +140,7 @@ async function runRefine(blob, filename, refineSettings) {
   els.download.textContent = '下载精修版 MP3';
   els.download.disabled = false;
   els.download.classList.add('ready');
-  setStatus('精修完成', '精修版 MP3 已生成，可以下载。', 100);
+  setStatus('备用精修 MP3 已生成', '可以下载自己先听；正式作业状态请回我的项目查看。', 100);
 }
 
 async function pollRefine(jobId, optionText) {
@@ -121,60 +159,6 @@ async function pollRefine(jobId, optionText) {
     setStatus(`正在应用：${optionText}`, '服务器正在处理音频，请保持页面打开。', Math.max(96, Math.min(99, progress || 96)));
   }
   throw new Error('精修等待超时，请稍后重试。');
-}
-
-async function loadFFmpeg(ffmpeg) {
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
-}
-
-function buildFfmpegArgs(keepSegments) {
-  if (keepSegments.length === 1 && keepSegments[0].start <= 0.001) {
-    return [
-      '-i', 'input',
-      '-t', String(keepSegments[0].end),
-      '-vn',
-      '-b:a', '192k',
-      'output.mp3',
-    ];
-  }
-
-  const trims = keepSegments
-    .map((seg, index) => `[0:a]atrim=${seg.start}:${seg.end},asetpts=PTS-STARTPTS[a${index}]`)
-    .join(';');
-  const concatInputs = keepSegments.map((_, index) => `[a${index}]`).join('');
-  const filter = `${trims};${concatInputs}concat=n=${keepSegments.length}:v=0:a=1[out]`;
-
-  return [
-    '-i', 'input',
-    '-filter_complex', filter,
-    '-map', '[out]',
-    '-vn',
-    '-b:a', '192k',
-    'output.mp3',
-  ];
-}
-
-function invertDeleteSegments(segments, duration) {
-  const sorted = segments
-    .map((segment) => ({
-      start: clamp(Number(segment.start) || 0, 0, duration),
-      end: clamp(Number(segment.end) || 0, 0, duration),
-    }))
-    .filter((segment) => segment.end > segment.start)
-    .sort((a, b) => a.start - b.start);
-
-  const keep = [];
-  let cursor = 0;
-  sorted.forEach((segment) => {
-    if (segment.start - cursor > 0.04) keep.push({ start: round3(cursor), end: round3(segment.start) });
-    cursor = Math.max(cursor, segment.end);
-  });
-  if (duration - cursor > 0.04) keep.push({ start: round3(cursor), end: round3(duration) });
-  return keep;
 }
 
 function readCutData() {
@@ -217,15 +201,22 @@ async function triggerDownload(url, filename) {
       const data = await resp.json().catch(() => ({}));
       throw new Error(data.message || data.error || `下载失败：HTTP ${resp.status}`);
     }
-    href = URL.createObjectURL(await resp.blob());
+    const blob = await resp.blob();
+    if (!blob.size) throw new Error('下载文件为空，请重新生成 MP3。');
+    href = URL.createObjectURL(blob);
     revoke = true;
   }
 
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  if (revoke) setTimeout(() => URL.revokeObjectURL(href), 30000);
+  setTimeout(() => {
+    a.remove();
+    if (revoke) URL.revokeObjectURL(href);
+  }, 30000);
 }
 
 function buildOutputName(refined) {
@@ -234,16 +225,6 @@ function buildOutputName(refined) {
     .replace(/\.[a-z0-9]{2,8}$/i, '')
     .replace(/[\\/:*?"<>|]/g, '_');
   return `${base}_${refined ? '精修版' : '精剪版'}.mp3`;
-}
-
-function readDuration(url) {
-  return new Promise((resolve, reject) => {
-    const audio = document.createElement('audio');
-    audio.preload = 'metadata';
-    audio.src = url;
-    audio.onloadedmetadata = () => resolve(audio.duration || 0);
-    audio.onerror = () => reject(new Error('无法读取音频时长'));
-  });
 }
 
 function setStatus(status, detail, progress) {
@@ -261,14 +242,15 @@ function showError(message) {
   els.error.classList.add('visible');
 }
 
+function clearError() {
+  els.error.textContent = '';
+  els.error.classList.remove('visible');
+}
+
 function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-function round3(value) {
-  return Math.round(value * 1000) / 1000;
 }

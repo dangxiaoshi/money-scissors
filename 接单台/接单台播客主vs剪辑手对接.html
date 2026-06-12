@@ -1,983 +1,244 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>金钱剪刀 — 播客剪辑工作台</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #f5f0e8;
-      --card-bg: #ffffff;
-      --gold: #c8952a;
-      --gold-light: #e8b84b;
-      --gold-pale: #f5e8c0;
-      --gold-gradient: linear-gradient(135deg, #b8821e 0%, #c8952a 50%, #e8b84b 100%);
-      --gold-gradient-soft: linear-gradient(135deg, #f5d06a 0%, #c8952a 100%);
-      --text-dark: #1a1209;
-      --text-body: #5a4a2a;
-      --text-muted: #9a8a6a;
-      --border: #e8d8b0;
-      --shadow: 0 2px 16px rgba(196,146,42,0.08);
-      --shadow-card: 0 4px 24px rgba(0,0,0,0.06);
-      --radius: 16px;
-      --radius-sm: 10px;
-    }
-
-    body {
-      font-family: 'Noto Sans SC', 'PingFang SC', 'Helvetica Neue', sans-serif;
-      background: var(--bg);
-      color: var(--text-dark);
-      min-height: 100vh;
-    }
-
-    /* ─── NAV ─── */
-    nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(245,240,232,0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 48px;
-      height: 64px;
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-
-    .nav-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      margin-right: 60px;
-    }
-    .nav-logo-icon {
-      width: 40px;
-      height: 40px;
-      background: var(--gold-gradient);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 2px 8px rgba(196,146,42,0.3);
-    }
-    .nav-logo-text { display: flex; flex-direction: column; }
-    .nav-logo-title {
-      font-size: 17px;
-      font-weight: 700;
-      color: var(--text-dark);
-      line-height: 1.2;
-    }
-    .nav-logo-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-      line-height: 1.2;
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex: 1;
-    }
-    .nav-links a {
-      text-decoration: none;
-      font-size: 15px;
-      color: var(--text-body);
-      padding: 6px 16px;
-      border-radius: 8px;
-      transition: color 0.2s;
-      position: relative;
-    }
-    .nav-links a:hover { color: var(--gold); }
-    .nav-links a.active {
-      color: var(--gold);
-      font-weight: 600;
-    }
-    .nav-links a.active::after {
-      content: '';
-      position: absolute;
-      bottom: -3px;
-      left: 16px;
-      right: 16px;
-      height: 2px;
-      background: var(--gold-gradient);
-      border-radius: 2px;
-    }
-
-    .nav-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .nav-bell {
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px;
-      cursor: pointer;
-      transition: box-shadow 0.2s;
-    }
-    .nav-bell:hover { box-shadow: var(--shadow); }
-    .nav-user {
-      display: flex; align-items: center; gap: 8px;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 100px;
-      padding: 4px 14px 4px 4px;
-      cursor: pointer;
-      transition: box-shadow 0.2s;
-    }
-    .nav-user:hover { box-shadow: var(--shadow); }
-    .nav-avatar {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      background: var(--gold-gradient);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px;
-      color: white;
-      font-weight: 600;
-    }
-    .nav-username { font-size: 13px; font-weight: 500; color: var(--text-dark); }
-
-    /* ─── HERO ─── */
-    .hero {
-      padding: 56px 48px 48px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: center;
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-
-    .hero-left {}
-
-    .hero-title {
-      font-size: 44px;
-      font-weight: 800;
-      line-height: 1.2;
-      color: var(--text-dark);
-      margin-bottom: 8px;
-    }
-    .hero-title span {
-      background: var(--gold-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .hero-sub {
-      font-size: 15px;
-      color: var(--text-muted);
-      margin-bottom: 36px;
-    }
-
-    .hero-ctas {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 40px;
-    }
-    .cta-card {
-      flex: 1;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      cursor: pointer;
-      transition: box-shadow 0.2s, transform 0.2s;
-      box-shadow: var(--shadow-card);
-    }
-    .cta-card:hover { box-shadow: 0 8px 32px rgba(196,146,42,0.15); transform: translateY(-2px); }
-    .cta-card-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .cta-icon {
-      width: 44px; height: 44px;
-      background: var(--gold-pale);
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
-    }
-    .cta-card-title { font-size: 16px; font-weight: 700; color: var(--text-dark); }
-    .cta-card-desc { font-size: 12px; color: var(--text-muted); }
-    .cta-btn {
-      background: var(--gold-gradient);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 20px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      align-self: flex-start;
-      transition: opacity 0.2s;
-    }
-    .cta-btn:hover { opacity: 0.85; }
-
-    .hero-features {
-      display: flex;
-      gap: 28px;
-    }
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--text-body);
-    }
-    .feature-icon {
-      width: 28px; height: 28px;
-      background: var(--gold-pale);
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
-    }
-    .feature-label { font-weight: 600; color: var(--text-dark); }
-    .feature-desc { color: var(--text-muted); font-size: 12px; }
-
-    /* ─── HERO RIGHT (3D ILLUSTRATION) ─── */
-    .hero-right {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      height: 420px;
-    }
-    .hero-illustration {
-      position: relative;
-      width: 380px;
-      height: 380px;
-    }
-
-    /* Floating coins */
-    .coin {
-      position: absolute;
-      border-radius: 50%;
-      background: var(--gold-gradient);
-      display: flex; align-items: center; justify-content: center;
-      color: rgba(255,255,255,0.9);
-      font-weight: 800;
-      box-shadow: 0 4px 16px rgba(196,146,42,0.4);
-      animation: float 3s ease-in-out infinite;
-    }
-    .coin-lg { width: 52px; height: 52px; font-size: 24px; }
-    .coin-md { width: 38px; height: 38px; font-size: 18px; }
-    .coin-sm { width: 26px; height: 26px; font-size: 12px; }
-    .coin-1 { top: 20px; right: 60px; animation-delay: 0s; }
-    .coin-2 { top: 80px; right: 10px; animation-delay: 0.5s; }
-    .coin-3 { top: 10px; left: 80px; animation-delay: 1s; }
-    .coin-4 { bottom: 100px; right: 20px; animation-delay: 1.5s; }
-    .coin-5 { bottom: 40px; left: 60px; animation-delay: 0.8s; }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-    }
-
-    /* Glass card for scissors */
-    .glass-card {
-      position: absolute;
-      top: 30px;
-      right: 20px;
-      width: 160px;
-      height: 160px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(255,255,255,0.3));
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.8);
-      border-radius: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 72px;
-      box-shadow: 0 8px 32px rgba(196,146,42,0.2), inset 0 1px 0 rgba(255,255,255,0.8);
-      animation: float 3.5s ease-in-out infinite;
-      animation-delay: 0.3s;
-      filter: drop-shadow(0 0 20px rgba(196,146,42,0.3));
-    }
-
-    /* Microphone pedestal */
-    .mic-stage {
-      position: absolute;
-      bottom: 30px;
-      left: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .mic-emoji {
-      font-size: 88px;
-      filter: drop-shadow(0 4px 16px rgba(196,146,42,0.5));
-      animation: float 4s ease-in-out infinite;
-      animation-delay: 0.6s;
-    }
-    .mic-pedestal {
-      margin-top: -8px;
-      width: 100px;
-      height: 12px;
-      background: var(--gold-gradient);
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(196,146,42,0.4);
-    }
-    .mic-pedestal-2 {
-      margin-top: 4px;
-      width: 140px;
-      height: 8px;
-      background: linear-gradient(135deg, #e8c97a, #c4922a);
-      border-radius: 6px;
-      opacity: 0.6;
-    }
-
-    /* Waveform decoration */
-    .waveform {
-      position: absolute;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      opacity: 0.5;
-    }
-    .wave-bar {
-      width: 3px;
-      background: var(--gold-gradient);
-      border-radius: 2px;
-      animation: wave 1.2s ease-in-out infinite;
-    }
-    @keyframes wave {
-      0%, 100% { transform: scaleY(1); }
-      50% { transform: scaleY(0.3); }
-    }
-
-    /* Heart decoration */
-    .heart-badge {
-      position: absolute;
-      bottom: 150px;
-      right: 15px;
-      width: 42px; height: 42px;
-      background: white;
-      border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-      animation: float 2.8s ease-in-out infinite;
-      animation-delay: 1.2s;
-    }
-
-    /* ─── SECTION ─── */
-    .section {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 0 48px 48px;
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-    }
-    .section-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text-dark);
-    }
-    .section-tabs {
-      display: flex;
-      gap: 0;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 3px;
-    }
-    .tab-btn {
-      background: none;
-      border: none;
-      padding: 7px 18px;
-      font-size: 14px;
-      color: var(--text-muted);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-weight: 500;
-    }
-    .tab-btn.active {
-      background: var(--gold-gradient);
-      color: white;
-      font-weight: 600;
-    }
-    .section-more {
-      font-size: 13px;
-      color: var(--gold);
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .section-more:hover { opacity: 0.7; }
-
-    /* ─── PROFILE CARDS ─── */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-
-    .profile-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      cursor: pointer;
-      transition: box-shadow 0.2s, transform 0.2s;
-      box-shadow: var(--shadow-card);
-      position: relative;
-    }
-    .profile-card:hover {
-      box-shadow: 0 8px 32px rgba(196,146,42,0.15);
-      transform: translateY(-2px);
-    }
-
-    .profile-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .profile-avatar {
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      object-fit: cover;
-      flex-shrink: 0;
-    }
-    .avatar-placeholder {
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-      font-weight: 700;
-      color: white;
-      flex-shrink: 0;
-    }
-    .profile-meta { flex: 1; }
-    .profile-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-dark);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .verified-badge {
-      width: 16px; height: 16px;
-      background: var(--gold-gradient);
-      border-radius: 50%;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 9px;
-      color: white;
-    }
-    .profile-tag {
-      display: inline-block;
-      background: var(--gold-pale);
-      color: var(--gold);
-      font-size: 11px;
-      font-weight: 500;
-      padding: 2px 8px;
-      border-radius: 100px;
-      margin-top: 3px;
-    }
-
-    .profile-info {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .profile-info-row {
-      display: flex;
-      gap: 4px;
-      font-size: 12px;
-    }
-    .info-label { color: var(--text-muted); flex-shrink: 0; }
-    .info-val { color: var(--text-body); font-weight: 500; }
-
-    .profile-seeking {
-      background: linear-gradient(135deg, #fdf8ee, #fef3d5);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 12px;
-      color: var(--gold);
-      border: 1px solid rgba(196,146,42,0.15);
-    }
-
-    .profile-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .profile-stats {
-      display: flex;
-      gap: 12px;
-    }
-    .stat-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    .like-btn {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .like-btn:hover {
-      background: var(--gold-pale);
-      border-color: var(--gold-light);
-    }
-    .like-btn.liked {
-      background: var(--gold-gradient);
-      border-color: var(--gold);
-      color: white;
-    }
-
-    /* ─── STATS BAR ─── */
-    .stats-bar {
-      background: var(--card-bg);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      padding: 32px 48px;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0;
-      margin-top: 16px;
-    }
-    .stat-block {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 0 32px;
-      border-right: 1px solid var(--border);
-    }
-    .stat-block:first-child { padding-left: 0; }
-    .stat-block:last-child { border-right: none; }
-    .stat-icon {
-      width: 48px; height: 48px;
-      background: var(--gold-pale);
-      border-radius: 14px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
-      flex-shrink: 0;
-    }
-    .stat-info {}
-    .stat-number {
-      font-size: 28px;
-      font-weight: 800;
-      background: var(--gold-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      line-height: 1.1;
-    }
-    .stat-label {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    /* ─── EDITOR CARD HIDDEN STATE ─── */
-    .cards-grid.hidden { display: none; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 · 播客主对接</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#f5f0e8;
+    --card:#fff;
+    --gold:#c8952a;
+    --gold-deep:#b8821e;
+    --gold-soft:#f5e8c0;
+    --line:rgba(200,149,42,0.2);
+    --ink:#1a1209;
+    --ink-2:#5a4a2a;
+    --ink-3:#9a8a6a;
+    --green:#34A853;
+    --blue:#3b82f6;
+    --red:#E0604F;
+  }
+  body{
+    font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+    background:var(--bg);color:var(--ink);min-height:100vh;
+  }
+  nav{
+    height:64px;background:#fff;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;padding:0 28px;gap:30px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:18px;}
+  .logo{
+    width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#b8821e,#c8952a,#e8b84b);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;
+  }
+  .nav-links{margin-left:auto;display:flex;gap:18px;}
+  .nav-links a{color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:700;}
+  .nav-links a.active{color:var(--gold);}
+  .page{max-width:1180px;margin:0 auto;padding:30px 28px 46px;}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:20px;}
+  .title{font-size:30px;font-weight:900;letter-spacing:0;}
+  .desc{font-size:14px;color:var(--ink-3);margin-top:6px;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .btn{
+    border:none;border-radius:8px;background:linear-gradient(135deg,#b8821e,#c8952a,#e8b84b);
+    color:#fff;font-size:14px;font-weight:800;padding:10px 16px;cursor:pointer;font-family:inherit;
+  }
+  .btn.ghost{background:#fff;color:var(--gold-deep);border:1px solid var(--line);}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+  .stat{
+    background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px 16px;
+  }
+  .stat .label{font-size:12px;color:var(--ink-3);margin-bottom:4px;}
+  .stat .value{font-size:24px;font-weight:900;}
+  .tabs{
+    display:flex;gap:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:4px;
+    width:max-content;margin-bottom:14px;
+  }
+  .tab{
+    border:none;background:transparent;color:var(--ink-2);font-size:14px;font-weight:800;
+    padding:8px 18px;border-radius:8px;cursor:pointer;font-family:inherit;
+  }
+  .tab.active{background:var(--gold-soft);color:var(--gold-deep);}
+  .panel{display:none;}
+  .panel.show{display:block;}
+  .table-card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{padding:13px 14px;border-bottom:1px solid rgba(200,149,42,0.12);text-align:left;font-size:13px;vertical-align:middle;}
+  th{background:#fffaf0;color:var(--ink-2);font-size:12px;font-weight:900;}
+  tr:last-child td{border-bottom:none;}
+  .name{font-weight:900;color:var(--ink);}
+  .sub{font-size:12px;color:var(--ink-3);margin-top:3px;}
+  .need{color:var(--ink-2);line-height:1.55;}
+  .tag{
+    display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;
+    background:#f4ead0;color:var(--gold-deep);font-size:12px;font-weight:800;
+  }
+  .tag.green{background:#eaf7ee;color:#247a3b;}
+  .tag.blue{background:#eaf2ff;color:#2563eb;}
+  .tag.red{background:#fff0ee;color:#c24132;}
+  .contact{
+    color:var(--gold-deep);font-weight:900;text-decoration:none;
+  }
+  .hint{
+    margin-top:12px;background:#fffaf0;border:1px solid var(--line);border-radius:10px;
+    padding:13px 14px;color:var(--ink-2);font-size:13px;line-height:1.7;
+  }
+  @media(max-width:860px){
+    .head{align-items:flex-start;flex-direction:column;}
+    .stats{grid-template-columns:1fr;}
+    .table-card{overflow-x:auto;}
+    table{min-width:840px;}
+  }
+</style>
 </head>
 <body>
+<nav>
+  <div class="brand"><span class="logo">✂</span><span>金钱剪刀</span></div>
+  <div class="nav-links">
+    <a href="接单台训练营内派单.html">派单大厅</a>
+    <a href="接待台排行榜.html">营内排行</a>
+    <a href="接单台播客主vs剪辑手对接.html" class="active">播客主对接</a>
+  </div>
+</nav>
 
-  <!-- NAV -->
-  <nav>
-    <a href="#" class="nav-logo">
-      <div class="nav-logo-icon">✂️</div>
-      <div class="nav-logo-text">
-        <span class="nav-logo-title">金钱剪刀</span>
-        <span class="nav-logo-sub">播客剪辑工作台</span>
-      </div>
-    </a>
-    <div class="nav-links">
-      <a href="#">首页</a>
-      <a href="#" class="active">匹配广场</a>
-      <a href="#">我的匹配</a>
-      <a href="#">消息中心</a>
-      <a href="#">资源学院</a>
+<main class="page">
+  <div class="head">
+    <div>
+      <div class="title">让好内容，遇到会剪的人</div>
+      <div class="desc">播客主发需求，剪辑手找项目，一眼看清，直接对上。</div>
     </div>
-    <div class="nav-right">
-      <div class="nav-bell">🔔</div>
-      <div class="nav-user">
-        <div class="nav-avatar">宇</div>
-        <span class="nav-username">播客小宇宙</span>
-        <span style="font-size:11px;color:var(--text-muted);margin-left:2px;">▾</span>
-      </div>
-    </div>
-  </nav>
-
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-left">
-      <h1 class="hero-title">
-        播客主 &amp; 剪辑手<br>
-        <span>精准对接平台</span>
-      </h1>
-      <p class="hero-sub">找到你的最佳搭档，让好内容被更多人听到</p>
-
-      <div class="hero-ctas">
-        <div class="cta-card">
-          <div class="cta-card-header">
-            <div class="cta-icon">🎙️</div>
-            <div>
-              <div class="cta-card-title">我是播客主</div>
-              <div class="cta-card-desc">寻找剪辑高手</div>
-            </div>
-          </div>
-          <button class="cta-btn">发布需求</button>
-        </div>
-        <div class="cta-card">
-          <div class="cta-card-header">
-            <div class="cta-icon">✂️</div>
-            <div>
-              <div class="cta-card-title">我是剪辑手</div>
-              <div class="cta-card-desc">寻找合作机会</div>
-            </div>
-          </div>
-          <button class="cta-btn">展示技能</button>
-        </div>
-      </div>
-
-      <div class="hero-features">
-        <div class="feature-item">
-          <div class="feature-icon">✅</div>
-          <div>
-            <div class="feature-label">智能匹配</div>
-            <div class="feature-desc">精准推荐合适人选</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">📊</div>
-          <div>
-            <div class="feature-label">双向选择</div>
-            <div class="feature-desc">互相了解放心合作</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">🛡️</div>
-          <div>
-            <div class="feature-label">安全可靠</div>
-            <div class="feature-desc">平台保障权益无忧</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3D ILLUSTRATION -->
-    <div class="hero-right">
-      <div class="hero-illustration">
-        <!-- Coins -->
-        <div class="coin coin-lg coin-1">💰</div>
-        <div class="coin coin-md coin-2" style="font-size:16px;background:linear-gradient(135deg,#f0d585,#c4922a);">$</div>
-        <div class="coin coin-sm coin-3" style="background:linear-gradient(135deg,#e8c97a,#a8781e);">¥</div>
-        <div class="coin coin-md coin-4" style="font-size:16px;">💲</div>
-        <div class="coin coin-sm coin-5">✦</div>
-
-        <!-- Heart -->
-        <div class="heart-badge">❤️</div>
-
-        <!-- Glass card with scissors -->
-        <div class="glass-card">✂️</div>
-
-        <!-- Microphone on stage -->
-        <div class="mic-stage">
-          <div class="mic-emoji">🎙️</div>
-          <div class="mic-pedestal"></div>
-          <div class="mic-pedestal-2"></div>
-        </div>
-
-        <!-- Waveform -->
-        <div class="waveform">
-          <div class="wave-bar" style="height:16px;animation-delay:0s;"></div>
-          <div class="wave-bar" style="height:28px;animation-delay:0.1s;"></div>
-          <div class="wave-bar" style="height:20px;animation-delay:0.2s;"></div>
-          <div class="wave-bar" style="height:36px;animation-delay:0.3s;"></div>
-          <div class="wave-bar" style="height:24px;animation-delay:0.4s;"></div>
-          <div class="wave-bar" style="height:40px;animation-delay:0.5s;"></div>
-          <div class="wave-bar" style="height:22px;animation-delay:0.6s;"></div>
-          <div class="wave-bar" style="height:32px;animation-delay:0.7s;"></div>
-          <div class="wave-bar" style="height:18px;animation-delay:0.8s;"></div>
-          <div class="wave-bar" style="height:26px;animation-delay:0.9s;"></div>
-          <div class="wave-bar" style="height:14px;animation-delay:1.0s;"></div>
-          <div class="wave-bar" style="height:30px;animation-delay:1.1s;"></div>
-        </div>
-      </div>
+    <div class="actions">
+      <button class="btn">发布需求</button>
+      <button class="btn ghost">登记剪辑手</button>
     </div>
   </div>
 
-  <!-- FEATURED SECTION -->
-  <div class="section">
-    <div class="section-header">
-      <div style="display:flex;align-items:center;gap:24px;">
-        <span class="section-title">精选推荐</span>
-        <div class="section-tabs">
-          <button class="tab-btn active" onclick="switchTab(this, 'podcasters')">推荐播客主</button>
-          <button class="tab-btn" onclick="switchTab(this, 'editors')">推荐剪辑手</button>
-        </div>
-      </div>
-      <a href="#" class="section-more">查看全部 →</a>
-    </div>
+  <section class="stats">
+    <div class="stat"><div class="label">播客主需求</div><div class="value">12 个</div></div>
+    <div class="stat"><div class="label">剪辑手</div><div class="value">26 人</div></div>
+    <div class="stat"><div class="label">已匹配</div><div class="value">8 组</div></div>
+  </section>
 
-    <!-- Podcasters Grid -->
-    <div class="cards-grid" id="podcasters">
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#667eea,#764ba2);">小</div>
-          <div class="profile-meta">
-            <div class="profile-name">小宇宙探索者 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">知识分享</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">节目：</span><span class="info-val">《认知升级笔记》</span></div>
-          <div class="profile-info-row"><span class="info-label">更新：</span><span class="info-val">每周三更新</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：长期剪辑搭档</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">💬 1.2w</div>
-            <div class="stat-item">❤️ 86</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#f093fb,#f5576c);">故</div>
-          <div class="profile-meta">
-            <div class="profile-name">故事收集者 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">故事分享</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">节目：</span><span class="info-val">《人生故事馆》</span></div>
-          <div class="profile-info-row"><span class="info-label">更新：</span><span class="info-val">每周日更新</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：能共鸣的剪辑师</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">💬 8.7k</div>
-            <div class="stat-item">❤️ 64</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">职</div>
-          <div class="profile-meta">
-            <div class="profile-name">职场充电宝 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">职场成长</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">节目：</span><span class="info-val">《职场充电站》</span></div>
-          <div class="profile-info-row"><span class="info-label">更新：</span><span class="info-val">每周二更新</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：效率高的剪辑师</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">💬 5.3k</div>
-            <div class="stat-item">❤️ 42</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#43e97b,#38f9d7);">科</div>
-          <div class="profile-meta">
-            <div class="profile-name">科技早知道 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">科技数码</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">节目：</span><span class="info-val">《科技早知道》</span></div>
-          <div class="profile-info-row"><span class="info-label">更新：</span><span class="info-val">每周五更新</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：细节控剪辑师</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">💬 3.1k</div>
-            <div class="stat-item">❤️ 28</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Editors Grid (hidden by default) -->
-    <div class="cards-grid hidden" id="editors">
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#fa709a,#fee140);">陈</div>
-          <div class="profile-meta">
-            <div class="profile-name">陈小剪 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">专业剪辑</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">擅长：</span><span class="info-val">访谈类、知识类播客</span></div>
-          <div class="profile-info-row"><span class="info-label">经验：</span><span class="info-val">5年专业剪辑经验</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：稳定长期合作</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">✂️ 238单</div>
-            <div class="stat-item">⭐ 4.9</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);">王</div>
-          <div class="profile-meta">
-            <div class="profile-name">王剪不断 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">情感剪辑</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">擅长：</span><span class="info-val">情感、故事类播客</span></div>
-          <div class="profile-info-row"><span class="info-label">经验：</span><span class="info-val">3年播客后期</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：有温度的播客主</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">✂️ 156单</div>
-            <div class="stat-item">⭐ 4.8</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#30cfd0,#330867);">李</div>
-          <div class="profile-meta">
-            <div class="profile-name">李快刀 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">高效剪辑</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">擅长：</span><span class="info-val">科技、商业、财经</span></div>
-          <div class="profile-info-row"><span class="info-label">经验：</span><span class="info-val">4年媒体后期</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：高频更新播客主</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">✂️ 312单</div>
-            <div class="stat-item">⭐ 5.0</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-      <div class="profile-card">
-        <div class="profile-header">
-          <div class="avatar-placeholder" style="background:linear-gradient(135deg,#f7971e,#ffd200);">赵</div>
-          <div class="profile-meta">
-            <div class="profile-name">赵音韵 <span class="verified-badge">✓</span></div>
-            <span class="profile-tag">音频调色</span>
-          </div>
-        </div>
-        <div class="profile-info">
-          <div class="profile-info-row"><span class="info-label">擅长：</span><span class="info-val">音频降噪调音混音</span></div>
-          <div class="profile-info-row"><span class="info-label">经验：</span><span class="info-val">6年音频制作</span></div>
-        </div>
-        <div class="profile-seeking">🔍 寻找：注重音质的播主</div>
-        <div class="profile-footer">
-          <div class="profile-stats">
-            <div class="stat-item">✂️ 189单</div>
-            <div class="stat-item">⭐ 4.9</div>
-          </div>
-          <button class="like-btn" onclick="toggleLike(this)">♡</button>
-        </div>
-      </div>
-
-    </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="hosts">播客主找剪辑手</button>
+    <button class="tab" data-tab="editors">剪辑手找单</button>
   </div>
 
-  <!-- STATS BAR -->
-  <div class="stats-bar">
-    <div class="stat-block">
-      <div class="stat-icon">👥</div>
-      <div class="stat-info">
-        <div class="stat-number">2,847</div>
-        <div class="stat-label">活跃播客主</div>
-      </div>
+  <section class="panel show" id="hosts">
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>播客主</th>
+            <th>需求</th>
+            <th>预算</th>
+            <th>频率/截止</th>
+            <th>状态</th>
+            <th>联系</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="name">小宇宙探索者</div><div class="sub">知识分享</div></td>
+            <td class="need">找长期剪辑搭档，口播剪辑 + shownote</td>
+            <td>100-150/期</td>
+            <td>每周 1 期</td>
+            <td><span class="tag green">待匹配</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">故事收集者</div><div class="sub">故事分享</div></td>
+            <td class="need">采访音频精剪，保留故事节奏</td>
+            <td>150/期</td>
+            <td>本周五前</td>
+            <td><span class="tag blue">沟通中</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">职场充电宝</div><div class="sub">职场成长</div></td>
+            <td class="need">视频播客粗剪 + 字幕 + 小红书标题</td>
+            <td>200/期</td>
+            <td>每周 2 期</td>
+            <td><span class="tag green">待匹配</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">科技早知道</div><div class="sub">科技数码</div></td>
+            <td class="need">shownote 整理，提炼重点和时间轴</td>
+            <td>80/期</td>
+            <td>长期</td>
+            <td><span class="tag">已匹配</span></td>
+            <td><a class="contact" href="#">查看</a></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-    <div class="stat-block">
-      <div class="stat-icon">✂️</div>
-      <div class="stat-info">
-        <div class="stat-number">1,926</div>
-        <div class="stat-label">专业剪辑手</div>
-      </div>
-    </div>
-    <div class="stat-block">
-      <div class="stat-icon">📊</div>
-      <div class="stat-info">
-        <div class="stat-number">5,673</div>
-        <div class="stat-label">成功匹配</div>
-      </div>
-    </div>
-    <div class="stat-block">
-      <div class="stat-icon">⭐</div>
-      <div class="stat-info">
-        <div class="stat-number">98.6%</div>
-        <div class="stat-label">匹配满意度</div>
-      </div>
-    </div>
-  </div>
+  </section>
 
-  <script>
-    function switchTab(btn, gridId) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.cards-grid').forEach(g => g.classList.add('hidden'));
-      document.getElementById(gridId).classList.remove('hidden');
-    }
+  <section class="panel" id="editors">
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>剪辑手</th>
+            <th>擅长类型</th>
+            <th>可接时间</th>
+            <th>作品</th>
+            <th>状态</th>
+            <th>联系</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="name">许三思</div><div class="sub">已接 6 单</div></td>
+            <td class="need">视频播客、标题、shownote</td>
+            <td>本周可接 1 单</td>
+            <td><a class="contact" href="#">作品链接</a></td>
+            <td><span class="tag blue">忙碌</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">泽林</div><div class="sub">已接 6 单</div></td>
+            <td class="need">访谈剪辑、音频降噪、节奏整理</td>
+            <td>本周可接 2 单</td>
+            <td><a class="contact" href="#">作品链接</a></td>
+            <td><span class="tag green">可接</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">山人</div><div class="sub">已接 4 单</div></td>
+            <td class="need">长音频精剪、段落结构、爆点提炼</td>
+            <td>下周可接</td>
+            <td><a class="contact" href="#">作品链接</a></td>
+            <td><span class="tag">排期中</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+          <tr>
+            <td><div class="name">Ue椰子</div><div class="sub">已接 3 单</div></td>
+            <td class="need">小红书视频、口播剪辑、字幕包装</td>
+            <td>本周可接 1 单</td>
+            <td><a class="contact" href="#">作品链接</a></td>
+            <td><span class="tag green">可接</span></td>
+            <td><a class="contact" href="#">联系</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-    function toggleLike(btn) {
-      btn.classList.toggle('liked');
-      btn.textContent = btn.classList.contains('liked') ? '♥' : '♡';
-    }
-  </script>
+  <div class="hint">建议后面把这里也接飞书：播客主需求一张表，剪辑手登记一张表。页面只负责展示和筛选，操作还是回到飞书里维护，最省事。</div>
+</main>
 
+<script>
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===tab));
+      document.querySelectorAll('.panel').forEach(panel=>panel.classList.toggle('show',panel.id===tab.dataset.tab));
+    });
+  });
+</script>
 </body>
 </html>

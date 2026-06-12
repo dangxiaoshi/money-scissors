@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 · 声音克隆</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+  :root {
+    --gold-1: #c8952a;
+    --gold-2: #e8b84b;
+    --gold-3: #f5d06a;
+    --text-dark: #1a1209;
+    --text-mid: #5a4a2a;
+    --text-light: #9a8a6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans SC', 'PingFang SC', sans-serif;
+    background: #f5f0e8;
+    min-height: 100vh;
+    display: block;
+    padding: 0;
+    color: var(--text-dark);
+  }
+  .card {
+    background: rgba(255,255,255,0.92);
+    border-radius: 16px;
+    padding: 36px;
+    width: 100%;
+    max-width: 560px;
+    margin: 32px auto;
+    box-shadow: 0 4px 24px rgba(200,149,42,0.12);
+    border: 1px solid rgba(200,149,42,0.15);
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 28px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-mid);
+    margin-bottom: 8px;
+  }
+  textarea {
+    width: 100%;
+    height: 140px;
+    padding: 14px;
+    border: 1.5px solid rgba(200,149,42,0.25);
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    color: var(--text-dark);
+    background: rgba(255,255,255,0.8);
+  }
+  textarea:focus { border-color: var(--gold-1); }
+  .char-count {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 4px;
+    margin-bottom: 20px;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #b8821e 0%, #c8952a 50%, #e8b84b 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    box-shadow: 0 4px 14px rgba(200,149,42,0.35);
+    font-family: inherit;
+  }
+  button:hover { opacity: 0.9; transform: translateY(-1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .status {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: none;
+  }
+  .status.loading {
+    display: block;
+    background: rgba(200,149,42,0.08);
+    color: var(--gold-1);
+  }
+  .status.success {
+    display: block;
+    background: #f0faf4;
+    color: #2d7a4f;
+  }
+  .status.error {
+    display: block;
+    background: #fff2f2;
+    color: #c0392b;
+  }
+  .audio-wrap {
+    margin-top: 20px;
+    display: none;
+  }
+  audio {
+    width: 100%;
+    border-radius: 8px;
+  }
+  .download-btn {
+    margin-top: 10px;
+    background: #3a3a3a;
+    font-size: 14px;
+    padding: 10px;
+  }
+  .download-btn:hover { background: #222; }
+  .tips {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #f0ebe4;
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.8;
+  }
+
+/* ── 统一顶部导航栏 ── */
+.jjd-topbar{display:flex;align-items:center;gap:12px;padding:11px 22px;background:rgba(245,240,232,0.97);border-bottom:1px solid rgba(200,149,42,0.2);backdrop-filter:blur(8px);position:sticky;top:0;z-index:100;}
+.jjd-topbar-logo{width:28px;height:28px;background:linear-gradient(135deg,#f5d06a,#c8952a);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;box-shadow:0 2px 6px rgba(200,149,42,0.3);}
+.jjd-topbar-name{font-size:15px;font-weight:700;color:#1a1209;letter-spacing:-0.2px;}
+.jjd-topbar-back{margin-left:auto;font-size:13px;color:#9a8a6a;text-decoration:none;padding:5px 11px;border-radius:7px;border:1px solid transparent;transition:all 0.15s;}
+.jjd-topbar-back:hover{background:rgba(200,149,42,0.1);color:#c8952a;border-color:rgba(200,149,42,0.2);}
+</style>
+</head>
+<body>
+<div class="jjd-topbar"><div class="jjd-topbar-logo">✦</div><span class="jjd-topbar-name">金钱剪刀</span><a class="jjd-topbar-back" href="edit.html">← 回到剪辑台</a></div>
+<div class="card">
+  <h1>🎙 当小时声音生成器</h1>
+  <p class="subtitle">输入旁白文字，生成当小时声音的音频</p>
+
+  <label>旁白文字</label>
+  <textarea id="text" placeholder="在这里粘贴旁白内容……" oninput="updateCount()"></textarea>
+  <div class="char-count"><span id="count">0</span> 字</div>
+
+  <button id="btn" onclick="generate()">生成音频</button>
+
+  <div id="status" class="status"></div>
+
+  <div id="audioWrap" class="audio-wrap">
+    <audio id="player" controls></audio>
+    <button class="download-btn" onclick="download()">下载 MP3</button>
+  </div>
+
+  <div class="tips">
+    · 建议每段不超过 500 字，太长可分段生成<br>
+    · 生成时间约 5–15 秒，请耐心等待<br>
+    · 生成的音频仅用于播客课程剪辑练习
+  </div>
+</div>
+
+<script>
+let audioBlob = null;
+function updateCount() {
+  document.getElementById("count").textContent = document.getElementById("text").value.length;
+}
+function setStatus(type, msg) {
+  const el = document.getElementById("status");
+  el.className = "status " + type;
+  el.textContent = msg;
+}
+async function generate() {
+  setStatus("error", "声音克隆涉及本人授权和接口成本，当前只作为内部授权入口保留。需要使用请联系助教开通。");
+}
+function download() {
+  setStatus("error", "当前没有可下载音频。需要声音生成请联系助教开通内部授权。");
+}
+</script>
+</body>
+</html>

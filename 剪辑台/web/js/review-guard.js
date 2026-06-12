@@ -1,3 +1,3 @@
-import { ensureLoggedIn } from './api.js?v=20260606-1';
+import { ensureLoggedIn } from './api.js?v=20260610-reviewflow-1';
 
 ensureLoggedIn();

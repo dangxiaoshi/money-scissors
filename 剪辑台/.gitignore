@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+.env.local
+.env.production
+
+# System files
+.DS_Store
+.gstack/
+
+# Build output
+dist/
+build/
+out/
+
+# Local data backups
+web/data/backups/
+web/uploads/
+web/public/uploads/
+
+# Local media
+*.m4a
+*.mp3
+*.wav
+*.mp4
+
+# Logs
+*.log
+npm-debug.log*

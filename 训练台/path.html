@@ -62,6 +62,10 @@
       border: 1px solid rgba(200,149,42,0.25);
     }
     .nav-back:hover { color: var(--gold-1); border-color: var(--gold-1); }
+    .avatar-entry { display: flex; align-items: center; gap: 7px; text-decoration: none; }
+    .avatar-circle { width: 32px; height: 32px; border-radius: 50%; background: var(--gold-1); color: #fff; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .avatar-name { font-size: 14px; color: var(--text-mid); font-weight: 500; white-space: nowrap; }
+    .avatar-entry:hover .avatar-name { color: var(--gold-1); }
 
     /* ─── MAIN ─── */
     .main {
@@ -207,9 +211,14 @@
     </a>
     <div class="nav-links">
       <a class="nav-link active" href="path.html">21天路径</a>
-      <a class="nav-link" href="map.html">闯关地图</a>
+      <a class="nav-link" href="sop.html">剪辑课件</a>
     </div>
     <div class="nav-right">
+      <a class="avatar-entry" href="https://dangxiaoshi.github.io/jiedan-tai/%E6%8E%A5%E5%8D%95%E5%8F%B0%E8%AE%AD%E7%BB%83%E8%90%A5%E5%86%85%E6%B4%BE%E5%8D%95.html" target="_blank">
+        <span class="avatar-circle">✂</span>
+        <span class="avatar-name">接单台</span>
+      </a>
+      <a class="nav-back" href="http://8.136.133.196/" target="_blank">✂️ 剪辑台</a>
       <a class="nav-back" href="index.html">← 训练台首页</a>
     </div>
   </nav>

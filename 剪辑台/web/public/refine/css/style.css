@@ -174,9 +174,9 @@ body {
   color: var(--gold);
 }
 .step-item.done .step-icon {
-  border-color: #34c759;
-  background: rgba(52,199,89,.08);
-  color: #34c759;
+  border-color: #c8952a;
+  background: rgba(200,149,42,.10);
+  color: #c8952a;
 }
 
 .progress-bar-wrap {

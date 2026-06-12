@@ -214,7 +214,7 @@
         </div>
       </div>
       <div class="top-actions">
-        <a class="secondary-btn inline-btn" id="admin-link" href="/admin" hidden>后台</a>
+        <a class="secondary-btn inline-btn" id="admin-link" href="admin.html" hidden>后台</a>
         <span class="user-chip" id="user-phone"></span>
         <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
       </div>
@@ -274,7 +274,7 @@
   </main>
 
   <script type="module">
-    import { ensureLoggedIn, setupSessionChrome } from './js/api.js?v=20260606-1';
+    import { ensureLoggedIn, setupSessionChrome } from './js/api.js?v=20260610-reviewflow-1';
 
     const auth = ensureLoggedIn();
     const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data');
@@ -296,7 +296,7 @@
           <div class="label">没有可用数据</div>
           <h1 class="decision-title">请先从首页导入音频</h1>
           <p class="decision-sub">这里需要读取刚生成的逐字稿和 AI 剪辑分析结果。</p>
-          <div class="actions"><a class="primary-btn" href="index.html">返回导入</a></div>
+          <div class="actions"><a class="primary-btn" href="/edit">返回导入</a></div>
         </section>
       `;
     } else {
@@ -307,7 +307,7 @@
       location.href = 'review.html';
     });
     document.getElementById('back-home')?.addEventListener('click', () => {
-      location.href = 'index.html';
+      location.href = '/edit';
     });
 
     function renderDecision(payload) {

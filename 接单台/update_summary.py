@@ -47,9 +47,9 @@ print("✅ 授权成功")
 
 # ── 2. 读取派单明细 ───────────────────────────────────
 print("正在读取派单数据...")
-resp = api("GET", f"/open-apis/sheets/v2/spreadsheets/{SHEET_TOKEN}/values/{SOURCE_SHEET}!A1:P200")
+resp = api("GET", f"/open-apis/sheets/v2/spreadsheets/{SHEET_TOKEN}/values/{SOURCE_SHEET}!A1:Q200")
 rows = resp.get("data", {}).get("valueRange", {}).get("values", [])
-print(f"✅ 读取到 {len(rows)-1} 行数据")
+print(f"✅ 拉取到 {max(len(rows)-1, 0)} 行表格范围")
 
 # ── 3. 计算汇总 ───────────────────────────────────────
 # 名字归一化：同一个人用不同名字填写时，统一合并
@@ -63,18 +63,28 @@ def normalize(name):
     return NAME_MAP.get(name, name)
 
 students = defaultdict(lambda: {"orders": 0, "earnings": 0, "points": 0})
+orders = []
 total_orders = 0
 completed_orders = 0
 
-for row in rows[1:]:
+for row_index, row in enumerate(rows[1:], 2):
     if not row or not any(row):
         continue
-    while len(row) < 16:
+    while len(row) < 17:
         row.append(None)
 
+    dispatch_time = get_text(row[0])
     price     = get_num(row[1])
     completed = get_num(row[4])
     title     = get_text(row[2])
+    assistant = get_text(row[3])
+    product_shownote = get_text(row[5])
+    teacher_approved = get_text(row[6])
+    first_taker = normalize(get_text(row[7]).strip())
+    transcript_link = get_text(row[8])
+    points = get_num(row[9])
+    second_taker = normalize(get_text(row[10]).strip())
+    material_link = get_text(row[16])
 
     if not price and not title:
         continue  # 空行跳过
@@ -82,6 +92,30 @@ for row in rows[1:]:
     total_orders += 1
     if completed == 1:
         completed_orders += 1
+
+    takers = []
+    for col in (7, 10, 13):
+        name = normalize(get_text(row[col]).strip()) if col < len(row) else ""
+        if name and name not in ("None", "") and name not in takers:
+            takers.append(name)
+
+    orders.append({
+        "id": row_index - 1,
+        "row": row_index,
+        "dispatch_time": dispatch_time,
+        "price": int(price) if price.is_integer() else price,
+        "title": title,
+        "assistant": assistant,
+        "completed": completed == 1,
+        "product_shownote": product_shownote,
+        "teacher_approved": teacher_approved,
+        "first_taker": first_taker,
+        "second_taker": second_taker,
+        "takers": takers,
+        "transcript_link": transcript_link,
+        "material_link": material_link,
+        "points": int(points) if points.is_integer() else points,
+    })
 
     # 第一位、第二位、第三位抢单：(名字列, 积分列)
     for name_col, pts_col in [(7, 9), (10, 12), (13, 15)]:
@@ -93,6 +127,7 @@ for row in rows[1:]:
             students[name]["points"]   += pts
 
 completion_rate = f"{completed_orders / total_orders * 100:.1f}" if total_orders else "0"
+print(f"✅ 有效订单：{total_orders} 单")
 
 # ── 4. 构建写入数据 ──────────────────────────────────
 ranked = sorted(students.items(), key=lambda x: x[1]["earnings"], reverse=True)
@@ -139,7 +174,8 @@ data_json = {
             "points": int(s["points"]),
         }
         for i, (name, s) in enumerate(ranked, 1)
-    ]
+    ],
+    "orders": orders,
 }
 json_path = os.path.join(os.path.dirname(__file__), "data.json")
 with open(json_path, "w", encoding="utf-8") as f:

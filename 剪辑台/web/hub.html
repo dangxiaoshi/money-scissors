@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 工作台</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260610">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .hub-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .hub-brand {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .hub-title {
+      font-size: clamp(28px, 5vw, 38px);
+      font-weight: 800;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+
+    .hub-greeting {
+      font-size: 15px;
+      color: var(--muted);
+    }
+
+    .hub-greeting strong {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .mission-panel {
+      background: linear-gradient(135deg, #fff8e5, #fffcf0);
+      border: 1.5px solid var(--hairline);
+      border-radius: 18px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 22px;
+      padding: 20px;
+      width: min(860px, 100%);
+    }
+
+    .mission-head {
+      align-items: flex-start;
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .mission-kicker {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .mission-title {
+      color: var(--ink);
+      font-size: 20px;
+      font-weight: 850;
+    }
+
+    .mission-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 360px;
+      text-align: right;
+    }
+
+    .mission-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .mission-step {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid #ead8a0;
+      border-radius: 12px;
+      min-height: 112px;
+      padding: 13px;
+    }
+
+    .mission-step.active {
+      border-color: var(--accent);
+      box-shadow: 0 4px 14px rgba(180,130,20,0.12);
+    }
+
+    .mission-step strong {
+      color: var(--ink);
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .mission-step span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .mission-action {
+      color: var(--accent);
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 800;
+      margin-top: 9px;
+      text-decoration: none;
+    }
+
+    .ops-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ops-card {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid #ead8a0;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .ops-card h2 {
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 8px;
+    }
+
+    .ops-card p,
+    .ops-card li {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .ops-card ul {
+      display: grid;
+      gap: 4px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .ops-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .ops-link {
+      background: #f5e8c0;
+      border-radius: 999px;
+      color: var(--accent-deep);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 6px 10px;
+      text-decoration: none;
+    }
+
+    .hub-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      width: min(860px, 100%);
+    }
+
+    @media (max-width: 640px) {
+      .hub-grid {
+        grid-template-columns: 1fr;
+        width: 100%;
+      }
+      .mission-head {
+        display: block;
+      }
+      .mission-note {
+        margin-top: 8px;
+        max-width: none;
+        text-align: left;
+      }
+      .mission-grid,
+      .ops-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .station-card {
+      background: var(--surface);
+      border: 1.5px solid var(--hairline);
+      border-radius: 16px;
+      padding: 28px 24px 24px;
+      text-decoration: none;
+      color: var(--ink);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+    }
+
+    .station-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--accent);
+    }
+
+    .station-icon {
+      font-size: 32px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .station-name {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .station-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      flex: 1;
+    }
+
+    .station-cta {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    .hub-footer {
+      margin-top: 40px;
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      gap: 20px;
+    }
+
+    .hub-footer a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .hub-footer a:hover {
+      color: var(--ink);
+    }
+
+    .project-panel {
+      margin-top: 28px;
+      width: min(860px, 100%);
+    }
+
+    .project-panel-head {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .project-panel-title {
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .project-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .project-row {
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      color: inherit;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 13px 14px;
+      text-decoration: none;
+    }
+
+    .project-name {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .project-meta {
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 12px;
+      gap: 8px;
+      margin-top: 3px;
+    }
+
+    .project-status {
+      background: #f5e8c0;
+      border-radius: 999px;
+      color: var(--accent-deep);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 9px;
+      white-space: nowrap;
+    }
+    .project-status.rejected {
+      background: #f7e0d8;
+      color: #8f3924;
+    }
+
+    .project-empty {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 18px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="hub-header">
+    <div class="hub-brand">金钱剪刀</div>
+    <h1 class="hub-title">工作台</h1>
+    <p class="hub-greeting">你好，<strong id="user-name">加载中…</strong></p>
+  </div>
+
+  <section class="mission-panel" id="mission-panel">
+    <div class="project-empty">正在生成你的下一步...</div>
+  </section>
+
+  <div class="hub-grid">
+    <a class="station-card" href="/training/">
+      <div class="station-icon">📚</div>
+      <div class="station-name">训练台</div>
+      <div class="station-desc">21天学习路径 · 课件 · 自我介绍</div>
+      <div class="station-cta">进入 →</div>
+    </a>
+
+    <a class="station-card" href="/edit">
+      <div class="station-icon">✂️</div>
+      <div class="station-name">剪辑台</div>
+          <div class="station-desc">上传音频 · AI剪辑决策 · 提交助教审核</div>
+      <div class="station-cta">进入 →</div>
+    </a>
+
+    <a class="station-card" href="/orders/">
+      <div class="station-icon">💰</div>
+      <div class="station-name">接单台</div>
+      <div class="station-desc">接单 · 排行榜 · 播客主对接</div>
+      <div class="station-cta">进入 →</div>
+    </a>
+  </div>
+
+  <section class="project-panel">
+    <div class="project-panel-head">
+      <div class="project-panel-title">我的项目进度</div>
+      <a class="station-cta" href="/projects">查看全部 →</a>
+    </div>
+    <div class="project-list" id="project-list">
+      <div class="project-empty">正在读取项目...</div>
+    </div>
+  </section>
+
+  <div class="hub-footer">
+    <a href="/projects">我的项目</a>
+    <a href="#" id="logout-btn">退出登录</a>
+  </div>
+
+  <script type="module">
+    import { apiJson, readAuth, clearAuth, getLoginUrl } from './js/api.js?v=20260610-reviewflow-1';
+
+    const auth = readAuth();
+    if (!auth) {
+      location.href = getLoginUrl('/hub.html');
+    } else {
+      const name = auth.user.nickname || auth.user.maskedPhone;
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('logout-btn').addEventListener('click', e => {
+        e.preventDefault();
+        clearAuth();
+        location.href = '/login';
+      });
+      loadProjects();
+      renderMission(auth.user, []);
+    }
+
+    async function loadProjects() {
+      try {
+        const data = await apiJson('/api/projects');
+        const projects = data.projects || [];
+        renderProjects(projects.slice(0, 3));
+        renderMission(auth.user, projects);
+      } catch (error) {
+        document.getElementById('project-list').innerHTML = '<div class="project-empty">暂时读取不到项目，稍后刷新即可。</div>';
+      }
+    }
+
+    async function renderMission(user, projects = []) {
+      const root = document.getElementById('mission-panel');
+      if (!root) return;
+      if (user?.isAdmin) {
+        const pending = await readPendingReviews();
+        root.innerHTML = renderOperatorMission(pending);
+        return;
+      }
+      root.innerHTML = renderStudentMission(user, projects);
+    }
+
+    async function readPendingReviews() {
+      try {
+        const data = await apiJson('/api/admin/snapshots');
+        return (data.snapshots || []).filter((item) => (item.status || 'pending_review') === 'pending_review').length;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function renderStudentMission(user, projects = []) {
+      const hasProject = projects.length > 0;
+      const hasSubmitted = projects.some((item) => ['pending_review', 'approved', 'rejected', 'exported'].includes(item.status));
+      const step1 = user?.day1Complete;
+      const step2 = hasProject || hasSubmitted;
+      const step3 = step1 && step2;
+      return `
+        <div class="mission-head">
+          <div>
+            <div class="mission-kicker">你的下一步</div>
+            <div class="mission-title">${step3 ? '可以去接真实订单了' : '先跑完开营通关流程'}</div>
+          </div>
+          <div class="mission-note">不用问别人，按这三步走。前两关跑完，接单台才真正有意义。</div>
+        </div>
+        <div class="mission-grid">
+          <div class="mission-step ${!step1 ? 'active' : ''}">
+            <strong>1. 训练台打卡</strong>
+            <span>${step1 ? '已完成第一天作业。' : '先做自我介绍，生成打卡卡片并发到群里。'}</span>
+            <a class="mission-action" href="/training/intro.html">${step1 ? '查看作业' : '去完成 →'}</a>
+          </div>
+          <div class="mission-step ${step1 && !step2 ? 'active' : ''}">
+            <strong>2. 剪辑台练习</strong>
+            <span>${step2 ? '已有剪辑项目记录。' : '上传开营练习素材，处理后提交一次助教审核。'}</span>
+            <a class="mission-action" href="/edit">${step2 ? '看我的项目 →' : '去上传 →'}</a>
+          </div>
+          <div class="mission-step ${step3 ? 'active' : ''}">
+            <strong>3. 接真实订单</strong>
+            <span>${step3 ? '可以进入接单台，看任务池和排行榜。' : '前两步完成后，再来这里抢单。'}</span>
+            <a class="mission-action" href="/orders/">进入接单台 →</a>
+          </div>
+        </div>`;
+    }
+
+    function renderOperatorMission(pending) {
+      const pendingText = pending === null ? '待同步' : `${pending} 个待审`;
+      return `
+        <div class="mission-head">
+          <div>
+            <div class="mission-kicker">教研组驾驶舱</div>
+            <div class="mission-title">今天让组织自己运转</div>
+          </div>
+          <div class="mission-note">督学官负责接住和分流，助教负责集中答疑和审核，当当只处理标准争议。</div>
+        </div>
+        <div class="ops-grid">
+          <div class="ops-card">
+            <h2>督学官今日任务</h2>
+            <ul>
+              <li>10:00 前改群名，发当天进度。</li>
+              <li>直播日 15:00-17:00 再发会议链接。</li>
+              <li>私信问题先搬到群里，再截图回私信。</li>
+              <li>重复问题沉淀到急救包，第二天少答一次。</li>
+            </ul>
+            <div class="ops-links">
+              <a class="ops-link" href="/training/path.html">看今日课表</a>
+            </div>
+          </div>
+          <div class="ops-card">
+            <h2>助教今日任务</h2>
+            <ul>
+              <li>中午、傍晚、晚上三次集中答疑。</li>
+              <li>订单按单数潼潼、双数叶青分流。</li>
+              <li>审核目标 24 小时内给结果。</li>
+              <li>标准争议再找当当，不让问题乱飞。</li>
+            </ul>
+            <div class="ops-links">
+              <a class="ops-link" href="/orders-admin.html">接单后台</a>
+              <a class="ops-link" href="/edit">审核台 ${pendingText}</a>
+              <a class="ops-link" href="/admin">系统后台</a>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderProjects(projects) {
+      const root = document.getElementById('project-list');
+      if (!projects.length) {
+        root.innerHTML = '<div class="project-empty">还没有项目。进剪辑台上传音频并进入审查页后，这里会自动出现。</div>';
+        return;
+      }
+      root.innerHTML = projects.map((project) => `
+        <a class="project-row" href="/review.html?project=${encodeURIComponent(project.id)}">
+          <div>
+            <div class="project-name">${escapeHtml(project.fileName)}</div>
+            <div class="project-meta">
+              <span>更新 ${formatDate(project.updatedAt)}</span>
+              <span>原始 ${formatDuration(project.originalDuration)}</span>
+              ${project.exportedAt ? `<span>已导出 ${formatDate(project.exportedAt)}</span>` : ''}
+            </div>
+          </div>
+          <span class="project-status ${escapeAttr(project.status || 'draft')}">${projectStatusLabel(project.status)}</span>
+        </a>
+      `).join('');
+    }
+
+    function projectStatusLabel(status) {
+      const labels = {
+        draft: '剪辑中',
+        pending_review: '待助教审核',
+        approved: '助教已通过',
+        rejected: '助教已打回',
+        exported: '已导出',
+      };
+      return labels[status] || labels.draft;
+    }
+
+    function formatDate(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function formatDuration(seconds) {
+      const total = Math.max(0, Math.round(Number(seconds || 0)));
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

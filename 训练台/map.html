@@ -75,6 +75,62 @@
   }
 
   /* ─── HEADER ─── */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    min-height: 52px;
+    background: rgba(5, 5, 5, 0.94);
+    border-bottom: 2px solid var(--gold-dark);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 18px;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.6);
+  }
+
+  .nav-logo {
+    color: var(--gold);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    text-shadow: 2px 2px 0 var(--shadow-deep);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-links::-webkit-scrollbar { display: none; }
+  .avatar-entry { display: flex; align-items: center; gap: 7px; text-decoration: none; margin-left: auto; flex-shrink: 0; }
+  .avatar-circle { width: 32px; height: 32px; border-radius: 50%; background: #c8952a; color: #fff; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .avatar-name { font-size: 14px; color: var(--white); font-weight: 500; white-space: nowrap; }
+  .avatar-entry:hover .avatar-name { color: var(--gold); }
+
+  .nav-link {
+    flex-shrink: 0;
+    color: var(--white);
+    border: 1px solid var(--card-border);
+    background: #0b0b0b;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 7px 10px;
+  }
+
+  .nav-link:hover,
+  .nav-link.active {
+    color: var(--gold);
+    border-color: var(--gold-dark);
+  }
+
   header {
     position: relative;
     text-align: center;
@@ -709,6 +765,18 @@
 <body>
 
 <div class="header-bar"></div>
+
+<nav class="nav">
+  <a class="nav-logo" href="index.html">金钱剪刀</a>
+  <div class="nav-links">
+    <a class="nav-link" href="path.html">21天路径</a>
+    <a class="nav-link" href="sop.html">剪辑课件</a>
+  </div>
+  <a class="avatar-entry" href="https://dangxiaoshi.github.io/jiedan-tai/%E6%8E%A5%E5%8D%95%E5%8F%B0%E8%AE%AD%E7%BB%83%E8%90%A5%E5%86%85%E6%B4%BE%E5%8D%95.html" target="_blank">
+    <span class="avatar-circle">✂</span>
+    <span class="avatar-name">接单台</span>
+  </a>
+</nav>
 
 <header>
   <div class="pixel-coins" id="coins"></div>

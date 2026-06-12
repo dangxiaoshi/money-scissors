@@ -14,7 +14,7 @@
       <p>AI 帮你剪播客。登录后即可上传、转录、剪辑。</p>
     </header>
 
-    <section class="card auth-card">
+    <section class="card auth-card" id="login-section">
       <div class="stack">
         <label class="field">
           <span>手机号</span>
@@ -35,9 +35,21 @@
       </div>
     </section>
 
+    <section class="card auth-card" id="nickname-section" style="display:none">
+      <div class="stack">
+        <p style="color:#555;margin:0">最后一步：填写你在训练营微信群里的微信名，方便助教认出你。</p>
+        <label class="field">
+          <span>微信名（必填）</span>
+          <input id="nickname" maxlength="30" placeholder="和微信群里显示的名字一样">
+        </label>
+        <button class="primary-btn" id="nickname-btn" type="button">进入剪辑台</button>
+        <div class="error" id="nickname-error"></div>
+      </div>
+    </section>
+
     <p class="auth-foot">登录即表示你已阅读并同意 <a href="/privacy" target="_blank" rel="noopener">隐私说明</a>。</p>
   </main>
 
-  <script type="module" src="js/login.js?v=20260529-1"></script>
+  <script type="module" src="js/login.js?v=20260609-1"></script>
 </body>
 </html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 训练台</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f0e8;
+      --gold: #c8952a;
+      --gold-light: #e8b84b;
+      --gold-pale: #f5e8c0;
+      --gold-gradient: linear-gradient(135deg, #b8821e 0%, #c8952a 50%, #e8b84b 100%);
+      --text-dark: #1a1209;
+      --text-body: #5a4a2a;
+      --text-muted: #9a8a6a;
+      --border: #e8d8b0;
+      --card-bg: #fffcf0;
+      --radius: 20px;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px 40px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 900;
+      background: var(--gold-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+
+    .gate-card {
+      width: 100%;
+      max-width: 520px;
+      background: #fff8e5;
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 16px rgba(180,130,20,0.08);
+    }
+
+    .gate-title {
+      color: var(--text-dark);
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .gate-steps {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .gate-step {
+      background: rgba(255,255,255,0.62);
+      border: 1px solid #ead8a0;
+      border-radius: 12px;
+      min-height: 74px;
+      padding: 10px;
+    }
+
+    .gate-step strong {
+      color: var(--gold);
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .gate-step span {
+      color: var(--text-body);
+      display: block;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      background: var(--card-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 12px rgba(180,130,20,0.07);
+    }
+
+    .card:hover {
+      border-color: var(--gold);
+      box-shadow: 0 6px 24px rgba(180,130,20,0.15);
+      transform: translateY(-2px);
+    }
+
+    .card-icon { font-size: 28px; margin-bottom: 10px; }
+    .card-title { font-size: 17px; font-weight: 700; color: var(--text-dark); margin-bottom: 4px; }
+    .card-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .card-arrow { float: right; font-size: 18px; color: var(--gold); margin-top: -32px; }
+
+    footer { margin-top: 56px; font-size: 12px; color: var(--text-muted); opacity: 0.6; }
+
+    @media (max-width: 620px) {
+      body { justify-content: flex-start; }
+      .gate-steps { grid-template-columns: 1fr; }
+    }
+
+    /* 顶部导航栏 */
+    .top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: rgba(245,240,232,0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .nav-left:hover { color: var(--gold); }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .nav-tab {
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+
+    .nav-tab:hover { background: var(--gold-pale); color: var(--gold); }
+    .nav-tab.active { background: var(--gold-pale); color: var(--gold); }
+
+    .nav-right {
+      font-size: 13px;
+      color: var(--text-body);
+      font-weight: 500;
+    }
+
+    .nav-right span {
+      color: var(--gold);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="top-nav">
+    <a class="nav-left" href="/hub.html">← 工作台</a>
+    <div class="nav-tabs">
+      <a class="nav-tab active" href="/training/">训练台</a>
+      <a class="nav-tab" href="/edit">剪辑台</a>
+      <a class="nav-tab" href="/orders/">接单台</a>
+    </div>
+    <div class="nav-right">你好，<span id="nav-user-name">…</span></div>
+  </nav>
+
+  <div class="logo">金钱剪刀</div>
+  <h1>训练台</h1>
+  <p class="subtitle">课程地图 · 学习路径 · 作业</p>
+
+  <section class="gate-card" aria-label="开营通关顺序">
+    <div class="gate-title">先过两关，再去接真实订单</div>
+    <div class="gate-steps">
+      <div class="gate-step">
+        <strong>第 1 关</strong>
+        <span>做自我介绍作业，生成打卡卡片发群。</span>
+      </div>
+      <div class="gate-step">
+        <strong>第 2 关</strong>
+        <span>进入剪辑台，上传练习素材并提交。</span>
+      </div>
+      <div class="gate-step">
+        <strong>第 3 关</strong>
+        <span>系统解锁接单台，开始抢真实订单。</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="cards">
+    <a class="card" href="sop.html">
+      <div class="card-icon">✂️</div>
+      <div class="card-title">剪辑课件</div>
+      <div class="card-desc">18讲分章节浏览，按课程大纲学习</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a class="card" href="path.html">
+      <div class="card-icon">📅</div>
+      <div class="card-title">21天学习路径</div>
+      <div class="card-desc">按天拆解任务，跟着节奏走完整个营期</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a class="card" href="intro.html">
+      <div class="card-icon">👋</div>
+      <div class="card-title">自我介绍</div>
+      <div class="card-desc">第一天作业：生成打卡卡片，先解锁剪辑台</div>
+      <div class="card-arrow">→</div>
+    </a>
+  </div>
+
+  <footer>金钱剪刀播客剪辑营 · 第四期</footer>
+
+  <script type="module">
+    import { readAuth, getLoginUrl } from '../js/api.js';
+    const auth = readAuth();
+    if (!auth) {
+      location.href = getLoginUrl(location.pathname);
+    } else {
+      document.getElementById('nav-user-name').textContent =
+        auth.user.nickname || auth.user.maskedPhone;
+    }
+  </script>
+</body>
+</html>

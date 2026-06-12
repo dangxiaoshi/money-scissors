@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 剪辑台</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260610-fix2">
+  <style>
+    :root {
+      --workspace-bg: #ede8e0;
+      --workspace-side: #f5f0e8;
+      --workspace-card: #fff;
+      --workspace-border: rgba(200, 149, 42, 0.15);
+      --workspace-gold: #c8952a;
+      --workspace-gold-dark: #b8821e;
+      --workspace-muted: #8b7b5b;
+      --workspace-shadow: 0 8px 30px -18px rgba(80, 56, 10, 0.26);
+    }
+
+    body {
+      background: var(--workspace-bg);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    a { text-decoration: none; }
+
+    .workspace-topbar {
+      align-items: center;
+      background: #fffdf8;
+      border-bottom: 1px solid var(--workspace-border);
+      box-shadow: 0 1px 3px rgba(200, 149, 42, 0.08);
+      display: flex;
+      gap: 22px;
+      height: 58px;
+      padding: 0 20px;
+      position: relative;
+      z-index: 20;
+    }
+
+    .workspace-brand {
+      align-items: center;
+      color: var(--ink);
+      display: flex;
+      flex: 0 0 auto;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .workspace-mark {
+      align-items: center;
+      background: linear-gradient(145deg, #f5d06a, #b8821e);
+      border-radius: 9px;
+      box-shadow: 0 2px 8px rgba(212, 160, 21, 0.35);
+      color: white;
+      display: inline-flex;
+      height: 32px;
+      justify-content: center;
+      width: 32px;
+    }
+
+    .workspace-tabs {
+      align-items: center;
+      display: flex;
+      gap: 4px;
+      height: 100%;
+    }
+
+    .workspace-tab {
+      align-items: center;
+      border-bottom: 2.5px solid transparent;
+      color: #5a4a2a;
+      display: flex;
+      gap: 7px;
+      height: 100%;
+      padding: 0 16px;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+
+    .workspace-tab:hover,
+    .workspace-tab.active {
+      color: var(--workspace-gold-dark);
+    }
+
+    .workspace-tab.active {
+      border-bottom-color: var(--workspace-gold);
+    }
+
+    .workspace-top-spacer { flex: 1; }
+
+    .workspace-actions {
+      align-items: center;
+      display: flex;
+      gap: 12px;
+    }
+
+    .bell-btn,
+    .user-trigger {
+      border: 1px solid var(--workspace-border);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .bell-btn {
+      align-items: center;
+      border-radius: 10px;
+      color: #5a4a2a;
+      display: flex;
+      height: 38px;
+      justify-content: center;
+      position: relative;
+      width: 38px;
+    }
+
+    .bell-btn .dot {
+      background: #ef4444;
+      border: 1.5px solid #fff;
+      border-radius: 50%;
+      height: 7px;
+      position: absolute;
+      right: 9px;
+      top: 8px;
+      width: 7px;
+    }
+
+    .user-menu { position: relative; }
+
+    .user-trigger {
+      align-items: center;
+      border-color: transparent;
+      border-radius: 999px;
+      display: flex;
+      gap: 9px;
+      padding: 5px 8px 5px 6px;
+    }
+
+    .user-trigger:hover { background: rgba(0, 0, 0, 0.04); }
+
+    .user-avatar {
+      align-items: center;
+      background: linear-gradient(135deg, #8b78f5, #5e4ce0);
+      border-radius: 50%;
+      color: white;
+      display: flex;
+      font-size: 14px;
+      font-weight: 800;
+      height: 34px;
+      justify-content: center;
+      width: 34px;
+    }
+
+    .user-avatar.admin {
+      background: linear-gradient(135deg, #f5d06a, #c8952a);
+    }
+
+    .user-name {
+      color: var(--ink);
+      font-size: 13.5px;
+      font-weight: 750;
+    }
+
+    .dropdown {
+      background: #fff;
+      border: 1px solid var(--workspace-border);
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(80, 60, 10, 0.18);
+      display: none;
+      padding: 8px;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      width: 246px;
+      z-index: 40;
+    }
+
+    .dropdown.open { display: block; }
+
+    .dd-head {
+      border-bottom: 1px solid var(--workspace-border);
+      margin-bottom: 6px;
+      padding: 10px 10px 12px;
+    }
+
+    .dd-name { font-size: 14px; font-weight: 800; }
+    .dd-role { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .dd-item {
+      align-items: center;
+      border-radius: 8px;
+      color: #5a4a2a;
+      display: flex;
+      gap: 10px;
+      padding: 9px 10px;
+      font-size: 13.5px;
+      font-weight: 650;
+    }
+
+    .dd-item:hover {
+      background: rgba(0, 0, 0, 0.045);
+      color: var(--ink);
+    }
+
+    .dd-item .badge {
+      align-items: center;
+      background: #ef4444;
+      border-radius: 999px;
+      color: #fff;
+      display: inline-flex;
+      font-size: 11px;
+      font-weight: 800;
+      height: 18px;
+      justify-content: center;
+      margin-left: auto;
+      min-width: 18px;
+      padding: 0 5px;
+    }
+
+    .dd-divider {
+      background: var(--workspace-border);
+      height: 1px;
+      margin: 6px 4px;
+    }
+
+    .dd-item.logout { color: #d9534f; }
+
+    .workspace-layout {
+      display: flex;
+      height: calc(100vh - 58px);
+      width: 100%;
+    }
+
+    .workspace-sidebar {
+      background: var(--workspace-side);
+      border-right: 1px solid var(--workspace-border);
+      display: flex;
+      flex: 0 0 230px;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .side-label {
+      color: var(--workspace-muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 16px 18px 6px;
+    }
+
+    .side-nav {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+      padding: 4px 10px 14px;
+    }
+
+    .side-nav::-webkit-scrollbar { width: 0; }
+
+    .side-item,
+    .tool-item {
+      align-items: center;
+      border-radius: 8px;
+      color: #5a4a2a;
+      display: flex;
+      gap: 10px;
+      min-height: 38px;
+      padding: 8px 11px;
+      font-size: 13.5px;
+      font-weight: 650;
+    }
+
+    .side-item:hover,
+    .tool-item:hover {
+      background: rgba(0, 0, 0, 0.042);
+      color: var(--ink);
+    }
+
+    .side-item.active {
+      background: rgba(212, 160, 21, 0.14);
+      color: #a87410;
+      font-weight: 800;
+    }
+
+    .side-item svg,
+    .tool-item svg { flex: 0 0 auto; }
+
+    .toolbox {
+      background: linear-gradient(140deg, #fffcef, #fff6d6);
+      border: 1px solid rgba(212, 160, 21, 0.24);
+      border-radius: 12px;
+      margin: 7px 0;
+      overflow: hidden;
+    }
+
+    .toolbox-head {
+      align-items: center;
+      color: var(--workspace-gold-dark);
+      cursor: pointer;
+      display: flex;
+      gap: 9px;
+      padding: 11px 12px;
+      font-size: 13.5px;
+      font-weight: 850;
+      user-select: none;
+    }
+
+    .toolbox-head .chevron {
+      margin-left: auto;
+      opacity: 0.7;
+      transform: rotate(90deg);
+      transition: transform 0.18s;
+    }
+
+    .toolbox:not(.open) .chevron { transform: rotate(0); }
+
+    .toolbox-body {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 2px 8px 8px;
+    }
+
+    .toolbox:not(.open) .toolbox-body { display: none; }
+
+    .tool-item {
+      color: #5a4a2a;
+      font-size: 12.8px;
+      min-height: 34px;
+      padding: 7px 8px;
+    }
+
+    .tool-tag {
+      background: rgba(200, 149, 42, 0.13);
+      border-radius: 999px;
+      color: var(--workspace-gold-dark);
+      font-size: 10px;
+      font-weight: 850;
+      margin-left: auto;
+      padding: 2px 7px;
+      white-space: nowrap;
+    }
+
+    .admin-block { display: none; }
+    .admin-block.show { display: block; }
+
+    .side-item .badge {
+      align-items: center;
+      background: #ef4444;
+      border-radius: 999px;
+      color: #fff;
+      display: inline-flex;
+      font-size: 10.5px;
+      font-weight: 850;
+      height: 17px;
+      justify-content: center;
+      margin-left: auto;
+      min-width: 17px;
+      padding: 0 5px;
+    }
+
+    .workspace-content {
+      background: linear-gradient(155deg, #f4f1ea 0%, #eae6dd 100%);
+      flex: 1;
+      min-width: 0;
+      overflow-y: auto;
+      padding: 28px;
+      position: relative;
+    }
+
+    .workspace-content::before {
+      background: radial-gradient(circle, rgba(248, 205, 60, 0.16) 0%, transparent 65%);
+      content: "";
+      height: 400px;
+      pointer-events: none;
+      position: fixed;
+      right: -100px;
+      top: -90px;
+      width: 400px;
+    }
+
+    .workspace-view {
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    .review-view {
+      display: none;
+      position: relative;
+      z-index: 1;
+    }
+
+    .review-view.show { display: block; }
+
+    .workspace-greeting {
+      margin-bottom: 18px;
+    }
+
+    .workspace-greeting h1 {
+      color: var(--ink);
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 0;
+      line-height: 1.25;
+      margin: 0 0 4px;
+    }
+
+    .workspace-greeting p {
+      color: #5a4a2a;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .task-banner {
+      background: #fff8e5;
+      border: 1px solid rgba(224, 160, 25, 0.26);
+      border-radius: 14px;
+      display: none;
+      margin-bottom: 16px;
+      padding: 14px 16px;
+    }
+
+    .task-banner.visible { display: block; }
+
+    .task-banner-head {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .task-banner-title {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 850;
+    }
+
+    .task-banner-demand {
+      color: var(--ink-2);
+      font-size: 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .import-card {
+      background: #fff;
+      border: 2px dashed rgba(200, 149, 42, 0.38);
+      border-radius: 16px;
+      box-shadow: var(--workspace-shadow);
+      margin-bottom: 22px;
+      padding: 26px 28px;
+    }
+
+    .upload-zone.import-zone {
+      align-items: center;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      display: grid;
+      gap: 24px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      min-height: 0;
+      padding: 0;
+      text-align: left;
+      transform: none;
+    }
+
+    .upload-zone.import-zone:hover,
+    .upload-zone.import-zone.dragging {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .upload-zone.is-hidden { display: none; }
+
+    .upload-icon.import-icon {
+      align-items: center;
+      background: linear-gradient(140deg, #fff3cc, #fce19a);
+      border-radius: 18px;
+      box-shadow: 0 4px 14px rgba(212, 160, 21, 0.22);
+      color: var(--workspace-gold-dark);
+      display: flex;
+      height: 70px;
+      justify-content: center;
+      margin: 0;
+      width: 70px;
+    }
+
+    .upload-title.import-title {
+      color: var(--ink);
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1.4;
+    }
+
+    .upload-hint.import-hint {
+      color: #5a4a2a;
+      font-size: 13px;
+      line-height: 1.65;
+      margin-top: 2px;
+    }
+
+    .formats {
+      color: var(--workspace-muted);
+      font-size: 11.5px;
+      margin-top: 6px;
+    }
+
+    .import-btn {
+      background: linear-gradient(135deg, #f5d06a, #c8952a);
+      border-radius: 11px;
+      box-shadow: 0 3px 12px rgba(212, 160, 21, 0.38);
+      color: #fff;
+      display: inline-flex;
+      font-size: 15px;
+      font-weight: 850;
+      justify-content: center;
+      min-width: 132px;
+      padding: 13px 24px;
+      white-space: nowrap;
+    }
+
+    .file-input-native {
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      width: 1px;
+    }
+
+    .file-list { margin-top: 14px; }
+    .file-list[hidden] { display: none; }
+
+    .file-list-head {
+      align-items: center;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .file-list-head span {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .file-list-actions { display: flex; gap: 8px; }
+    .file-list-actions .inline-btn { min-height: 34px; padding: 0 12px; }
+
+    .file-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .file-item {
+      align-items: center;
+      background: var(--surface-2);
+      border: 1px solid var(--hairline);
+      border-radius: 12px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      padding: 10px 12px;
+    }
+
+    .file-item-idx {
+      align-items: center;
+      background: #e7b54e;
+      border-radius: 50%;
+      color: #fff;
+      display: flex;
+      flex: 0 0 24px;
+      font-size: 13px;
+      font-weight: 800;
+      height: 24px;
+      justify-content: center;
+      width: 24px;
+    }
+
+    .file-item-name {
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-item-size {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .file-item-ctrls { display: flex; gap: 4px; }
+
+    .file-item-ctrls button {
+      background: #fff;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      height: 30px;
+      line-height: 1;
+      width: 30px;
+    }
+
+    .file-item-ctrls button:disabled {
+      cursor: default;
+      opacity: 0.35;
+    }
+
+    .file-item-ctrls button.del { color: #c0392b; }
+
+    .file-list-hint {
+      color: var(--workspace-muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    .speaker-action-row {
+      align-items: flex-end;
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .speaker-action-row .form-row {
+      align-items: center;
+      border-top: 1px solid var(--hairline);
+      flex: 0 0 188px;
+      gap: 12px;
+      margin: 0;
+      padding-top: 22px;
+    }
+
+    .speaker-action-row .form-row label {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .speaker-action-row .actions {
+      align-items: center;
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      flex: 1;
+      gap: 12px;
+      margin: 0;
+      padding-top: 22px;
+    }
+
+    .speaker-action-row .primary-btn {
+      min-height: 42px;
+      padding: 0 24px;
+    }
+
+    .error {
+      color: var(--danger);
+      display: none;
+      font-size: 13px;
+      margin: 0;
+      text-align: left;
+      white-space: pre-line;
+    }
+
+    .error.visible { display: block; }
+
+    .progress-card,
+    .analysis-card,
+    .projects-panel,
+    .review-card {
+      background: #fff;
+      border: 1px solid var(--workspace-border);
+      border-radius: 16px;
+      box-shadow: var(--workspace-shadow);
+      padding: 20px;
+    }
+
+    .progress-card {
+      display: none;
+      margin-bottom: 20px;
+    }
+
+    .progress-card.visible { display: block; }
+
+    .process-title {
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0;
+      line-height: 1.25;
+      margin-bottom: 14px;
+    }
+
+    .process-sub {
+      color: var(--workspace-muted);
+      font-size: 13px;
+      line-height: 1.7;
+      margin-top: 12px;
+    }
+
+    .progress-elapsed {
+      color: var(--workspace-muted);
+      margin-top: 10px;
+      text-align: right;
+    }
+
+    .analysis-card {
+      display: none;
+      margin-bottom: 20px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .analysis-card.visible { display: block; }
+    .analysis-card.entered {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .section-header {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 13px;
+    }
+
+    .section-title {
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .section-link {
+      color: var(--workspace-gold);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .project-row {
+      align-items: center;
+      border-bottom: 1px solid var(--workspace-border);
+      color: inherit;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      min-height: 72px;
+      padding: 12px 0;
+    }
+
+    .project-row:last-child { border-bottom: 0; }
+
+    .project-row:hover .project-title { color: var(--workspace-gold-dark); }
+
+    .project-thumb {
+      align-items: flex-end;
+      background: linear-gradient(145deg, #0f2a2a, #1a4a3a);
+      border-radius: 10px;
+      color: white;
+      display: flex;
+      flex: 0 0 52px;
+      font-size: 10px;
+      font-weight: 850;
+      height: 52px;
+      line-height: 1.25;
+      padding: 6px;
+      width: 52px;
+    }
+
+    .project-title {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .project-meta {
+      align-items: center;
+      color: var(--workspace-muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 12px;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .status-pill {
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 850;
+      padding: 2px 9px;
+      white-space: nowrap;
+    }
+
+    .status-draft { background: rgba(0, 0, 0, 0.06); color: #5a4a2a; }
+    .status-pending_review { background: rgba(245, 158, 11, 0.15); color: #b45309; }
+    .status-approved { background: rgba(34, 197, 94, 0.15); color: #15803d; }
+    .status-rejected { background: rgba(239, 68, 68, 0.13); color: #b91c1c; }
+    .status-exported { background: rgba(99, 102, 241, 0.13); color: #4f46e5; }
+
+    .project-duration {
+      color: #5a4a2a;
+      font-size: 13px;
+      font-weight: 750;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      color: var(--workspace-muted);
+      font-size: 13px;
+      padding: 24px 0;
+      text-align: center;
+    }
+
+    .review-row {
+      align-items: center;
+      border-bottom: 1px solid var(--workspace-border);
+      display: grid;
+      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 14px 0;
+    }
+
+    .review-row:last-child { border-bottom: 0; }
+
+    .review-title {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 850;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .review-sub {
+      color: var(--workspace-muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .review-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .review-actions .mini-btn {
+      min-height: 36px;
+      padding: 0 12px;
+    }
+
+    @media (max-width: 760px) {
+      body { height: auto; overflow: auto; }
+      .workspace-topbar { flex-wrap: wrap; height: auto; padding: 10px 14px; }
+      .workspace-tabs { order: 3; width: 100%; }
+      .workspace-tab { flex: 1; justify-content: center; padding: 0 8px; min-height: 40px; }
+      .workspace-top-spacer { display: none; }
+      .user-name { display: none; }
+      .workspace-layout { flex-direction: column; height: auto; }
+      .workspace-sidebar { border-bottom: 1px solid var(--workspace-border); border-right: 0; flex-basis: auto; width: 100%; }
+      .workspace-content { overflow: visible; padding: 18px 14px 28px; }
+      .upload-zone.import-zone { grid-template-columns: 1fr; text-align: center; }
+      .upload-icon.import-icon { margin: 0 auto; }
+      .speaker-action-row { align-items: stretch; flex-direction: column; }
+      .speaker-action-row .form-row { flex-basis: auto; }
+      .speaker-action-row .actions { border-top: 0; padding-top: 0; }
+      .speaker-action-row .actions { align-items: stretch; flex-direction: column; }
+      .project-row { grid-template-columns: auto minmax(0, 1fr); }
+      .project-duration { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="workspace-topbar">
+    <a class="workspace-brand" href="training/path.html" aria-label="回到训练台">
+      <span class="workspace-mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="6" cy="6" r="2.5" fill="white"></circle>
+          <circle cx="6" cy="18" r="2.5" fill="white"></circle>
+          <path d="M8.5 6.5 L20 12 L8.5 17.5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </span>
+      <span>金钱剪刀</span>
+    </a>
+
+    <nav class="workspace-tabs" aria-label="三台导航">
+      <a class="workspace-tab" href="training/path.html">训练台</a>
+      <a class="workspace-tab active" href="edit.html">剪辑台</a>
+      <a class="workspace-tab" href="orders/">接单台</a>
+    </nav>
+
+    <div class="workspace-top-spacer"></div>
+
+    <div class="workspace-actions">
+      <button class="bell-btn" id="bell-btn" type="button" aria-label="打开通知">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <span class="dot" id="notification-dot" hidden></span>
+      </button>
+
+      <div class="user-menu">
+        <button class="user-trigger" id="user-trigger" type="button" aria-label="打开账号菜单">
+          <span class="user-avatar" id="user-avatar">钱</span>
+          <span class="user-name" id="user-name">加载中</span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+        <div class="dropdown" id="user-dropdown">
+          <div class="dd-head">
+            <div class="dd-name" id="dropdown-name">加载中</div>
+            <div class="dd-role" id="dropdown-role">剪辑营学员</div>
+          </div>
+          <a class="dd-item" href="projects.html">
+            <span>通知消息</span>
+            <span class="badge" id="notification-count" hidden>0</span>
+          </a>
+          <a class="dd-item" href="projects.html">
+            <span>我的审核状态</span>
+            <span class="badge" id="review-count" hidden>0</span>
+          </a>
+          <button class="dd-item admin-block" id="dropdown-review-link" type="button">
+            <span>助教审核台</span>
+            <span class="badge" id="admin-review-count" hidden>0</span>
+          </button>
+          <div class="dd-divider"></div>
+          <button class="dd-item logout" id="logout-btn" type="button">退出登录</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace-layout">
+    <aside class="workspace-sidebar">
+      <div class="side-label">剪辑台</div>
+      <nav class="side-nav" aria-label="剪辑台导航">
+        <button class="side-item active" id="nav-home" type="button">剪辑首页</button>
+        <a class="side-item" href="projects.html">我的项目</a>
+        <a class="side-item" href="projects.html">导出记录</a>
+
+        <section class="toolbox open" id="toolbox">
+          <div class="toolbox-head" id="toolbox-head">
+            <span>AI 工具箱</span>
+            <span class="chevron">›</span>
+          </div>
+          <div class="toolbox-body">
+            <a class="tool-item" href="/剪辑台shownote.html">Show Notes 助手</a>
+            <a class="tool-item" href="/剪辑台剪辑决策.html">剪辑决策助手</a>
+            <a class="tool-item" href="/剪辑台旁白生成.html">旁白生成</a>
+            <a class="tool-item" href="/剪辑台播客小红书推广卡片.html">播客小红书推广卡片</a>
+            <a class="tool-item" href="/剪辑台当小时声音克隆.html">声音克隆</a>
+          </div>
+        </section>
+
+        <section class="admin-block" id="admin-nav-block">
+          <div class="side-label" style="padding: 8px 8px 6px;">助教 / 管理员</div>
+          <button class="side-item" id="nav-review" type="button">助教审核 <span class="badge" id="side-review-count" hidden>0</span></button>
+          <a class="side-item" href="admin.html">系统后台</a>
+        </section>
+      </nav>
+
+    </aside>
+
+    <main class="workspace-content">
+      <section class="workspace-view" id="workspace-view">
+        <div class="workspace-greeting">
+          <h1 id="greeting-title">上午好，剪辑手</h1>
+          <p>今天想剪哪一期？先导入音频，把声音变成钱。</p>
+        </div>
+
+        <section class="task-banner" id="task-banner">
+          <div class="task-banner-head">
+            <div class="task-banner-title" id="task-title">已载入接单任务</div>
+            <a class="secondary-btn inline-btn" id="task-audio-link" href="#" target="_blank" rel="noopener">听原始音频</a>
+          </div>
+          <div class="task-banner-demand" id="task-demand"></div>
+        </section>
+
+        <section class="import-card">
+          <div class="label" id="upload-label">上传音频</div>
+          <label class="upload-zone import-zone" id="upload-zone" for="audio-file" tabindex="0">
+            <span class="upload-icon import-icon" aria-hidden="true">⇧</span>
+            <span>
+              <span class="upload-title import-title">导入音频，开始剪辑</span>
+              <span class="upload-hint import-hint">把录好的播客拖到这里，或点击上传。进入转录 → AI 分析 → 审查 → 导出粗剪。</span>
+              <span class="formats">支持 MP3 / WAV / M4A / AAC，单文件最大 500MB</span>
+            </span>
+            <span class="import-btn">+ 上传音频</span>
+          </label>
+          <input class="file-input-native" type="file" id="audio-file" accept="audio/*" multiple>
+
+          <div class="file-list" id="file-list" hidden>
+            <div class="file-list-head">
+              <span id="file-list-count">已选 0 个音频</span>
+              <div class="file-list-actions">
+                <button class="secondary-btn inline-btn" id="add-more-btn" type="button">继续添加</button>
+                <button class="secondary-btn inline-btn" id="clear-files-btn" type="button">清空</button>
+              </div>
+            </div>
+            <ol class="file-items" id="file-items"></ol>
+            <div class="file-list-hint">用 ↑ ↓ 调整顺序，导出的成品会按这个顺序拼接。</div>
+          </div>
+
+          <div class="speaker-action-row">
+            <div class="form-row">
+              <label for="speaker-count">说话人数</label>
+              <input id="speaker-count" type="number" min="1" max="10" step="1" value="2">
+            </div>
+            <div class="actions">
+              <button class="primary-btn" id="start-btn" type="button">开始处理</button>
+              <div class="error" id="error"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="progress-card" id="progress-card">
+          <div class="process-title" id="process-title">准备开始</div>
+          <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+          <div class="progress-elapsed mono" id="progress-elapsed">已用 0:00</div>
+          <div class="process-sub" id="process-sub">处理时请保持页面打开。转录通常需要几分钟，完成后会自动进入剪辑页。</div>
+        </section>
+
+        <section class="analysis-card" id="analysis-card">
+          <div class="analysis-head">
+            <div class="label">AI 剪辑分析</div>
+            <span class="analysis-status" id="analysis-status">分析中…</span>
+          </div>
+          <div class="analysis-body markdown-body" id="analysis-body"></div>
+          <div class="analysis-foot" id="analysis-foot">
+            <a class="primary-btn analysis-review-btn" id="review-btn" href="review.html">进入逐字稿剪辑 →</a>
+          </div>
+        </section>
+
+        <div class="section-header">
+          <span class="section-title">最近项目</span>
+          <a class="section-link" href="projects.html">全部项目 ›</a>
+        </div>
+        <section class="projects-panel">
+          <div class="project-list" id="recent-projects">
+            <div class="empty-state">正在读取最近项目...</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="review-view" id="review-view">
+        <div class="workspace-greeting">
+          <h1>助教审核台</h1>
+          <p>学员提交的剪辑等你审。通过、打回或查看详情。</p>
+        </div>
+        <section class="review-card" id="review-list">
+          <div class="empty-state">正在读取审核列表...</div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module">
+    import { apiJson, clearAuth, getLoginUrl, readAuth, saveAuth } from './js/api.js?v=20260610-reviewflow-1';
+
+    const auth = readAuth();
+    if (!auth) {
+      location.href = getScopedLoginUrl();
+    } else {
+      initWorkspace(auth).catch((error) => {
+        console.warn('剪辑台工作区初始化失败', error);
+      });
+    }
+
+    async function initWorkspace(initialAuth) {
+      const auth = await refreshAuth(initialAuth);
+      const user = auth.user || {};
+      const isAdmin = Boolean(user.isAdmin);
+      renderUser(user, isAdmin);
+      bindChrome();
+      bindWorkspaceViews(isAdmin);
+      bindToolbox();
+      await loadRecentProjects();
+      if (isAdmin) await loadReviewSnapshots();
+    }
+
+    async function refreshAuth(auth) {
+      try {
+        const data = await apiJson('/api/auth/me');
+        if (data.user) {
+          const nextAuth = { ...auth, user: data.user };
+          saveAuth(nextAuth);
+          return nextAuth;
+        }
+      } catch (error) {
+        clearAuth();
+        location.href = getScopedLoginUrl();
+      }
+      return auth;
+    }
+
+    function renderUser(user, isAdmin) {
+      const name = user.nickname || user.maskedPhone || '剪辑手';
+      document.getElementById('user-avatar').textContent = name.slice(0, 1);
+      document.getElementById('user-avatar').classList.toggle('admin', isAdmin);
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('dropdown-name').textContent = name;
+      document.getElementById('dropdown-role').textContent = isAdmin ? '助教 · 剪辑营审核' : '学员 · 第四期剪辑营';
+      document.getElementById('greeting-title').textContent = `上午好，${name} 👋`;
+      document.querySelectorAll('.admin-block').forEach((item) => item.classList.toggle('show', isAdmin));
+    }
+
+    function bindChrome() {
+      const dropdown = document.getElementById('user-dropdown');
+      const toggle = () => dropdown.classList.toggle('open');
+      document.getElementById('bell-btn').addEventListener('click', toggle);
+      document.getElementById('user-trigger').addEventListener('click', toggle);
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        clearAuth();
+        location.href = getScopedLoginUrl();
+      });
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('.user-menu') && !event.target.closest('#bell-btn')) {
+          dropdown.classList.remove('open');
+        }
+      });
+    }
+
+    function bindWorkspaceViews(isAdmin) {
+      document.getElementById('nav-home').addEventListener('click', showWorkspace);
+      const reviewLink = document.getElementById('nav-review');
+      const dropdownReview = document.getElementById('dropdown-review-link');
+      if (reviewLink) reviewLink.addEventListener('click', () => isAdmin && showReview());
+      if (dropdownReview) dropdownReview.addEventListener('click', () => isAdmin && showReview());
+    }
+
+    function showWorkspace() {
+      document.getElementById('workspace-view').style.display = 'block';
+      document.getElementById('review-view').classList.remove('show');
+      document.querySelectorAll('.side-item').forEach((item) => item.classList.remove('active'));
+      document.getElementById('nav-home').classList.add('active');
+    }
+
+    function showReview() {
+      document.getElementById('workspace-view').style.display = 'none';
+      document.getElementById('review-view').classList.add('show');
+      document.querySelectorAll('.side-item').forEach((item) => item.classList.remove('active'));
+      document.getElementById('nav-review')?.classList.add('active');
+      document.getElementById('user-dropdown').classList.remove('open');
+    }
+
+    function bindToolbox() {
+      document.getElementById('toolbox-head').addEventListener('click', () => {
+        document.getElementById('toolbox').classList.toggle('open');
+      });
+    }
+
+    async function loadRecentProjects() {
+      const root = document.getElementById('recent-projects');
+      try {
+        const data = await apiJson('/api/projects');
+        const projects = Array.isArray(data.projects) ? data.projects.slice(0, 4) : [];
+        renderProjects(projects);
+        updateStudentBadges(projects);
+      } catch (error) {
+        root.innerHTML = '<div class="empty-state">最近项目暂时读取不到，先导入音频也可以。</div>';
+      }
+    }
+
+    function renderProjects(projects) {
+      const root = document.getElementById('recent-projects');
+      if (!projects.length) {
+        root.innerHTML = '<div class="empty-state">还没有项目。先导入一条音频，项目会自动出现在这里。</div>';
+        return;
+      }
+      root.innerHTML = projects.map((project) => {
+        const href = `review.html?project=${encodeURIComponent(project.id)}`;
+        const status = project.status || 'draft';
+        return `
+          <a class="project-row" href="${href}">
+            <span class="project-thumb">剪辑<br>项目</span>
+            <span>
+              <span class="project-title">${escapeHtml(project.fileName || '未命名音频')}</span>
+              <span class="project-meta">
+                <span>更新 ${formatDate(project.updatedAt)}</span>
+                <span class="status-pill status-${escapeAttr(status)}">${projectStatusLabel(status)}</span>
+              </span>
+            </span>
+            <span class="project-duration">${formatDuration(project.originalDuration)}</span>
+          </a>
+        `;
+      }).join('');
+    }
+
+    function updateStudentBadges(projects) {
+      const pending = projects.filter((project) => project.status === 'pending_review').length;
+      setBadge('review-count', pending);
+      setBadge('notification-count', pending);
+      document.getElementById('notification-dot').hidden = pending <= 0;
+    }
+
+    async function loadReviewSnapshots() {
+      const root = document.getElementById('review-list');
+      try {
+        const data = await apiJson('/api/admin/snapshots');
+        const snapshots = Array.isArray(data.snapshots) ? data.snapshots : [];
+        const pending = snapshots.filter((item) => item.status === 'pending_review').length;
+        setBadge('admin-review-count', pending);
+        setBadge('side-review-count', pending);
+        renderSnapshots(snapshots.slice(0, 8));
+      } catch (error) {
+        root.innerHTML = '<div class="empty-state">审核列表暂时读取不到，请稍后刷新或进入系统后台。</div>';
+      }
+    }
+
+    function renderSnapshots(snapshots) {
+      const root = document.getElementById('review-list');
+      if (!snapshots.length) {
+        root.innerHTML = '<div class="empty-state">当前没有待审核项目。</div>';
+        return;
+      }
+      root.innerHTML = snapshots.map((snapshot) => `
+        <div class="review-row">
+          <div>
+            <div class="review-title">${escapeHtml(snapshot.fileName || '未命名音频')}</div>
+            <div class="review-sub">${escapeHtml(snapshot.editorPhone || '-')} · ${formatDate(snapshot.createdAt)} · ${reviewStatusLabel(snapshot.status)}</div>
+          </div>
+          <div class="review-actions">
+            <a class="secondary-btn mini-btn" href="review.html?snapshot=${encodeURIComponent(snapshot.id)}">查看</a>
+            <button class="secondary-btn mini-btn" data-review-status="rejected" data-snapshot-id="${escapeAttr(snapshot.id)}" type="button">打回</button>
+            <button class="secondary-btn mini-btn" data-review-status="approved" data-snapshot-id="${escapeAttr(snapshot.id)}" type="button">通过</button>
+          </div>
+        </div>
+      `).join('');
+      root.querySelectorAll('[data-review-status]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            await apiJson(`/api/admin/snapshots/${encodeURIComponent(button.dataset.snapshotId)}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ status: button.dataset.reviewStatus }),
+            });
+            await loadReviewSnapshots();
+          } catch (error) {
+            alert(error.message || String(error));
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+    }
+
+    function setBadge(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.hidden = Number(value || 0) <= 0;
+      el.textContent = String(value || 0);
+    }
+
+    function projectStatusLabel(status) {
+      const labels = {
+        draft: '草稿',
+        pending_review: '待助教审核',
+        approved: '助教已通过',
+        rejected: '助教打回',
+        exported: '已导出',
+      };
+      return labels[status] || labels.draft;
+    }
+
+    function reviewStatusLabel(status) {
+      const labels = {
+        pending_review: '待审核',
+        approved: '已通过',
+        rejected: '已打回',
+      };
+      return labels[status] || labels.pending_review;
+    }
+
+    function formatDate(value) {
+      if (!value) return '-';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function formatDuration(seconds) {
+      const total = Math.max(0, Number(seconds || 0));
+      if (!total) return '-';
+      const minutes = Math.floor(total / 60);
+      const rest = Math.round(total % 60);
+      return `${minutes}:${String(rest).padStart(2, '0')}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, '&#96;');
+    }
+
+    function getScopedLoginUrl() {
+      const next = `${location.pathname}${location.search}`;
+      if (location.pathname.startsWith('/web-test/')) {
+        return `login.html?next=${encodeURIComponent(next)}`;
+      }
+      return getLoginUrl(next);
+    }
+  </script>
+  <script type="module" src="js/main.js?v=20260611-workspace-1"></script>
+</body>
+</html>

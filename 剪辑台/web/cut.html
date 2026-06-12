@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>金钱剪刀 · 生成 MP3</title>
+  <title>金钱剪刀 · 生成备用 MP3</title>
   <link rel="stylesheet" href="css/shared.css?v=20260529b">
   <style>
     .cut-status {
@@ -20,8 +20,8 @@
       margin-top: 24px;
     }
     .primary-btn.ready {
-      background: var(--success);
-      box-shadow: 0 2px 8px rgba(36, 161, 72, 0.28);
+      background: var(--accent-grad);
+      box-shadow: var(--gold-glow);
     }
     .next-card {
       margin-top: 18px;
@@ -37,10 +37,13 @@
     <header class="top-chrome">
       <div>
         <div class="top-title">金钱剪刀</div>
-        <div class="top-sub">生成成品 MP3，并完成最后下载。</div>
+        <div class="top-sub">备用下载入口。主流程以提交助教审核为准。</div>
       </div>
       <div class="top-actions">
-        <a class="secondary-btn inline-btn" id="admin-link" href="/admin" hidden>后台</a>
+        <a class="secondary-btn inline-btn" href="/training/path.html">训练台</a>
+        <a class="secondary-btn inline-btn" href="/orders/">接单台</a>
+        <a class="secondary-btn inline-btn" href="/projects">我的项目</a>
+        <a class="secondary-btn inline-btn" id="admin-link" href="admin.html" hidden>后台</a>
         <span class="user-chip" id="user-phone"></span>
         <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
       </div>
@@ -48,7 +51,7 @@
 
     <header class="brand">
       <h1>金钱剪刀 💰✂️</h1>
-      <p>浏览器内剪辑音频，生成可下载 MP3。</p>
+      <p>把当前删减结果生成可下载 MP3，方便自己先听一遍。</p>
     </header>
 
     <section class="card">
@@ -64,7 +67,7 @@
 
     <section class="card next-card">
       <div class="label">下一步</div>
-      <p>这份 MP3 已经完成粗剪。后期处理建议放到专业工具里做：</p>
+      <p>这份 MP3 是备用下载文件。正式作业状态请回到我的项目查看助教审核结果。</p>
       <ul>
         <li>Adobe Audition / Logic：降噪、响度、精修</li>
         <li>剪映 / Audacity：免费剪辑和片头片尾</li>
@@ -72,6 +75,6 @@
     </section>
   </main>
 
-  <script type="module" src="js/cut.js"></script>
+  <script type="module" src="js/cut.js?v=20260611-download-1"></script>
 </body>
 </html>

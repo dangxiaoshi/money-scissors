@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 接单台</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #f5f0e8;
+      --surface: #fffcf0;
+      --line: rgba(200, 149, 42, 0.22);
+      --gold: #c8952a;
+      --gold-deep: #b8821e;
+      --ink: #1a1209;
+      --muted: #7d6b48;
+      --soft: #f5e8c0;
+      --green: #2f8f50;
+    }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      margin: 0;
+      min-height: 100vh;
+    }
+    main {
+      margin: 0 auto;
+      max-width: 1120px;
+      padding: 28px 18px 60px;
+    }
+    .hero {
+      align-items: flex-end;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .eyebrow {
+      color: var(--gold-deep);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      line-height: 1.1;
+      margin: 0 0 8px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin: 0;
+    }
+    .hero-actions,
+    .order-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn {
+      align-items: center;
+      border-radius: 999px;
+      display: inline-flex;
+      font-size: 14px;
+      font-weight: 850;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 16px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn.primary {
+      background: linear-gradient(135deg, #b8821e, #c8952a, #e8b84b);
+      color: #fff;
+    }
+    .btn.secondary {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--gold-deep);
+    }
+    .stats {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(4, 1fr);
+      margin-bottom: 18px;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 15px;
+    }
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 900;
+    }
+    .section-head {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      margin: 20px 0 12px;
+    }
+    .section-head h2 {
+      font-size: 19px;
+      margin: 0;
+    }
+    .updated {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .orders {
+      display: grid;
+      gap: 12px;
+    }
+    .order {
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      padding: 16px;
+    }
+    .order-id {
+      align-items: center;
+      background: var(--gold);
+      border-radius: 10px;
+      color: #fff;
+      display: flex;
+      font-size: 18px;
+      font-weight: 900;
+      height: 42px;
+      justify-content: center;
+      width: 42px;
+    }
+    .order-title {
+      font-size: 17px;
+      font-weight: 850;
+      margin-bottom: 7px;
+      line-height: 1.35;
+    }
+    .task-demand {
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.65;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .meta {
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 13px;
+      gap: 8px;
+    }
+    .pill {
+      background: var(--soft);
+      border-radius: 999px;
+      color: var(--gold-deep);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 9px;
+    }
+    .pill.done { background: #e6f5ea; color: var(--green); }
+    .empty {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      padding: 26px;
+      text-align: center;
+    }
+    .error {
+      background: #fff1eb;
+      border: 1px solid #f0b9a2;
+      border-radius: 12px;
+      color: #9f3d1d;
+      display: none;
+      margin: 14px 0;
+      padding: 14px;
+    }
+    .error.visible { display: block; }
+    @media (max-width: 820px) {
+      .hero { align-items: stretch; flex-direction: column; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .order { grid-template-columns: auto minmax(0, 1fr); }
+      .order-actions { grid-column: 1 / -1; }
+    }
+    @media (max-width: 520px) {
+      main { padding-inline: 12px; }
+      .stats { grid-template-columns: 1fr; }
+      .order { align-items: flex-start; }
+      .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <div class="eyebrow">接单台</div>
+        <h1>当前可接任务</h1>
+        <p class="sub">看清需求，点开始剪辑，音频素材会自动带到剪辑台。完成后在剪辑台导出并生成审核快照。</p>
+      </div>
+      <div class="hero-actions">
+        <a class="btn primary" href="/edit">去剪辑台</a>
+      </div>
+    </header>
+
+    <div class="error" id="error"></div>
+
+    <div class="section-head">
+      <h2>训练任务</h2>
+      <span class="updated" id="dispatchHint">读取中...</span>
+    </div>
+    <section class="orders" id="dispatch-tasks">
+      <div class="empty">正在加载…</div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { apiJson } from '../js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from '../js/station-nav.js?v=20260610-ux2';
+
+    const auth = await initStationNav({ active: 'orders', requireDay1: true });
+    if (auth) loadDispatchTasks();
+
+    async function loadDispatchTasks() {
+      const root = document.getElementById('dispatch-tasks');
+      try {
+        const data = await apiJson('/api/orders/tasks');
+        const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+        document.getElementById('dispatchHint').textContent = tasks.length ? `共 ${tasks.length} 个` : '';
+        if (!tasks.length) {
+          root.innerHTML = '<div class="empty">暂时没有发布中的训练任务。</div>';
+          return;
+        }
+        root.innerHTML = tasks.map((task) => {
+          const material = task.materialLink;
+          const startButton = material
+            ? `<a class="btn primary" href="/edit?task=${encodeURIComponent(task.id)}">开始剪辑</a>`
+            : '<span class="btn secondary" aria-disabled="true">等待素材</span>';
+          const listenButton = material
+            ? `<a class="btn secondary" href="${escapeAttr(material)}" target="_blank" rel="noopener">听原始音频</a>`
+            : '';
+          return `
+            <article class="order">
+              <div class="order-id">#${escapeHtml(task.id)}</div>
+              <div>
+                <div class="order-title">${escapeHtml(task.title || '未命名任务')}</div>
+                ${task.demand ? `<div class="task-demand">${escapeHtml(task.demand)}</div>` : '<div class="meta"><span>暂无需求说明，请先联系老师确认。</span></div>'}
+              </div>
+              <div class="order-actions">
+                ${listenButton}
+                ${startButton}
+              </div>
+            </article>`;
+        }).join('');
+      } catch (error) {
+        root.innerHTML = '<div class="empty">训练任务加载失败，请刷新。</div>';
+      }
+    }
+
+    function showError(message) {
+      const el = document.getElementById('error');
+      el.textContent = message;
+      el.classList.add('visible');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

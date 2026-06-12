@@ -1,9 +1,10 @@
-import { apiJson, getHomeUrl, parseNextFromQuery, readAuth, saveAuth } from './api.js?v=20260606-1';
+import { apiJson, getHomeUrl, parseNextFromQuery, readAuth, saveAuth } from './api.js?v=20260610-reviewflow-1';
 
 const PHONE_RE = /^1\d{10}$/;
 const els = {};
 let countdownTimer = 0;
 let cooldown = 0;
+let pendingAuth = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   if (readAuth()) {
@@ -18,10 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn: document.getElementById('login-btn'),
     error: document.getElementById('error'),
     hint: document.getElementById('hint'),
+    loginSection: document.getElementById('login-section'),
+    nicknameSection: document.getElementById('nickname-section'),
+    nicknameInput: document.getElementById('nickname'),
+    nicknameBtn: document.getElementById('nickname-btn'),
+    nicknameError: document.getElementById('nickname-error'),
   });
 
   els.sendBtn.addEventListener('click', sendCode);
   els.submitBtn.addEventListener('click', verifyCode);
+  els.nicknameBtn.addEventListener('click', submitNickname);
 });
 
 async function sendCode() {
@@ -57,12 +64,44 @@ async function verifyCode() {
       method: 'POST',
       body: JSON.stringify({ phone, code }),
     });
-    saveAuth(auth);
-    location.href = parseNextFromQuery() || getHomeUrl();
+    if (auth.needsNickname) {
+      pendingAuth = auth;
+      els.loginSection.style.display = 'none';
+      els.nicknameSection.style.display = '';
+      els.nicknameInput.focus();
+    } else {
+      saveAuth(auth);
+      location.href = parseNextFromQuery() || getHomeUrl();
+    }
   } catch (error) {
     showError(error.message || String(error));
   } finally {
     els.submitBtn.disabled = false;
+  }
+}
+
+async function submitNickname() {
+  try {
+    els.nicknameError.textContent = '';
+    const nickname = els.nicknameInput.value.trim();
+    if (!nickname) {
+      els.nicknameError.textContent = '请填写你在训练营微信群里的微信名。';
+      return;
+    }
+    els.nicknameBtn.disabled = true;
+    const auth = pendingAuth || readAuth();
+    if (!auth?.token) throw new Error('登录状态已过期，请重新获取验证码。');
+    const data = await apiJson('/api/auth/set-nickname', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}` },
+      body: JSON.stringify({ nickname }),
+    });
+    if (data.user) saveAuth({ ...auth, needsNickname: false, user: data.user });
+    location.href = parseNextFromQuery() || getHomeUrl();
+  } catch (error) {
+    els.nicknameError.textContent = error.message || String(error);
+  } finally {
+    els.nicknameBtn.disabled = false;
   }
 }
 

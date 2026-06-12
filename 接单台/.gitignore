@@ -1,0 +1,8 @@
+.DS_Store
+.env
+.env.*
+*.log
+
+# Local sync tools with private Feishu credentials
+update_summary.py
+刷新汇总.command

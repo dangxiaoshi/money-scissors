@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · AI 工具箱</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260610-fix2">
+  <style>
+    body {
+      background:
+        radial-gradient(100% 60% at 50% -10%, rgba(224, 160, 25, 0.11), transparent 60%),
+        #f5f0e8;
+    }
+    .tools-shell {
+      width: min(980px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 38px 0 70px;
+    }
+    .tools-top {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+    .tools-brand {
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 900;
+    }
+    .tools-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .tool-tab {
+      background: #fff;
+      border: 1px solid rgba(200, 149, 42, 0.2);
+      border-radius: 999px;
+      color: #5a4a2a;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 8px 13px;
+      text-decoration: none;
+    }
+    .tool-tab.active {
+      background: linear-gradient(135deg, #f5d06a, #c8952a);
+      color: #fff;
+    }
+    .tool-layout {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+    }
+    .tool-card {
+      background: #fff;
+      border: 1px solid rgba(200, 149, 42, 0.16);
+      border-radius: 18px;
+      box-shadow: var(--shadow-card);
+      padding: 24px;
+    }
+    .tool-title {
+      color: var(--ink);
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .tool-desc {
+      color: #5a4a2a;
+      font-size: 14px;
+      line-height: 1.75;
+      margin-bottom: 16px;
+    }
+    textarea {
+      border: 1px solid var(--hairline-strong);
+      border-radius: 14px;
+      min-height: 260px;
+      padding: 14px;
+      resize: vertical;
+      width: 100%;
+    }
+    .tool-actions {
+      align-items: center;
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .tool-actions .primary-btn {
+      flex: 1;
+      min-width: 0;
+    }
+    .tool-actions .secondary-btn {
+      flex: 0 0 112px;
+      min-height: 52px;
+      white-space: nowrap;
+    }
+    .tool-output {
+      background: #fffdf8;
+      border: 1px solid rgba(200, 149, 42, 0.18);
+      border-radius: 14px;
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.75;
+      min-height: 360px;
+      padding: 16px;
+      white-space: pre-wrap;
+    }
+    .tool-note {
+      background: #fff8e5;
+      border: 1px solid rgba(224, 160, 25, 0.28);
+      border-radius: 14px;
+      color: #6c5420;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 14px;
+    }
+    .error {
+      text-align: left;
+      white-space: pre-line;
+    }
+    @media (max-width: 760px) {
+      .tool-layout { grid-template-columns: 1fr; }
+      .tools-top { align-items: flex-start; flex-direction: column; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="tools-shell">
+    <div class="tools-top">
+      <div>
+        <div class="label">AI 工具箱</div>
+        <div class="tools-brand">金钱剪刀</div>
+      </div>
+      <a class="secondary-btn inline-btn" href="edit.html">回到剪辑台</a>
+    </div>
+
+    <nav class="tools-tabs" id="tool-tabs"></nav>
+
+    <section class="tool-layout">
+      <div class="tool-card">
+        <h1 class="tool-title" id="tool-title">工具</h1>
+        <p class="tool-desc" id="tool-desc"></p>
+        <div class="tool-note" id="voice-note" hidden>
+          当小时声音克隆是内部授权工具，涉及声音授权、接口成本和使用范围。当前入口只对授权账号开放；如果你需要使用，请先联系助教开通。
+        </div>
+        <div id="text-tool">
+          <textarea id="tool-input" placeholder="把逐字稿、粗剪段落或推广主题粘贴到这里。"></textarea>
+          <div class="tool-actions">
+            <button class="primary-btn" id="generate-btn" type="button">生成</button>
+            <button class="secondary-btn inline-btn" id="copy-btn" type="button">复制结果</button>
+            <div class="error" id="error"></div>
+          </div>
+        </div>
+      </div>
+      <div class="tool-card">
+        <div class="label">生成结果</div>
+        <div class="tool-output" id="tool-output">结果会出现在这里。</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { apiJson, clearAuth, getLoginUrl, readAuth } from './js/api.js?v=20260610-reviewflow-1';
+
+    const TOOLS = {
+      shownotes: {
+        name: 'Show Notes 助手',
+        desc: '粘贴逐字稿，生成标题、摘要、时间线和发布用 Show Notes。',
+        placeholder: '粘贴整期逐字稿...',
+        prompt: '你是播客 Show Notes 编辑。请根据用户材料生成：1个吸引人的标题、100字摘要、5-8条时间线要点、适合发布平台的 shownotes。输出中文，结构清楚。',
+      },
+      'clip-decision': {
+        name: '剪辑决策助手',
+        desc: '文本版剪辑判断工具。适合临时粘贴片段，快速判断保留、删除或压缩。',
+        placeholder: '粘贴需要判断的逐字稿片段...',
+        prompt: '你是播客剪辑顾问。请把用户提供的逐字稿按内容价值分成保留、删除、压缩三类，并说明原因。语气直接、像剪辑师给助教的建议。',
+      },
+      narration: {
+        name: '旁白生成',
+        desc: '粘贴粗剪段落或节目结构，生成开头、转场、结尾旁白。',
+        placeholder: '粘贴节目主题、粗剪段落或你想补旁白的位置...',
+        prompt: '你是播客旁白文案助手。请根据用户素材生成自然口语化的开头旁白、转场旁白和结尾旁白。不要太广告腔，要像真人播客主会说的话。',
+      },
+      'promo-card': {
+        name: '播客小红书推广卡片',
+        desc: '输入一期节目主题，生成小红书推广卡片文案和画面结构建议。',
+        placeholder: '输入节目主题、嘉宾、核心观点或想推广的卖点...',
+        prompt: '你是小红书播客推广策划。请根据用户素材生成：封面标题、卡片分镜、正文文案、评论区引导。适合播客剪辑营学员直接使用。',
+      },
+      'voice-clone': {
+        name: '当小时声音克隆',
+        desc: '内部授权工具，涉及声音授权和接口成本，当前只展示授权说明。',
+        voiceOnly: true,
+      },
+    };
+
+    const auth = readAuth();
+    if (!auth) {
+      location.href = getScopedLoginUrl();
+    }
+
+    const params = new URLSearchParams(location.search);
+    const current = TOOLS[params.get('tool')] ? params.get('tool') : 'shownotes';
+    const tool = TOOLS[current];
+
+    document.getElementById('tool-tabs').innerHTML = Object.entries(TOOLS).map(([key, item]) => (
+      `<a class="tool-tab ${key === current ? 'active' : ''}" href="tools.html?tool=${encodeURIComponent(key)}">${escapeHtml(item.name)}</a>`
+    )).join('');
+    document.getElementById('tool-title').textContent = tool.name;
+    document.getElementById('tool-desc').textContent = tool.desc;
+    document.getElementById('tool-input').placeholder = tool.placeholder || '';
+
+    if (tool.voiceOnly) {
+      document.getElementById('text-tool').hidden = true;
+      document.getElementById('voice-note').hidden = false;
+      document.getElementById('tool-output').textContent = '当前账号如已授权，请从助教提供的内部入口进入；未授权账号不会在这里生成声音。';
+    }
+
+    document.getElementById('generate-btn').addEventListener('click', generate);
+    document.getElementById('copy-btn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(document.getElementById('tool-output').textContent || '');
+      document.getElementById('copy-btn').textContent = '已复制';
+      setTimeout(() => { document.getElementById('copy-btn').textContent = '复制结果'; }, 1200);
+    });
+
+    async function generate() {
+      const input = document.getElementById('tool-input').value.trim();
+      const output = document.getElementById('tool-output');
+      const error = document.getElementById('error');
+      if (!input) {
+        error.textContent = '请先粘贴内容。';
+        error.classList.add('visible');
+        return;
+      }
+      error.classList.remove('visible');
+      error.textContent = '';
+      output.textContent = '正在生成...';
+      const button = document.getElementById('generate-btn');
+      button.disabled = true;
+      try {
+        const data = await apiJson('/api/deepseek/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: `${tool.prompt}\n\n只输出 JSON：{"result":"..."}，result 里放完整中文结果。` },
+              { role: 'user', content: input },
+            ],
+            response_format: { type: 'json_object' },
+            max_tokens: 4096,
+          }),
+        });
+        const content = data?.choices?.[0]?.message?.content || '';
+        const parsed = JSON.parse(content);
+        output.textContent = parsed.result || content || '没有生成结果，请重试。';
+      } catch (err) {
+        output.textContent = '';
+        error.textContent = err.message || String(err);
+        error.classList.add('visible');
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function getScopedLoginUrl() {
+      const next = `${location.pathname}${location.search}`;
+      if (location.pathname.startsWith('/web-test/')) {
+        return `login.html?next=${encodeURIComponent(next)}`;
+      }
+      return getLoginUrl(next);
+    }
+  </script>
+</body>
+</html>
