@@ -231,9 +231,9 @@
 
   <script type="module">
     import { apiJson } from '../js/api.js?v=20260610-reviewflow-1';
-    import { initStationNav } from '../js/station-nav.js?v=20260610-ux2';
+    import { initStationNav } from '../js/station-nav.js?v=20260612-unlock';
 
-    const auth = await initStationNav({ active: 'orders', requireDay1: true });
+    const auth = await initStationNav({ active: 'orders', requireDay2: true });
     if (auth) loadDispatchTasks();
 
     async function loadDispatchTasks() {

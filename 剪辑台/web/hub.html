@@ -396,12 +396,13 @@
   </div>
 
   <script type="module">
-    import { apiJson, readAuth, clearAuth, getLoginUrl } from './js/api.js?v=20260610-reviewflow-1';
+    import { apiJson, readAuth, saveAuth, clearAuth, getLoginUrl } from './js/api.js?v=20260610-reviewflow-1';
 
-    const auth = readAuth();
+    let auth = readAuth();
     if (!auth) {
       location.href = getLoginUrl('/hub.html');
     } else {
+      auth = await refreshAuth(auth);
       const name = auth.user.nickname || auth.user.maskedPhone;
       document.getElementById('user-name').textContent = name;
       document.getElementById('logout-btn').addEventListener('click', e => {
@@ -411,6 +412,21 @@
       });
       loadProjects();
       renderMission(auth.user, []);
+    }
+
+    async function refreshAuth(currentAuth) {
+      try {
+        const data = await apiJson('/api/auth/me');
+        if (data.user) {
+          const nextAuth = { ...currentAuth, user: data.user };
+          saveAuth(nextAuth);
+          return nextAuth;
+        }
+      } catch (_) {
+        clearAuth();
+        location.href = getLoginUrl('/hub.html');
+      }
+      return currentAuth;
     }
 
     async function loadProjects() {
@@ -445,10 +461,8 @@
     }
 
     function renderStudentMission(user, projects = []) {
-      const hasProject = projects.length > 0;
-      const hasSubmitted = projects.some((item) => ['pending_review', 'approved', 'rejected', 'exported'].includes(item.status));
       const step1 = user?.day1Complete;
-      const step2 = hasProject || hasSubmitted;
+      const step2 = user?.day2Complete;
       const step3 = step1 && step2;
       return `
         <div class="mission-head">
@@ -466,7 +480,7 @@
           </div>
           <div class="mission-step ${step1 && !step2 ? 'active' : ''}">
             <strong>2. 剪辑台练习</strong>
-            <span>${step2 ? '已有剪辑项目记录。' : '上传开营练习素材，处理后提交一次助教审核。'}</span>
+            <span>${step2 ? '已提交一次助教审核。' : '上传开营练习素材，处理后提交一次助教审核。'}</span>
             <a class="mission-action" href="/edit">${step2 ? '看我的项目 →' : '去上传 →'}</a>
           </div>
           <div class="mission-step ${step3 ? 'active' : ''}">

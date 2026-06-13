@@ -5,6 +5,7 @@ let users = [];
 let snapshots = [];
 let filter = 'all';
 let view = 'users';
+let modalUserId = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = ensureLoggedIn();
@@ -25,12 +26,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     usersPanel: document.getElementById('users-panel'),
     snapshotsPanel: document.getElementById('snapshots-panel'),
     userFilterRow: document.getElementById('user-filter-row'),
+    modalMask: document.getElementById('modal-mask'),
+    modalTitle: document.getElementById('modal-title'),
+    modalBody: document.getElementById('modal-body'),
+    modalClose: document.getElementById('modal-close'),
   });
 
   setupSessionChrome();
   if (els.homeLink) els.homeLink.href = getHomeUrl();
   bindViews();
   bindFilters();
+  bindModal();
   els.exportBtn.addEventListener('click', exportCsv);
 
   await loadUsers();
@@ -89,8 +95,7 @@ function renderView() {
 
 function renderRows() {
   const list = users.filter((user) => {
-    if (filter === 'wechat_yes') return user.wechatAdded;
-    if (filter === 'wechat_no') return !user.wechatAdded;
+    if (filter === 'pending') return Number(user.pendingReviewCount || 0) > 0;
     if (filter === 'used_3') return Number(user.usageCount || 0) >= 3;
     return true;
   });
@@ -102,13 +107,9 @@ function renderRows() {
       <td>${formatDate(user.createdAt)}</td>
       <td>${formatDate(user.lastActiveAt)}</td>
       <td>${user.usageCount || 0}</td>
-      <td>${user.day1Complete ? '已完成' : '未完成'}</td>
-      <td>
-        <label class="checkbox-cell">
-          <input type="checkbox" data-wechat ${user.wechatAdded ? 'checked' : ''}>
-          <span>${user.wechatAdded ? '已加' : '未加'}</span>
-        </label>
-      </td>
+      <td>${day1Cell(user)}</td>
+      <td>${day2Cell(user)}</td>
+      <td>${pendingCell(user)}</td>
       <td>
         <input class="table-input" data-note value="${escapeAttr(user.note || '')}" placeholder="备注">
       </td>
@@ -121,6 +122,29 @@ function renderRows() {
   els.tbody.querySelectorAll('[data-save]').forEach((button) => {
     button.addEventListener('click', onSave);
   });
+  els.tbody.querySelectorAll('[data-intro]').forEach((button) => {
+    button.addEventListener('click', () => openIntroModal(Number(button.dataset.intro)));
+  });
+  els.tbody.querySelectorAll('[data-snaps]').forEach((button) => {
+    button.addEventListener('click', () => openSnapshotsModal(Number(button.dataset.snaps)));
+  });
+}
+
+function day1Cell(user) {
+  if (!user.day1Complete) return '<span class="cell-muted">未完成</span>';
+  return `<button class="cell-link" data-intro="${user.id}" type="button">已完成</button>`;
+}
+
+function day2Cell(user) {
+  const has = user.day2Complete || Number(user.snapshotCount || 0) > 0;
+  if (!has) return '<span class="cell-muted">未完成</span>';
+  return `<button class="cell-link" data-snaps="${user.id}" type="button">已完成</button>`;
+}
+
+function pendingCell(user) {
+  const n = Number(user.pendingReviewCount || 0);
+  if (n <= 0) return '<span class="pending-zero">—</span>';
+  return `<button class="cell-link" data-snaps="${user.id}" type="button"><span class="pending-pill">${n}</span></button>`;
 }
 
 function renderSnapshots() {
@@ -176,17 +200,17 @@ async function onSave(event) {
   if (!id) return;
 
   const note = row.querySelector('[data-note]')?.value || '';
-  const wechatAdded = row.querySelector('[data-wechat]')?.checked || false;
+  const existing = users.find((item) => item.id === id);
+  // 微信列已从界面移除，但数据库字段保留：保存备注时沿用原有微信值，避免被清零
+  const wechatAdded = existing ? Boolean(existing.wechatAdded) : false;
 
   try {
     await apiJson(`/api/admin/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ note, wechatAdded }),
     });
-    const user = users.find((item) => item.id === id);
-    if (user) {
-      user.note = note;
-      user.wechatAdded = wechatAdded;
+    if (existing) {
+      existing.note = note;
     }
     hideError();
   } catch (error) {
@@ -234,6 +258,110 @@ function reviewStatusLabel(status) {
     draft: '剪辑中',
   };
   return labels[status] || labels.pending_review;
+}
+
+function bindModal() {
+  els.modalClose?.addEventListener('click', closeModal);
+  els.modalMask?.addEventListener('click', (event) => {
+    if (event.target === els.modalMask) closeModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeModal();
+  });
+}
+
+function openModal(title, html) {
+  if (!els.modalMask) return;
+  els.modalTitle.textContent = title;
+  els.modalBody.innerHTML = html;
+  els.modalMask.classList.add('open');
+}
+
+function closeModal() {
+  els.modalMask?.classList.remove('open');
+}
+
+function openIntroModal(userId) {
+  const user = users.find((item) => item.id === userId);
+  if (!user) return;
+  const title = `${escapeHtml(user.nickname || user.maskedPhone)} · 自我介绍`;
+  const intro = user.day1Intro;
+  if (!intro) {
+    openModal(title, '<div class="intro-empty">这位学员在新增"留存内容"功能之前完成的作业，系统没有保存当时填写的内容。</div>');
+    return;
+  }
+  const questions = ['你是谁', '为什么加入剪辑营', '第一天最触动你的一点', '你 21 天的目标'];
+  const fields = Array.isArray(intro.fields) ? intro.fields : [];
+  const body = [
+    intro.nickname ? `<div class="intro-q">昵称</div><div class="intro-a">${escapeHtml(intro.nickname)}</div>` : '',
+    ...questions.map((q, i) => {
+      const a = (fields[i] || '').trim();
+      return `<div class="intro-q">${i + 1}. ${q}</div><div class="intro-a">${a ? escapeHtml(a) : '—'}</div>`;
+    }),
+  ].join('');
+  openModal(title, body);
+}
+
+async function openSnapshotsModal(userId) {
+  modalUserId = userId;
+  const user = users.find((item) => item.id === userId);
+  const title = `${escapeHtml(user?.nickname || user?.maskedPhone || '学员')} · 剪辑作业`;
+  openModal(title, '<div class="intro-empty">加载中…</div>');
+  try {
+    const data = await apiJson(`/api/admin/users/${userId}/snapshots`);
+    renderSnapshotModal(title, data.snapshots || []);
+  } catch (error) {
+    openModal(title, `<div class="intro-empty">加载失败：${escapeHtml(error.message || String(error))}</div>`);
+  }
+}
+
+function renderSnapshotModal(title, list) {
+  if (!list.length) {
+    openModal(title, '<div class="intro-empty">这位学员还没有提交剪辑作业。</div>');
+    return;
+  }
+  const html = list.map((snapshot) => `
+    <div class="snap-item">
+      <div class="snap-meta">
+        ${escapeHtml(snapshot.fileName)} · ${formatDate(snapshot.createdAt)} · ${reviewStatusLabel(snapshot.status)}
+        <br>原始 ${formatDuration(snapshot.originalDuration)} / 粗剪 ${formatDuration(snapshot.roughcutDuration)} / 删减 ${formatDuration(snapshot.removedDuration)}
+      </div>
+      <div class="snap-actions">
+        <a class="secondary-btn mini-btn" href="review.html?snapshot=${encodeURIComponent(snapshot.id)}" target="_blank">查看成品</a>
+        <button class="secondary-btn mini-btn" data-modal-status="approved" data-modal-id="${escapeAttr(snapshot.id)}" type="button">通过</button>
+        <button class="secondary-btn mini-btn" data-modal-status="rejected" data-modal-id="${escapeAttr(snapshot.id)}" type="button">打回</button>
+      </div>
+    </div>
+  `).join('');
+  openModal(title, html);
+  els.modalBody.querySelectorAll('[data-modal-status]').forEach((button) => {
+    button.addEventListener('click', () => onModalReview(button, title));
+  });
+}
+
+async function onModalReview(button, title) {
+  const id = button.dataset.modalId;
+  const status = button.dataset.modalStatus;
+  if (!id || !status) return;
+  try {
+    button.disabled = true;
+    await apiJson(`/api/admin/snapshots/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    await loadUsers();
+    await loadSnapshots();
+    // 刷新弹窗里这位学员的快照列表
+    if (modalUserId) {
+      const data = await apiJson(`/api/admin/users/${modalUserId}/snapshots`).catch(() => null);
+      if (data) renderSnapshotModal(title, data.snapshots || []);
+    }
+    hideError();
+  } catch (error) {
+    showError(error.message || String(error));
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function showError(message) {

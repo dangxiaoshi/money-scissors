@@ -646,6 +646,7 @@ body.resizing-sidebar {
 .nav-act-item {
   border: 1px solid var(--hairline);
   border-radius: 10px;
+  flex-shrink: 0;
   overflow: hidden;
   margin-bottom: 4px;
   background: var(--surface);
@@ -1353,11 +1354,18 @@ function renderSidebar() {
       ? '<div class="decision-empty nav-decision-alert"><strong>这次没有真实剪辑决策</strong><p>系统没有拿到可用的前情总览和三幕方案。你仍然可以先编辑逐字稿，但不要把这里当作 AI 已经分析完成。</p></div>'
       : '';
 
-  document.getElementById('nav').innerHTML = decisionNotice + navItems.map((item, i) => {
+  const navRoot = document.getElementById('nav');
+  if (!DECISION_REPORT) {
+    navRoot.innerHTML = decisionNotice;
+    renderDurInfo();
+    return;
+  }
+
+  navRoot.innerHTML = decisionNotice + navItems.map((item, i) => {
     const activeNav = curNav >= 0 ? curNav : 0;
     const isActive = i === activeNav;
     const decContent = item.ds ? renderDecisionLines(item.ds.lines) : '';
-    return `<details class="nav-act-item${isActive ? ' active' : ''}" id="navact${i}"${isActive ? ' open' : ''}>
+    return `<details class="nav-act-item${isActive ? ' active' : ''}" id="navact${i}" open>
       <summary onclick="navActClick(event, ${i})">
         <div class="nav-body">
           <div class="nav-title">${esc(item.label)}</div>
@@ -1942,8 +1950,7 @@ function navActClick(event, i) {
   event.preventDefault(); // prevent native <details> toggle — we control it
   const item = document.getElementById('navact' + i);
   if (item) {
-    const wasOpen = item.hasAttribute('open');
-    item.toggleAttribute('open', !wasOpen);
+    item.setAttribute('open', '');
   }
   // Navigate to chapter
   curNav = i;

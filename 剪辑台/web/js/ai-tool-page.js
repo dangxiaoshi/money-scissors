@@ -4,7 +4,6 @@ const TOOL_LINKS = [
   { id: 'shownotes', name: 'Show Notes 助手', href: '剪辑台shownote.html' },
   { id: 'clip-decision', name: '剪辑决策助手', href: '剪辑台剪辑决策.html' },
   { id: 'narration', name: '旁白生成', href: '剪辑台旁白生成.html' },
-  { id: 'promo-card', name: '播客小红书推广卡片', href: '剪辑台播客小红书推广卡片.html' },
   { id: 'voice-clone', name: '当小时声音克隆', href: '剪辑台当小时声音克隆.html', tag: '实验·内部授权' },
 ];
 

@@ -21,6 +21,14 @@ const STATIC_ROOT = resolveStaticRoot();
 const DATA_ROOT = path.join(__dirname, 'data');
 const LOG_ROOT = path.join(__dirname, 'logs');
 const UPLOAD_ROOT = path.join(STATIC_ROOT, 'uploads');
+const PRACTICE_TEMPLATES = {
+  launch: {
+    id: 'launch-live-20260612',
+    filePath: path.join(DATA_ROOT, 'practice-templates', 'launch-live-20260612.json'),
+    fileName: 'D2 练习项目｜开营直播',
+    existingKeyword: '开营直播',
+  },
+};
 const PRIVATE_DATA_ROOT = process.env.PRIVATE_DATA_ROOT || path.join(path.dirname(__dirname), 'money-scissors-private');
 const PROJECT_DATA_ROOT = process.env.PROJECT_DATA_ROOT || path.join(PRIVATE_DATA_ROOT, 'projects');
 const SNAPSHOT_DATA_ROOT = process.env.SNAPSHOT_DATA_ROOT || path.join(PRIVATE_DATA_ROOT, 'snapshots');
@@ -129,6 +137,12 @@ const statements = {
   completeDay1: db.prepare(`
     UPDATE users SET day1_complete = 1, last_active_at = @last_active_at WHERE id = @id
   `),
+  saveDay1Intro: db.prepare(`
+    UPDATE users SET day1_complete = 1, day1_intro = @day1_intro, last_active_at = @last_active_at WHERE id = @id
+  `),
+  completeDay2: db.prepare(`
+    UPDATE users SET day2_complete = 1, last_active_at = @last_active_at WHERE id = @id
+  `),
   updateUserActivity: db.prepare(`
     UPDATE users
     SET last_active_at = @last_active_at, is_admin = @is_admin
@@ -168,9 +182,20 @@ const statements = {
     UPDATE users SET usage_count = usage_count + 1, last_active_at = @last_active_at WHERE id = @id
   `),
   listUsers: db.prepare(`
-    SELECT id, phone, created_at, last_active_at, usage_count, wechat_added, note, is_admin, nickname, day1_complete
+    SELECT id, phone, created_at, last_active_at, usage_count, wechat_added, note, is_admin, nickname, day1_complete, day2_complete, day1_intro,
+      (SELECT COUNT(*) FROM review_snapshots s WHERE s.user_id = users.id) AS snapshot_count,
+      (SELECT COUNT(*) FROM review_snapshots s WHERE s.user_id = users.id AND s.status = 'pending_review') AS pending_count
     FROM users
     ORDER BY usage_count DESC, last_active_at DESC, created_at DESC
+  `),
+  listSnapshotsByUser: db.prepare(`
+    SELECT s.id, s.project_id, s.user_id, s.file_name, s.audio_url, s.original_duration,
+      s.roughcut_duration, s.removed_duration, s.status, s.created_at, s.reviewed_at,
+      s.reviewed_by, u.phone
+    FROM review_snapshots s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.user_id = ?
+    ORDER BY s.created_at DESC
   `),
   updateAdminUser: db.prepare(`
     UPDATE users SET
@@ -489,10 +514,20 @@ async function handleAuth(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/auth/complete-day1') {
     const user = requireAuth(req, res);
     if (!user) return;
-    statements.completeDay1.run({
-      id: user.id,
-      last_active_at: new Date().toISOString(),
-    });
+    const body = await readJson(req).catch(() => ({}));
+    const intro = normalizeDay1Intro(body);
+    if (intro) {
+      statements.saveDay1Intro.run({
+        id: user.id,
+        day1_intro: JSON.stringify(intro),
+        last_active_at: new Date().toISOString(),
+      });
+    } else {
+      statements.completeDay1.run({
+        id: user.id,
+        last_active_at: new Date().toISOString(),
+      });
+    }
     const updated = statements.findUserById.get(user.id);
     sendJson(res, 200, { user: publicUser(updated) });
     return;
@@ -515,6 +550,10 @@ async function handleUsage(req, res) {
 
   const user = requireAuth(req, res);
   if (!user) return;
+  if (!hasDay1Access(user)) {
+    sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天自我介绍作业，再进入剪辑台练习。' });
+    return;
+  }
 
   const body = await readJson(req);
   const action = String(body.action || '').trim();
@@ -541,10 +580,10 @@ async function handleOrdersData(req, res) {
 
   const user = requireAuth(req, res);
   if (!user) return;
-  if (!user.day1_complete) {
+  if (!hasDay2Access(user)) {
     sendJson(res, 403, {
-      error: 'day1_required',
-      message: '请先完成第一天的自我介绍作业。',
+      error: 'day2_required',
+      message: '请先完成第二天剪辑练习，并提交一次助教审核。',
     });
     return;
   }
@@ -613,12 +652,12 @@ async function handleDispatchTasks(req, res, url) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // 学员端：只读已发布任务，需登录 + 完成 Day1
+  // 学员端：只读已发布任务，需登录 + 完成 Day2
   if (url.pathname === '/api/orders/tasks') {
     const user = requireAuth(req, res);
     if (!user) return;
-    if (!user.day1_complete) {
-      sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天的自我介绍作业。' });
+    if (!hasDay2Access(user)) {
+      sendJson(res, 403, { error: 'day2_required', message: '请先完成第二天剪辑练习，并提交一次助教审核。' });
       return;
     }
     const tasks = statements.listPublishedDispatchTasks.all().map(publicDispatchTask);
@@ -695,6 +734,10 @@ async function handleProjects(req, res, url) {
 
   const user = requireAuth(req, res);
   if (!user) return;
+  if (!hasDay1Access(user)) {
+    sendDay1Required(res);
+    return;
+  }
 
   if (req.method === 'GET' && url.pathname === '/api/projects') {
     const projects = statements.listProjectsByUser.all({ user_id: user.id }).map(publicProject);
@@ -702,7 +745,78 @@ async function handleProjects(req, res, url) {
     return;
   }
 
+  const practiceMatch = url.pathname.match(/^\/api\/projects\/practice\/([A-Za-z0-9_-]+)$/);
+  if (practiceMatch && req.method === 'POST') {
+    const template = PRACTICE_TEMPLATES[practiceMatch[1]];
+    if (!template) {
+      sendJson(res, 404, { error: 'practice_not_found', message: '这条练习素材还没有准备好。' });
+      return;
+    }
+
+    const existing = statements.listProjectsByUser
+      .all({ user_id: user.id })
+      .find((row) => String(row.file_name || '').includes(template.existingKeyword));
+    if (existing) {
+      sendJson(res, 200, { project: publicProject(existing), reused: true });
+      return;
+    }
+
+    const sourcePayload = readJsonFile(template.filePath, null);
+    if (!sourcePayload || !Array.isArray(sourcePayload.S)) {
+      sendJson(res, 500, { error: 'practice_template_missing', message: '练习母版还没有生成成功，请稍后再试。' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const id = buildPublicId('proj');
+    const dataPath = path.join(PROJECT_DATA_ROOT, `${id}.json`);
+    const payload = JSON.parse(JSON.stringify(sourcePayload));
+    payload.projectId = id;
+    payload.createdAt = now;
+    payload.fileName = template.fileName;
+    payload.practiceTemplate = {
+      ...(payload.practiceTemplate || {}),
+      id: template.id,
+      copiedAt: now,
+    };
+
+    const metrics = readProjectMetrics(payload, {
+      originalDuration: sourcePayload.originalDuration,
+    });
+    const audioUrl = String(payload.audioUrl || '').trim();
+
+    writeJsonFile(dataPath, {
+      id,
+      userId: user.id,
+      fileName: template.fileName,
+      audioUrl,
+      payload,
+      createdAt: now,
+      updatedAt: now,
+    });
+    statements.insertProject.run({
+      id,
+      user_id: user.id,
+      file_name: template.fileName,
+      audio_url: audioUrl,
+      status: 'draft',
+      original_duration: metrics.originalDuration,
+      roughcut_duration: metrics.roughcutDuration,
+      removed_duration: metrics.removedDuration,
+      data_path: dataPath,
+      created_at: now,
+      updated_at: now,
+      exported_at: null,
+    });
+    sendJson(res, 201, { project: publicProject(statements.findProjectById.get(id)), reused: false });
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/projects') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
     const payload = normalizeProjectPayload(body.payload);
     const now = new Date().toISOString();
@@ -748,6 +862,10 @@ async function handleProjects(req, res, url) {
   }
 
   if (projectMatch && (req.method === 'PATCH' || req.method === 'POST')) {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     const project = loadAuthorizedProject(projectMatch[1], user, res);
     if (!project) return;
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
@@ -786,6 +904,10 @@ async function handleProjects(req, res, url) {
 
   const snapshotMatch = url.pathname.match(/^\/api\/projects\/([A-Za-z0-9_-]+)\/snapshots$/);
   if (snapshotMatch && req.method === 'POST') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     const project = loadAuthorizedProject(snapshotMatch[1], user, res);
     if (!project) return;
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
@@ -834,6 +956,10 @@ async function handleProjects(req, res, url) {
       updated_at: now,
       exported_at: now,
     });
+    statements.completeDay2.run({
+      id: project.row.user_id,
+      last_active_at: now,
+    });
     sendJson(res, 201, { snapshot: publicSnapshot(statements.findSnapshotById.get(snapshotId)) });
     return;
   }
@@ -865,6 +991,13 @@ async function handleAdmin(req, res, url) {
 
   if (req.method === 'GET' && url.pathname === '/api/admin/snapshots') {
     const snapshots = statements.listSnapshots.all().map(publicSnapshot);
+    sendJson(res, 200, { snapshots });
+    return;
+  }
+
+  const userSnapMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)\/snapshots$/);
+  if (req.method === 'GET' && userSnapMatch) {
+    const snapshots = statements.listSnapshotsByUser.all(Number(userSnapMatch[1])).map(publicSnapshot);
     sendJson(res, 200, { snapshots });
     return;
   }
@@ -921,7 +1054,7 @@ async function handleAdmin(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/admin/users.csv') {
     const rows = statements.listUsers.all();
     const csv = [
-      ['手机号', '微信名', '注册时间', '最后活跃', '使用次数', 'D1作业', '已加微信', '备注', '管理员'].join(','),
+      ['手机号', '微信名', '注册时间', '最后活跃', '使用次数', 'D1作业', 'D2作业', '已加微信', '备注', '管理员'].join(','),
       ...rows.map((row) => [
         csvCell(row.phone),
         csvCell(row.nickname || ''),
@@ -929,6 +1062,7 @@ async function handleAdmin(req, res, url) {
         csvCell(row.last_active_at),
         row.usage_count,
         row.day1_complete ? '已完成' : '未完成',
+        row.day2_complete ? '已完成' : '未完成',
         row.wechat_added ? '是' : '否',
         csvCell(row.note || ''),
         row.is_admin ? '是' : '否',
@@ -968,6 +1102,10 @@ async function handleDashScope(req, res, url) {
 
   const user = requireAuth(req, res);
   if (!user) return;
+  if (!hasDay1Access(user)) {
+    sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天自我介绍作业，再进入剪辑台练习。' });
+    return;
+  }
 
   if (req.method === 'POST' && url.pathname === '/dashscope/transcription') {
     const body = await readJson(req);
@@ -1034,6 +1172,10 @@ async function handleUpload(req, res, url) {
 
   const user = requireAuth(req, res);
   if (!user) return;
+  if (!hasDay1Access(user)) {
+    sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天自我介绍作业，再进入剪辑台练习。' });
+    return;
+  }
 
   const declaredLength = Number(req.headers['content-length'] || 0);
   if (declaredLength > MAX_UPLOAD_BYTES) {
@@ -1090,6 +1232,10 @@ async function handleDeepSeek(req, res) {
 
   const user = requireAuth(req, res);
   if (!user) return;
+  if (!hasDay1Access(user)) {
+    sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天自我介绍作业，再进入剪辑台练习。' });
+    return;
+  }
   if (!DEEPSEEK_KEY) {
     sendJson(res, 500, { error: 'missing_deepseek_key', message: '服务端未配置 DEEPSEEK_KEY。' });
     return;
@@ -1356,7 +1502,8 @@ function initializeDatabase(database) {
       note TEXT NOT NULL DEFAULT '',
       is_admin INTEGER NOT NULL DEFAULT 0,
       nickname TEXT NOT NULL DEFAULT '',
-      day1_complete INTEGER NOT NULL DEFAULT 0
+      day1_complete INTEGER NOT NULL DEFAULT 0,
+      day2_complete INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS usage_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1431,9 +1578,30 @@ function initializeDatabase(database) {
   `);
   try { database.exec(`ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE users ADD COLUMN day1_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
+  try { database.exec(`ALTER TABLE users ADD COLUMN day2_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
+  try { database.exec(`ALTER TABLE users ADD COLUMN day1_intro TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_review'`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_by INTEGER`); } catch {}
+  database.exec(`
+    UPDATE users
+    SET day1_complete = 1,
+        day2_complete = 1
+    WHERE day2_complete = 0
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM review_snapshots
+          WHERE review_snapshots.user_id = users.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM editing_projects
+          WHERE editing_projects.user_id = users.id
+            AND editing_projects.status IN ('pending_review', 'approved', 'rejected', 'exported')
+        )
+      );
+  `);
 }
 
 function requireAuth(req, res) {
@@ -1540,6 +1708,29 @@ function buildAuthPayload(user) {
   };
 }
 
+function normalizeDay1Intro(body) {
+  if (!body || typeof body !== 'object') return null;
+  const cap = (v) => String(v == null ? '' : v).trim().slice(0, 1000);
+  const nickname = cap(body.nickname).slice(0, 60);
+  const fields = [body.field1, body.field2, body.field3, body.field4].map(cap);
+  if (!nickname && fields.every((f) => !f)) return null;
+  return { nickname, fields, savedAt: new Date().toISOString() };
+}
+
+function parseDay1Intro(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return null;
+    const fields = Array.isArray(obj.fields) ? obj.fields.slice(0, 4).map((f) => String(f || '')) : [];
+    const nickname = String(obj.nickname || '');
+    if (!nickname && !fields.some(Boolean)) return null;
+    return { nickname, fields, savedAt: obj.savedAt || null };
+  } catch {
+    return null;
+  }
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -1553,7 +1744,23 @@ function publicUser(user) {
     note: user.note || '',
     isAdmin: Boolean(user.is_admin),
     day1Complete: Boolean(user.day1_complete),
+    day2Complete: Boolean(user.day2_complete),
+    day1Intro: parseDay1Intro(user.day1_intro),
+    snapshotCount: Number(user.snapshot_count || 0),
+    pendingReviewCount: Number(user.pending_count || 0),
   };
+}
+
+function hasDay1Access(user) {
+  return Boolean(AUTH_DISABLED || user?.is_admin || user?.day1_complete);
+}
+
+function hasDay2Access(user) {
+  return Boolean(AUTH_DISABLED || user?.is_admin || user?.day2_complete);
+}
+
+function sendDay1Required(res) {
+  sendJson(res, 403, { error: 'day1_required', message: '请先完成第一天自我介绍作业，再进入剪辑台练习。' });
 }
 
 function publicProject(row) {
@@ -1675,6 +1882,7 @@ function guestUser() {
     is_admin: 0,
     nickname: '',
     day1_complete: 0,
+    day2_complete: 0,
   };
 }
 
@@ -1724,6 +1932,10 @@ async function handleCut(req, res, url) {
   if (!user) return;
 
   if (req.method === 'POST' && url.pathname === '/api/cut/start') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     if (countActiveCutJobs() >= CUT_MAX_ACTIVE_JOBS) {
       sendJson(res, 429, { error: 'cut_busy', message: '当前剪辑任务较多，请稍后再试。' });
       return;
@@ -1999,6 +2211,10 @@ async function handleConcat(req, res, url) {
   if (!user) return;
 
   if (req.method === 'POST' && url.pathname === '/api/audio/concat/start') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     if (countActiveConcatJobs(user.id) >= 1) {
       sendJson(res, 429, { error: 'concat_user_busy', message: '你已有一个音频拼接任务在处理，请稍候。' });
       return;
@@ -2185,6 +2401,10 @@ async function handleRefine(req, res, url) {
 
   // POST /api/refine/start  — upload + kick off
   if (req.method === 'POST' && url.pathname === '/api/refine/start') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
     if (countActiveRefineJobs() >= REFINE_MAX_ACTIVE_JOBS) {
       sendJson(res, 429, { error: 'refine_busy', message: '当前精修任务较多，请稍后再试。' });
       return;

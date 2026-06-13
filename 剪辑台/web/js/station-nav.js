@@ -1,6 +1,6 @@
 import { apiJson, clearAuth, getLoginUrl, readAuth, saveAuth, scopedPath } from './api.js?v=20260610-reviewflow-1';
 
-export async function initStationNav({ active = 'training', requireDay1 = false } = {}) {
+export async function initStationNav({ active = 'training', requireDay1 = false, requireDay2 = false } = {}) {
   let auth = readAuth();
   if (!auth) {
     location.href = getLoginUrl(`${location.pathname}${location.search}`);
@@ -9,18 +9,35 @@ export async function initStationNav({ active = 'training', requireDay1 = false 
 
   auth = await refreshAuth(auth);
   const user = auth.user || {};
+  const day1Unlocked = user.isAdmin || user.day1Complete;
+  const day2Unlocked = user.isAdmin || user.day2Complete;
 
-  if (requireDay1 && !user.day1Complete) {
-    renderLockedPage(user);
+  if (requireDay1 && !day1Unlocked) {
+    renderLockedPage(user, 'day1', active);
     return null;
+  }
+
+  if (requireDay2) {
+    if (!day1Unlocked) {
+      renderLockedPage(user, 'day1', active);
+      return null;
+    }
+    if (!day2Unlocked) {
+      renderLockedPage(user, 'day2', active);
+      return null;
+    }
   }
 
   injectNav(user, active);
   return auth;
 }
 
-export async function markDay1Complete() {
-  const data = await apiJson('/api/auth/complete-day1', { method: 'POST' });
+export async function markDay1Complete(intro) {
+  const options = { method: 'POST' };
+  if (intro && typeof intro === 'object') {
+    options.body = JSON.stringify(intro);
+  }
+  const data = await apiJson('/api/auth/complete-day1', options);
   const auth = readAuth();
   if (auth && data.user) {
     saveAuth({ ...auth, user: data.user });
@@ -46,6 +63,10 @@ async function refreshAuth(auth) {
 function injectNav(user, active) {
   if (document.querySelector('[data-station-nav]')) return;
   injectStyle();
+  const day1Unlocked = user?.isAdmin || user?.day1Complete;
+  const day2Unlocked = user?.isAdmin || user?.day2Complete;
+  const editLabel = day1Unlocked ? '剪辑台' : '🔒 剪辑台';
+  const ordersLabel = day2Unlocked ? '接单台' : '🔒 接单台';
 
   const nav = document.createElement('nav');
   nav.className = 'station-nav';
@@ -57,8 +78,8 @@ function injectNav(user, active) {
     </a>
     <div class="station-tabs">
       <a class="station-tab ${active === 'training' ? 'active' : ''}" href="${scopedPath('/training/path.html')}">训练台</a>
-      <a class="station-tab ${active === 'edit' ? 'active' : ''}" href="${scopedPath('/edit')}">剪辑台</a>
-      <a class="station-tab ${active === 'orders' ? 'active' : ''}" href="${scopedPath('/orders/')}">接单台</a>
+      <a class="station-tab ${active === 'edit' ? 'active' : ''}" href="${scopedPath('/edit')}">${editLabel}</a>
+      <a class="station-tab ${active === 'orders' ? 'active' : ''}" href="${scopedPath('/orders/')}">${ordersLabel}</a>
     </div>
     ${renderUserMenu(user)}
   `;
@@ -67,9 +88,22 @@ function injectNav(user, active) {
   bindUserMenu(nav);
 }
 
-function renderLockedPage(user) {
+function renderLockedPage(user, step = 'day1', active = 'orders') {
   injectStyle();
   document.body.classList.add('has-station-nav');
+  const isDay2 = step === 'day2';
+  const day1Unlocked = user?.isAdmin || user?.day1Complete;
+  const day2Unlocked = user?.isAdmin || user?.day2Complete;
+  const editLabel = day1Unlocked ? '剪辑台' : '🔒 剪辑台';
+  const ordersLabel = day2Unlocked ? '接单台' : '🔒 接单台';
+  const title = isDay2 ? '接单台还没解锁' : '剪辑台还没解锁';
+  const message = isDay2
+    ? '不是网站坏了。请先在剪辑台完成 D2 开营直播剪辑练习，把开营直播剪到 25-30 分钟，并提交给助教审核。提交成功后，接单台会自动解锁。'
+    : '不是网站坏了。请先完成 D1 自我介绍作业，生成打卡卡片后，剪辑台会自动解锁。';
+  const primaryHref = isDay2 ? scopedPath('/edit') : scopedPath('/training/intro.html');
+  const primaryText = isDay2 ? '去剪辑台做 D2 练习' : '去做 D1 作业';
+  const secondaryHref = scopedPath('/training/path.html');
+  const secondaryText = '看通关顺序';
   document.body.innerHTML = `
     <nav class="station-nav" data-station-nav="1">
       <a class="station-brand" href="${scopedPath('/training/path.html')}">
@@ -77,20 +111,20 @@ function renderLockedPage(user) {
         <span>金钱剪刀</span>
       </a>
       <div class="station-tabs">
-        <a class="station-tab" href="${scopedPath('/training/path.html')}">训练台</a>
-        <a class="station-tab" href="${scopedPath('/edit')}">剪辑台</a>
-        <a class="station-tab active" href="${scopedPath('/orders/')}">接单台</a>
+        <a class="station-tab ${active === 'training' ? 'active' : ''}" href="${scopedPath('/training/path.html')}">训练台</a>
+        <a class="station-tab ${active === 'edit' ? 'active' : ''}" href="${scopedPath('/edit')}">${editLabel}</a>
+        <a class="station-tab ${active === 'orders' ? 'active' : ''}" href="${scopedPath('/orders/')}">${ordersLabel}</a>
       </div>
       ${renderUserMenu(user)}
     </nav>
 	    <main class="station-lock">
 	      <section class="station-lock-card">
 	        <div class="station-lock-icon">🔒</div>
-	        <h1>接单台还没解锁</h1>
-	        <p>请先完成第一天自我介绍，再去剪辑台上传练习素材并提交一次。跑完这两关后，再来接真实订单。</p>
+	        <h1>${title}</h1>
+	        <p>${message}</p>
 	        <div class="station-lock-actions">
-	          <a class="station-primary" href="${scopedPath('/training/path.html')}">看通关顺序</a>
-	          <a class="station-secondary" href="${scopedPath('/training/intro.html')}">去做第一课作业</a>
+	          <a class="station-primary" href="${primaryHref}">${primaryText}</a>
+	          <a class="station-secondary" href="${secondaryHref}">${secondaryText}</a>
 	        </div>
 	      </section>
 	    </main>

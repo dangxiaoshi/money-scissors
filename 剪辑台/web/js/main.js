@@ -11,6 +11,12 @@ import {
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const MAX_FILES = 10;
+const PRACTICE_MATERIAL = {
+  id: 'practice-launch-live-20260612',
+  title: 'D2 练习素材｜开营直播',
+  demand: '练习目标：把开营直播剪到 25-30 分钟。先不用片头、片尾和音乐，重点是跑通剪辑流程并提交助教审核。',
+  audioUrl: 'http://8.136.133.196/uploads/practice/kaiying-live-20260612.m4a',
+};
 
 const state = {
   files: [],
@@ -28,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!auth) return;
   bindEls();
   setupSessionChrome();
+  bindPracticeMaterial();
+  loadPracticeFromQuery();
   loadTaskFromQuery();
   bindUpload();
   bindActions();
@@ -55,7 +63,32 @@ function bindEls() {
     taskDemand: document.getElementById('task-demand'),
     taskAudioLink: document.getElementById('task-audio-link'),
     uploadLabel: document.getElementById('upload-label'),
+    practiceCard: document.getElementById('practice-material-card'),
+    practiceStartBtn: document.getElementById('practice-start-btn'),
+    practiceAudioLink: document.getElementById('practice-audio-link'),
+    speakerModeButtons: Array.from(document.querySelectorAll('[data-speaker-count]')),
   });
+}
+
+function bindPracticeMaterial() {
+  if (els.practiceAudioLink) els.practiceAudioLink.href = PRACTICE_MATERIAL.audioUrl;
+  if (els.practiceStartBtn) {
+    els.practiceStartBtn.addEventListener('click', () => loadPracticeMaterial());
+  }
+}
+
+function loadPracticeFromQuery() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('practice') === 'launch') loadPracticeMaterial();
+}
+
+function loadPracticeMaterial() {
+  clearFiles();
+  state.remoteTask = { ...PRACTICE_MATERIAL };
+  renderRemoteTask();
+  clearError();
+  if (els.practiceCard) els.practiceCard.hidden = true;
+  if (els.startBtn) els.startBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function loadTaskFromQuery() {
@@ -72,6 +105,7 @@ async function loadTaskFromQuery() {
       demand: task.demand || '',
       audioUrl: task.materialLink,
     };
+    if (els.practiceCard) els.practiceCard.hidden = true;
     renderRemoteTask();
   } catch (error) {
     showError(formatErrorMessage(error));
@@ -152,6 +186,13 @@ function openFilePicker() {
 
 function bindActions() {
   els.startBtn.addEventListener('click', runPipeline);
+  els.speakerModeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      els.speakerModeButtons.forEach((item) => item.classList.remove('active'));
+      button.classList.add('active');
+      els.speakerCount.value = button.dataset.speakerCount || '1';
+    });
+  });
 }
 
 function addFiles(fileArr) {

@@ -173,6 +173,30 @@
 </div>
 
 <script>
+function readToolAuthToken() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('jinqian_token') || '{}');
+    const expiresAt = Date.parse(auth.expiresAt || '');
+    if (!auth.token || !Number.isFinite(expiresAt) || expiresAt <= Date.now() + 30000) {
+      localStorage.removeItem('jinqian_token');
+      return '';
+    }
+    return auth.token;
+  } catch (_) {
+    return '';
+  }
+}
+
+function getToolLoginUrl() {
+  const next = `${location.pathname}${location.search}`;
+  const login = location.pathname.startsWith('/web-test/') ? '/web-test/login.html' : '/login';
+  return `${login}?next=${encodeURIComponent(next)}`;
+}
+
+if (!readToolAuthToken()) {
+  location.href = getToolLoginUrl();
+}
+
 let audioBlob = null;
 function updateCount() {
   document.getElementById("count").textContent = document.getElementById("text").value.length;

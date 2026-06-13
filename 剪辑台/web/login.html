@@ -27,6 +27,7 @@
             <input id="code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" autocomplete="one-time-code">
             <button class="ghost-btn" id="send-code-btn" type="button">发送验证码</button>
           </div>
+          <p class="notice" style="margin-top:0">现在备案期使用页面上的绿色验证码：点“发送验证码”后，复制下方绿色数字填进来即可。</p>
         </label>
 
         <button class="primary-btn" id="login-btn" type="button">登 录</button>
@@ -37,12 +38,12 @@
 
     <section class="card auth-card" id="nickname-section" style="display:none">
       <div class="stack">
-        <p style="color:#555;margin:0">最后一步：填写你在训练营微信群里的微信名，方便助教认出你。</p>
+        <p class="notice" style="margin-top:0">最后一步：请填写你在训练营微信群里显示的微信名。后续作业批改、接单审核和发钱，都会按这个名字对应。</p>
         <label class="field">
-          <span>微信名（必填）</span>
-          <input id="nickname" maxlength="30" placeholder="和微信群里显示的名字一样">
+          <span>微信群微信名（必填）</span>
+          <input id="nickname" maxlength="30" placeholder="必须和微信群昵称一致">
         </label>
-        <button class="primary-btn" id="nickname-btn" type="button">进入剪辑台</button>
+        <button class="primary-btn" id="nickname-btn" type="button">进入训练台</button>
         <div class="error" id="nickname-error"></div>
       </div>
     </section>
@@ -50,6 +51,6 @@
     <p class="auth-foot">登录即表示你已阅读并同意 <a href="/privacy" target="_blank" rel="noopener">隐私说明</a>。</p>
   </main>
 
-  <script type="module" src="js/login.js?v=20260609-1"></script>
+  <script type="module" src="js/login.js?v=20260612-open-tips"></script>
 </body>
 </html>

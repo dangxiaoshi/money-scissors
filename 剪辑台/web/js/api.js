@@ -8,6 +8,8 @@ const GUEST_AUTH = {
     phone: 'guest',
     maskedPhone: '免登录',
     isAdmin: false,
+    day1Complete: false,
+    day2Complete: false,
   },
 };
 

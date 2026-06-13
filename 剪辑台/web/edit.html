@@ -446,6 +446,52 @@
       white-space: pre-wrap;
     }
 
+    .practice-card {
+      align-items: center;
+      background: linear-gradient(135deg, #fff8e5, #fffdf5);
+      border: 1px solid rgba(224, 160, 25, 0.32);
+      border-radius: 16px;
+      box-shadow: var(--workspace-shadow);
+      display: grid;
+      gap: 16px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      margin-bottom: 16px;
+      padding: 18px 20px;
+    }
+
+    .practice-icon {
+      align-items: center;
+      background: #fff;
+      border-radius: 16px;
+      color: var(--workspace-gold-dark);
+      display: flex;
+      font-size: 26px;
+      height: 54px;
+      justify-content: center;
+      width: 54px;
+    }
+
+    .practice-title {
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .practice-desc {
+      color: #5a4a2a;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+
+    .practice-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
     .import-card {
       background: #fff;
       border: 2px dashed rgba(200, 149, 42, 0.38);
@@ -636,25 +682,51 @@
       margin-top: 16px;
     }
 
-    .speaker-action-row .form-row {
-      align-items: center;
+    .speaker-mode-panel {
       border-top: 1px solid var(--hairline);
-      flex: 0 0 188px;
-      gap: 12px;
+      flex: 1;
       margin: 0;
       padding-top: 22px;
     }
 
-    .speaker-action-row .form-row label {
-      flex: 0 0 auto;
-      white-space: nowrap;
+    .speaker-mode-label {
+      color: var(--ink-2);
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .speaker-mode-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .speaker-mode-btn {
+      background: #fff;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      color: #5a4a2a;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      min-height: 36px;
+      padding: 0 13px;
+    }
+
+    .speaker-mode-btn.active {
+      background: #fff3cc;
+      border-color: rgba(200, 149, 42, 0.55);
+      color: var(--workspace-gold-dark);
+      box-shadow: 0 3px 10px rgba(212, 160, 21, 0.16);
     }
 
     .speaker-action-row .actions {
       align-items: center;
       border-top: 1px solid var(--hairline);
       display: flex;
-      flex: 1;
+      flex: 0 0 auto;
       gap: 12px;
       margin: 0;
       padding-top: 22px;
@@ -879,10 +951,14 @@
       .workspace-layout { flex-direction: column; height: auto; }
       .workspace-sidebar { border-bottom: 1px solid var(--workspace-border); border-right: 0; flex-basis: auto; width: 100%; }
       .workspace-content { overflow: visible; padding: 18px 14px 28px; }
+      .practice-card { grid-template-columns: 1fr; }
+      .practice-icon { display: none; }
+      .practice-actions { justify-content: stretch; }
+      .practice-actions .inline-btn { width: 100%; }
       .upload-zone.import-zone { grid-template-columns: 1fr; text-align: center; }
       .upload-icon.import-icon { margin: 0 auto; }
       .speaker-action-row { align-items: stretch; flex-direction: column; }
-      .speaker-action-row .form-row { flex-basis: auto; }
+      .speaker-mode-panel { flex: none; }
       .speaker-action-row .actions { border-top: 0; padding-top: 0; }
       .speaker-action-row .actions { align-items: stretch; flex-direction: column; }
       .project-row { grid-template-columns: auto minmax(0, 1fr); }
@@ -964,7 +1040,6 @@
             <a class="tool-item" href="/剪辑台shownote.html">Show Notes 助手</a>
             <a class="tool-item" href="/剪辑台剪辑决策.html">剪辑决策助手</a>
             <a class="tool-item" href="/剪辑台旁白生成.html">旁白生成</a>
-            <a class="tool-item" href="/剪辑台播客小红书推广卡片.html">播客小红书推广卡片</a>
             <a class="tool-item" href="/剪辑台当小时声音克隆.html">声音克隆</a>
           </div>
         </section>
@@ -1019,9 +1094,15 @@
           </div>
 
           <div class="speaker-action-row">
-            <div class="form-row">
-              <label for="speaker-count">说话人数</label>
-              <input id="speaker-count" type="number" min="1" max="10" step="1" value="2">
+            <div class="speaker-mode-panel">
+              <span class="speaker-mode-label">区分发言人</span>
+              <input id="speaker-count" type="hidden" value="6">
+              <div class="speaker-mode-options" role="group" aria-label="区分发言人">
+                <button class="speaker-mode-btn" type="button" data-speaker-count="1">暂不体验</button>
+                <button class="speaker-mode-btn" type="button" data-speaker-count="1">单人演讲</button>
+                <button class="speaker-mode-btn" type="button" data-speaker-count="2">2人对话</button>
+                <button class="speaker-mode-btn active" type="button" data-speaker-count="6">多人讨论</button>
+              </div>
             </div>
             <div class="actions">
               <button class="primary-btn" id="start-btn" type="button">开始处理</button>
@@ -1073,7 +1154,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script type="module">
-    import { apiJson, clearAuth, getLoginUrl, readAuth, saveAuth } from './js/api.js?v=20260610-reviewflow-1';
+    import { apiJson, clearAuth, getLoginUrl, readAuth, saveAuth, scopedPath } from './js/api.js?v=20260610-reviewflow-1';
 
     const auth = readAuth();
     if (!auth) {
@@ -1088,6 +1169,10 @@
       const auth = await refreshAuth(initialAuth);
       const user = auth.user || {};
       const isAdmin = Boolean(user.isAdmin);
+      if (!isAdmin && !user.day1Complete) {
+        renderEditLocked(user);
+        return;
+      }
       renderUser(user, isAdmin);
       bindChrome();
       bindWorkspaceViews(isAdmin);
@@ -1109,6 +1194,23 @@
         location.href = getScopedLoginUrl();
       }
       return auth;
+    }
+
+    function renderEditLocked(user) {
+      const name = user.nickname || user.maskedPhone || '同学';
+      document.body.innerHTML = `
+        <main class="shell shell-narrow" style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+          <section class="card" style="text-align:center;padding:28px;">
+            <div style="font-size:34px;margin-bottom:12px;">🔒</div>
+            <h1 style="font-size:24px;margin-bottom:10px;">剪辑台还没解锁</h1>
+            <p style="color:#6b5b38;line-height:1.8;margin-bottom:18px;">${escapeHtml(name)}，请先回训练台完成第一天自我介绍作业。生成打卡卡片后，剪辑台会自动解锁。</p>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+              <a class="primary-btn inline-btn" href="${scopedPath('/training/intro.html')}">去做 Day1 作业</a>
+              <a class="secondary-btn inline-btn" href="${scopedPath('/training/path.html')}">看通关顺序</a>
+            </div>
+          </section>
+        </main>
+      `;
     }
 
     function renderUser(user, isAdmin) {
@@ -1320,6 +1422,6 @@
       return getLoginUrl(next);
     }
   </script>
-  <script type="module" src="js/main.js?v=20260611-workspace-1"></script>
+  <script type="module" src="js/main.js?v=20260612-speaker-mode-1"></script>
 </body>
 </html>

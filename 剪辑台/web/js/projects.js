@@ -1,5 +1,13 @@
 import { apiJson, ensureLoggedIn, setupSessionChrome } from './api.js?v=20260610-reviewflow-1';
 
+const PRACTICE_PROJECT = {
+  fileName: 'D2 练习项目｜开营直播',
+  status: 'draft',
+  originalDuration: 3008,
+  practiceKey: 'launch',
+  meta: '练习目标：剪到 25-30 分钟',
+};
+
 const els = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,27 +33,59 @@ async function loadProjects() {
 }
 
 function renderProjects(projects) {
-  if (!projects.length) {
+  const visibleProjects = Array.isArray(projects) ? projects : [];
+  const hasPractice = visibleProjects.some((project) => String(project.fileName || '').includes('开营直播'));
+  const rows = hasPractice ? visibleProjects : [PRACTICE_PROJECT, ...visibleProjects];
+
+  if (!rows.length) {
     els.list.innerHTML = '<div class="empty-state">还没有项目。上传音频并进入审查页后，这里会自动出现。</div>';
     return;
   }
 
-  els.list.innerHTML = projects.map((project) => `
+  els.list.innerHTML = rows.map((project) => `
     <article class="project-card">
       <div>
         <div class="project-title">${escapeHtml(project.fileName)}</div>
         <div class="project-meta">
-          <span>更新 ${formatDate(project.updatedAt)}</span>
+          ${project.meta ? `<span>${escapeHtml(project.meta)}</span>` : `<span>更新 ${formatDate(project.updatedAt)}</span>`}
           <span>原始 ${formatDuration(project.originalDuration)}</span>
           ${project.exportedAt ? `<span>导出 ${formatDate(project.exportedAt)}</span>` : ''}
         </div>
       </div>
       <div>
         <span class="status-pill ${escapeAttr(project.status || 'draft')}">${projectStatusLabel(project.status)}</span>
-        <a class="primary-btn inline-btn" href="review.html?project=${encodeURIComponent(project.id)}">打开</a>
+        ${project.practiceKey
+          ? `<button class="primary-btn inline-btn" type="button" data-practice-key="${escapeAttr(project.practiceKey)}">打开</button>`
+          : `<a class="primary-btn inline-btn" href="${escapeAttr(`review.html?project=${encodeURIComponent(project.id)}`)}">打开</a>`}
       </div>
     </article>
   `).join('');
+
+  els.list.querySelectorAll('[data-practice-key]').forEach((button) => {
+    button.addEventListener('click', () => launchPracticeProject(button));
+  });
+}
+
+async function launchPracticeProject(button) {
+  const key = button.dataset.practiceKey || 'launch';
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = '正在打开…';
+  hideError();
+
+  try {
+    const data = await apiJson(`/api/projects/practice/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      body: '{}',
+    });
+    const projectId = data?.project?.id;
+    if (!projectId) throw new Error('练习项目没有打开成功，请刷新后再试。');
+    location.href = `review.html?project=${encodeURIComponent(projectId)}`;
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    showError(error.message || String(error));
+  }
 }
 
 function projectStatusLabel(status) {
@@ -76,6 +116,11 @@ function formatDuration(seconds) {
 function showError(message) {
   els.error.textContent = message;
   els.error.classList.add('visible');
+}
+
+function hideError() {
+  els.error.textContent = '';
+  els.error.classList.remove('visible');
 }
 
 function escapeHtml(value) {

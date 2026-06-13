@@ -5,6 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>金钱剪刀 · 后台</title>
   <link rel="stylesheet" href="css/shared.css?v=20260529b">
+  <style>
+    .cell-link { color:#C8820A; font-weight:700; cursor:pointer; text-decoration:none; background:none; border:none; padding:0; font-size:inherit; }
+    .cell-link:hover { text-decoration:underline; }
+    .cell-muted { color:#9a9a9a; }
+    .pending-pill { display:inline-block; min-width:20px; padding:1px 8px; border-radius:999px; background:#FBE7C2; color:#9a5a00; font-weight:800; }
+    .pending-zero { color:#b8b8b8; }
+    .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+    .modal-mask.open { display:flex; }
+    .modal-box { background:#fff; border-radius:16px; max-width:560px; width:100%; max-height:84vh; overflow:auto; box-shadow:0 24px 60px rgba(0,0,0,.25); }
+    .modal-head { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #eee; position:sticky; top:0; background:#fff; }
+    .modal-title { font-size:18px; font-weight:800; }
+    .modal-close { border:none; background:none; font-size:22px; cursor:pointer; color:#888; line-height:1; }
+    .modal-body { padding:18px 22px 24px; }
+    .intro-q { font-size:13px; color:#B07A18; font-weight:700; margin:14px 0 4px; }
+    .intro-a { font-size:15px; line-height:1.6; color:#333; white-space:pre-wrap; }
+    .intro-empty { color:#999; padding:10px 0; }
+    .snap-item { border:1px solid #eee; border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+    .snap-meta { font-size:13px; color:#666; margin-bottom:8px; }
+    .snap-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  </style>
 </head>
 <body>
   <main class="shell shell-wide">
@@ -33,8 +53,7 @@
         <div class="segmented">
           <button class="segmented-btn active" data-filter="all" type="button">全部</button>
           <button class="segmented-btn" data-filter="used_3" type="button">≥3次</button>
-          <button class="segmented-btn" data-filter="wechat_yes" type="button">已加微信</button>
-          <button class="segmented-btn" data-filter="wechat_no" type="button">未加微信</button>
+          <button class="segmented-btn" data-filter="pending" type="button">有待审</button>
         </div>
       </div>
       <div class="error" id="error"></div>
@@ -48,7 +67,8 @@
               <th>最后活跃</th>
               <th>次数</th>
               <th>D1作业</th>
-              <th>微信</th>
+              <th>D2作业</th>
+              <th>待审核</th>
               <th>备注</th>
               <th></th>
             </tr>
@@ -76,6 +96,16 @@
     </section>
   </main>
 
-  <script type="module" src="js/admin.js?v=20260610-reviewflow-1"></script>
+  <div class="modal-mask" id="modal-mask">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title" id="modal-title">学员作业</div>
+        <button class="modal-close" id="modal-close" type="button">×</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/admin.js?v=20260612-archive"></script>
 </body>
 </html>

@@ -295,7 +295,7 @@
 </head>
 <body>
 <script type="module">
-  import { initStationNav, markDay1Complete } from '../js/station-nav.js?v=20260610-ux2';
+  import { initStationNav, markDay1Complete } from '../js/station-nav.js?v=20260612-unlock';
   const auth = await initStationNav({ active: 'training' });
   const nicknameInput = document.getElementById('nickname');
   if (auth?.user?.nickname && nicknameInput && !nicknameInput.value) {
@@ -303,11 +303,19 @@
   }
   window.markDay1Complete = async function markIntroDone() {
     const hint = document.getElementById('unlockHint');
+    const val = (id) => (document.getElementById(id)?.value || '').trim();
+    const intro = {
+      nickname: val('nickname'),
+      field1: val('field1'),
+      field2: val('field2'),
+      field3: val('field3'),
+      field4: val('field4'),
+    };
     try {
-      await markDay1Complete();
-      if (hint) hint.textContent = '已完成第一天作业，接单台已解锁。';
+      await markDay1Complete(intro);
+      if (hint) hint.textContent = '已完成第一天作业，剪辑台已解锁。';
     } catch (error) {
-      if (hint) hint.textContent = '卡片已生成。如果接单台仍未解锁，请刷新后再试。';
+      if (hint) hint.textContent = '卡片已生成，但作业保存失败，请刷新后再点一次"生成卡片"。';
       console.warn('complete day1 failed', error);
     }
   };

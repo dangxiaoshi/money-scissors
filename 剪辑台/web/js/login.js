@@ -43,7 +43,7 @@ async function sendCode() {
     });
     showHint(data.message || '验证码已发送。');
     startCooldown(Number(data.cooldownSeconds || 60));
-    if (data.devCode) showHint(`开发模式验证码：${data.devCode}`);
+    if (data.devCode) showHint(`请复制这个绿色验证码：${data.devCode}`);
   } catch (error) {
     showError(error.message || String(error));
   } finally {
@@ -85,7 +85,7 @@ async function submitNickname() {
     els.nicknameError.textContent = '';
     const nickname = els.nicknameInput.value.trim();
     if (!nickname) {
-      els.nicknameError.textContent = '请填写你在训练营微信群里的微信名。';
+      els.nicknameError.textContent = '请填写你在训练营微信群里显示的微信名，后续作业和发钱都按这个名字对应。';
       return;
     }
     els.nicknameBtn.disabled = true;

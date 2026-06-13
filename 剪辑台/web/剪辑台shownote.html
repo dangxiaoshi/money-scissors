@@ -331,10 +331,39 @@ DeepSeek和豆包免费的时代，这款付费命理产品让老外疯狂买单
 - 每条问题读给没听过这期的陌生人，他们会不会觉得"这个我也想知道"
 `;
 
+        function readToolAuthToken() {
+          try {
+            const auth = JSON.parse(localStorage.getItem('jinqian_token') || '{}');
+            const expiresAt = Date.parse(auth.expiresAt || '');
+            if (!auth.token || !Number.isFinite(expiresAt) || expiresAt <= Date.now() + 30000) {
+              localStorage.removeItem('jinqian_token');
+              return '';
+            }
+            return auth.token;
+          } catch (_) {
+            return '';
+          }
+        }
+
+        function getToolLoginUrl() {
+          const next = `${location.pathname}${location.search}`;
+          const login = location.pathname.startsWith('/web-test/') ? '/web-test/login.html' : '/login';
+          return `${login}?next=${encodeURIComponent(next)}`;
+        }
+
+        function getToolAuthHeaders(headers = {}) {
+          const token = readToolAuthToken();
+          if (!token) {
+            location.href = getToolLoginUrl();
+            throw new Error('请先登录后再使用这个工具。');
+          }
+          return { ...headers, Authorization: `Bearer ${token}` };
+        }
+
         async function callSafeAI(messages, { maxTokens = 4096 } = {}) {
           const res = await fetch('/api/deepseek/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getToolAuthHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
               max_tokens: maxTokens,
               response_format: { type: 'json_object' },

@@ -155,10 +155,39 @@
 <div class="footer">播客剪辑决策助手</div>
 
 <script>
+function readToolAuthToken() {
+  try {
+    const auth = JSON.parse(localStorage.getItem('jinqian_token') || '{}');
+    const expiresAt = Date.parse(auth.expiresAt || '');
+    if (!auth.token || !Number.isFinite(expiresAt) || expiresAt <= Date.now() + 30000) {
+      localStorage.removeItem('jinqian_token');
+      return '';
+    }
+    return auth.token;
+  } catch (_) {
+    return '';
+  }
+}
+
+function getToolLoginUrl() {
+  const next = `${location.pathname}${location.search}`;
+  const login = location.pathname.startsWith('/web-test/') ? '/web-test/login.html' : '/login';
+  return `${login}?next=${encodeURIComponent(next)}`;
+}
+
+function getToolAuthHeaders(headers = {}) {
+  const token = readToolAuthToken();
+  if (!token) {
+    location.href = getToolLoginUrl();
+    throw new Error('请先登录后再使用这个工具。');
+  }
+  return { ...headers, Authorization: `Bearer ${token}` };
+}
+
 async function callSafeAI(messages, { maxTokens = 4096 } = {}) {
   const res = await fetch('/api/deepseek/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getToolAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       max_tokens: maxTokens,
       response_format: { type: 'json_object' },
