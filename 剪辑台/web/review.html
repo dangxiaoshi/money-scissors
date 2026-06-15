@@ -1010,6 +1010,8 @@ body.readonly .star { display: none; }
 .kp-nav button{width:30px;height:30px;border-radius:8px;border:1px solid #e3e3e3;background:#fff;cursor:pointer;font-size:15px;color:#555;}
 .kp-killall{flex:1;border:1px solid #e3e3e3;background:#f4f5f7;border-radius:8px;padding:7px;font-size:13px;cursor:pointer;color:#333;}
 .kp-killall:hover{background:#ececec;}
+.kp-undo{border:1px solid #e3e3e3;background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;color:#555;white-space:nowrap;}
+.kp-undo:hover{background:#f4f5f7;}
 .kp-libtoggle{font-size:13px;color:#b9821f;cursor:pointer;border-top:1px dashed #eee;padding-top:10px;display:flex;justify-content:space-between;align-items:center;}
 .kp-lib-h{font-size:12px;color:#999;font-weight:600;margin:10px 0 6px;}
 .kp-words{display:flex;flex-wrap:wrap;gap:6px;}
@@ -1129,6 +1131,7 @@ body.readonly .star { display: none; }
         <button onclick="kpJump(1)" title="下一个口癖">→</button>
       </div>
       <button class="kp-killall" onclick="kpKillAll()">一键全标删</button>
+      <button class="kp-undo" onclick="kpUndo()" title="撤销上一步（也可按 Ctrl/⌘+Z）">↩ 撤销</button>
     </div>
     <div class="kp-libtoggle" onclick="kpToggleLib()"><span>词库设置</span><span id="kp-lib-arrow">▸</span></div>
     <div class="kp-lib" id="kp-lib" style="display:none">
@@ -1434,6 +1437,7 @@ function switchSideTab(name){
 function kpKillWord(idx, wi){
   if(window.__READ_ONLY) return;
   const x=S.find(s=>s.idx===idx); if(!x||!x.w||!x.w[wi]) return;
+  kpPushUndo();
   let cs=0; for(let i=0;i<wi;i++) cs+=x.w[i].t.length;
   const ce=cs+x.w[wi].t.length, w=x.w[wi];
   (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(w.s), e:r3(w.e)});
@@ -1444,6 +1448,7 @@ function kpKillAll(){
   if(window.__READ_ONLY) return;
   const hits=kpAllHits();
   if(!hits.length){ toast('没有检测到口癖'); return; }
+  kpPushUndo();
   const bySent={}; hits.forEach(h=>{ (bySent[h.idx]=bySent[h.idx]||[]).push(h); });
   Object.keys(bySent).forEach(k=>{
     const idx=+k, x=S.find(s=>s.idx===idx); if(!x||!x.w) return;
@@ -1490,6 +1495,32 @@ function kpToggleLib(){
   const l=document.getElementById('kp-lib'), a=document.getElementById('kp-lib-arrow');
   const show=l.style.display==='none'; l.style.display=show?'block':'none'; if(a)a.textContent=show?'▾':'▸';
 }
+
+// ===== 撤销栈（解决「一键全标删」无法回退）=====
+// 在每次删除类操作前存一份 del/pdel/gold 快照，Ctrl/⌘+Z 或「撤销」按钮逐步还原。
+const kpUndoStack=[];
+function kpPushUndo(){
+  kpUndoStack.push({ del:[...del], gold:[...gold], pdel:JSON.parse(JSON.stringify(pdel)) });
+  if(kpUndoStack.length>60) kpUndoStack.shift();
+}
+function kpUndo(){
+  if(window.__READ_ONLY) return;
+  if(!kpUndoStack.length){ toast('没有可撤销的操作'); return; }
+  const s=kpUndoStack.pop();
+  del.clear(); s.del.forEach(i=>del.add(i));
+  gold.clear(); s.gold.forEach(i=>gold.add(i));
+  for(const k in pdel) delete pdel[k];
+  Object.assign(pdel, JSON.parse(JSON.stringify(s.pdel)));
+  kpCurKey=null; renderAll(); sv(); toast('已撤销');
+}
+// Ctrl/⌘+Z 全局撤销
+document.addEventListener('keydown', e=>{
+  if((e.metaKey||e.ctrlKey) && !e.shiftKey && (e.key==='z'||e.key==='Z')){
+    const tag=(e.target.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||e.target.isContentEditable) return; // 输入框里不抢
+    e.preventDefault(); kpUndo();
+  }
+});
 
 // ===== STATS =====
 function computeStats() {
@@ -2068,6 +2099,7 @@ function renderAll(){renderSidebar();renderTx();kpUpdateCount()}
 // ===== INTERACTIONS =====
 function tgS(i){
   if(window.__READ_ONLY)return;
+  kpPushUndo();
   if(del.has(i)){del.delete(i)}
   else{del.add(i);gold.delete(i)}
   um.add(i);renderAll();sv()
@@ -2137,7 +2169,7 @@ function parseJsonObject(text){
   if(match){try{return JSON.parse(match[0])}catch{}}
   return null;
 }
-function tgB(id){if(window.__READ_ONLY)return;const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAll();sv()}
+function tgB(id){if(window.__READ_ONLY)return;kpPushUndo();const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAll();sv()}
 
 // ===== 半句删除（选区 → 词 → 时间段）=====
 const selbtn=document.createElement('div');
@@ -2204,6 +2236,7 @@ function delSel(){
   }
   if(sW===null||eW===null){ hideSelBtn(); return; }
   const sw=x.w[sW], ew=x.w[eW];
+  kpPushUndo();
   // 词内按字符比例插值时间（ASR 合词时也能切准）
   let st=(sOff>0 && wt[sW].length>0) ? sw.s+(sw.e-sw.s)*(sOff/wt[sW].length) : sw.s;
   let et=(eOff>0 && wt[eW].length>0) ? ew.e-(ew.e-ew.s)*(eOff/wt[eW].length) : ew.e;
