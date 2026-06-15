@@ -121,12 +121,12 @@
           </div>
         </div>
         <div class="field">
-          <label>上传音频素材 *</label>
+          <label>上传音频素材（可选）</label>
           <div class="upload-box" id="upload-box" tabindex="0" role="button" aria-label="上传音频素材">
             <div class="upload-icon">🎙️</div>
             <div class="upload-main">
               <div class="upload-title">点击或拖入 mp3 / wav / m4a</div>
-              <div class="upload-status" id="upload-status">选择或拖入音频后会立刻上传，上传成功后再保存任务。</div>
+              <div class="upload-status" id="upload-status">选择或拖入音频后会立刻上传；微信群内接单可先不传音频。</div>
               <div class="upload-progress"><div id="upload-fill"></div></div>
               <label class="secondary-btn inline-btn pick-file-btn" for="f-audio">选择音频文件</label>
               <a id="material-link" href="#" target="_blank" rel="noopener">查看已上传音频</a>
@@ -272,7 +272,7 @@
       els.formTitle.textContent = '新增接单任务';
       els.title.value = els.budget.value = els.difficulty.value = els.demand.value = els.material.value = '';
       els.audio.value = '';
-      els.uploadStatus.textContent = '选择或拖入音频后会立刻上传，上传成功后再保存任务。';
+      els.uploadStatus.textContent = '选择或拖入音频后会立刻上传；微信群内接单可先不传音频。';
       els.uploadFill.style.width = '0%';
       els.materialLink.classList.remove('visible');
       els.materialLink.href = '#';
@@ -286,7 +286,6 @@
       els.publishBtn.disabled = els.draftBtn.disabled = true;
       try {
         body.materialLink = await ensureMaterialUploaded();
-        if (!body.materialLink && body.published) { showError('立即发布前请先上传音频素材；如果素材暂时在群里，可以先点“存为草稿”。'); return; }
         if (!body.title) body.title = selectedAudioFile?.name?.replace(/\.[^.]+$/, '').slice(0, 80) || '未命名接单任务';
         if (editingId) {
           await apiJson(`/api/orders/admin/tasks/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
