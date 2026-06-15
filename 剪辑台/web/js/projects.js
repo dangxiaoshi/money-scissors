@@ -50,13 +50,14 @@ function renderProjects(projects) {
           ${project.meta ? `<span>${escapeHtml(project.meta)}</span>` : `<span>更新 ${formatDate(project.updatedAt)}</span>`}
           <span>原始 ${formatDuration(project.originalDuration)}</span>
           ${project.exportedAt ? `<span>导出 ${formatDate(project.exportedAt)}</span>` : ''}
+          ${projectSubmitHint(project.status)}
         </div>
       </div>
       <div>
         <span class="status-pill ${escapeAttr(project.status || 'draft')}">${projectStatusLabel(project.status)}</span>
         ${project.practiceKey
           ? `<button class="primary-btn inline-btn" type="button" data-practice-key="${escapeAttr(project.practiceKey)}">打开</button>`
-          : `<a class="primary-btn inline-btn" href="${escapeAttr(`review.html?project=${encodeURIComponent(project.id)}`)}">打开</a>`}
+          : `<a class="primary-btn inline-btn" href="${escapeAttr(`review.html?project=${encodeURIComponent(project.id)}`)}">${projectActionLabel(project.status)}</a>`}
       </div>
     </article>
   `).join('');
@@ -97,6 +98,23 @@ function projectStatusLabel(status) {
     exported: '已导出',
   };
   return labels[status] || labels.draft;
+}
+
+function projectActionLabel(status) {
+  const labels = {
+    draft: '继续剪辑',
+    pending_review: '继续修改',
+    rejected: '按反馈修改',
+    approved: '查看项目',
+    exported: '重新打开',
+  };
+  return labels[status] || labels.draft;
+}
+
+function projectSubmitHint(status) {
+  if (status === 'pending_review') return '<span>可继续修改后重新提交</span>';
+  if (status === 'rejected') return '<span>修改后可重新提交</span>';
+  return '';
 }
 
 function formatDate(value) {

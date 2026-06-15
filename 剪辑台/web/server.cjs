@@ -1014,6 +1014,40 @@ async function handleAdmin(req, res, url) {
     return;
   }
 
+  // AI 批改草稿：基于现有审核快照生成草稿，助教先看再发，不自动发给学员。
+  const aiReviewMatch = url.pathname.match(/^\/api\/admin\/snapshots\/([A-Za-z0-9_-]+)\/ai-review$/);
+  if (aiReviewMatch && req.method === 'POST') {
+    if (!DEEPSEEK_KEY) {
+      sendJson(res, 500, { error: 'missing_deepseek_key', message: '服务端未配置 DEEPSEEK_KEY。' });
+      return;
+    }
+    const row = statements.findSnapshotById.get(aiReviewMatch[1]);
+    if (!row) {
+      sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
+      return;
+    }
+    const data = readJsonFile(row.data_path, {});
+    const messages = buildAiReviewMessages(data, row);
+    await proxyJson(res, DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${DEEPSEEK_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 4096,
+        response_format: { type: 'json_object' },
+        messages,
+      }),
+    }, {
+      timeoutMs: DEEPSEEK_TIMEOUT_MS,
+      timeoutMessage: 'AI 批改等待超时，请稍后重试。',
+      errorMessage: 'AI 服务暂时不可用，请稍后重试。',
+    });
+    return;
+  }
+
   if (snapshotMatch && req.method === 'PATCH') {
     const row = statements.findSnapshotById.get(snapshotMatch[1]);
     if (!row) {
@@ -1799,6 +1833,142 @@ function publicSnapshot(row) {
   };
 }
 
+// 把审核快照整理成 AI 批改的 prompt。只喂 AI 看得到的：逐字稿删/留、时长、文件名。
+// 听感流畅 / 音量一致 / 咔哒声这类"必须用耳朵听"的维度，明确要求 AI 标"需助教人工听"，不让它瞎评。
+function buildAiReviewMessages(data, row) {
+  const payload = data.payload || {};
+  const sentences = Array.isArray(payload.S) ? payload.S : [];
+  const cuts = Array.isArray(data.cutPayload && data.cutPayload.segments) ? data.cutPayload.segments : [];
+  const editState = payload.editState && typeof payload.editState === 'object' ? payload.editState : {};
+  const deletedSentenceIds = new Set(
+    Array.isArray(editState.d)
+      ? editState.d.map((value) => Number(value)).filter(Number.isFinite)
+      : []
+  );
+  const partialCutsBySentence = editState.p && typeof editState.p === 'object' ? editState.p : {};
+  const cutOverlapDuration = (sentence) => {
+    const ss = Number(sentence.s) || 0;
+    const se = Number(sentence.e) || 0;
+    if (!(se > ss)) return 0;
+    let overlap = 0;
+    for (const cut of cuts) {
+      const cs = Number(cut.start != null ? cut.start : cut.s) || 0;
+      const ce = Number(cut.end != null ? cut.end : cut.e) || 0;
+      overlap += Math.max(0, Math.min(se, ce) - Math.max(ss, cs));
+    }
+    return overlap;
+  };
+  const isDeleted = (sentence, index) => {
+    const sentenceId = Number.isFinite(Number(sentence.idx)) ? Number(sentence.idx) : index;
+    if (deletedSentenceIds.has(sentenceId)) return true;
+    const ss = Number(sentence.s) || 0;
+    const se = Number(sentence.e) || 0;
+    if (!(se > ss)) return false;
+    const overlap = cutOverlapDuration(sentence);
+    return overlap > (se - ss) * 0.5;
+  };
+  const mergeCharRanges = (ranges) => {
+    const sorted = ranges
+      .map((range) => ({
+        start: Math.max(0, Math.floor(Number(range.cs))),
+        end: Math.max(0, Math.ceil(Number(range.ce))),
+      }))
+      .filter((range) => Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > range.start)
+      .sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const range of sorted) {
+      const last = merged[merged.length - 1];
+      if (last && range.start <= last.end) last.end = Math.max(last.end, range.end);
+      else merged.push({ ...range });
+    }
+    return merged;
+  };
+  const renderPartialText = (sentence, index) => {
+    const sentenceId = Number.isFinite(Number(sentence.idx)) ? Number(sentence.idx) : index;
+    const baseText = Array.isArray(sentence.w) && sentence.w.length
+      ? sentence.w.map((word) => String(word.t || '')).join('')
+      : String(sentence.t || '').trim();
+    const ranges = mergeCharRanges(Array.isArray(partialCutsBySentence[sentenceId]) ? partialCutsBySentence[sentenceId] : []);
+    if (!ranges.length) {
+      return {
+        text: baseText,
+        partial: cutOverlapDuration(sentence) > 0.04,
+      };
+    }
+    let cursor = 0;
+    const pieces = [];
+    for (const range of ranges) {
+      const start = Math.min(baseText.length, Math.max(cursor, range.start));
+      const end = Math.min(baseText.length, Math.max(start, range.end));
+      if (start > cursor) pieces.push(baseText.slice(cursor, start));
+      const removed = baseText.slice(start, end);
+      if (removed) pieces.push(`〔已删：${removed}〕`);
+      cursor = end;
+    }
+    if (cursor < baseText.length) pieces.push(baseText.slice(cursor));
+    return {
+      text: pieces.join('') || baseText,
+      partial: true,
+    };
+  };
+  const transcript = sentences
+    .map((sentence, index) => {
+      const rendered = renderPartialText(sentence, index);
+      const speaker = sentence.sp ? `${sentence.sp}：` : '';
+      const marker = isDeleted(sentence, index) ? '【删】' : rendered.partial ? '【半删】' : '【留】';
+      const suffix = rendered.partial && !rendered.text.includes('〔已删：') ? '（本句有局部删减，旧数据未记录具体文字）' : '';
+      return `[${index}] ${marker} ${speaker}${rendered.text}${suffix}`;
+    })
+    .join('\n');
+
+  const fileName = row.file_name || payload.fileName || '未命名音频';
+  const orig = Number(row.original_duration || 0);
+  const rough = Number(row.roughcut_duration || 0);
+  const removed = Number(row.removed_duration || 0);
+  const fmt = (sec) => {
+    const s = Math.max(0, Math.round(Number(sec) || 0));
+    return `${Math.floor(s / 60)}分${String(s % 60).padStart(2, '0')}秒`;
+  };
+
+  const system = [
+    '你是播客剪辑营的资深助教，帮主助教快速生成一份"批改草稿"。',
+    '这只是草稿，主助教会先看、改完再发给学员，所以你只管把能判断的写清楚。',
+    '',
+    '满分 100 的评分标准：内容完整与逻辑 40 / 听感流畅 30 / 音量一致 20 / 命名与交付 10，60 分及格。',
+    '',
+    '【非常重要的边界】你只能看到逐字稿（标了【删】【留】【半删】）、时长和文件名。',
+    '- 【半删】表示这句话保留，但括号里的〔已删：...〕文字没有进入成品；评价时不要把已删文字当作保留内容。',
+    '- 你能评：内容完整与逻辑（40）、删减是否合理、成品时长是否合适、命名与交付完整度（10）。',
+    '- 你绝对不能评：听感流畅（30）、音量一致（20）、有没有咔哒声/爆音——这些必须助教用耳朵听。',
+    '  对这两项，分数一律不要猜，统一在 humanCheck 里提醒助教人工听。',
+    '- 不要假装你听过音频。',
+    '',
+    '只输出 JSON，结构如下，全部用中文：',
+    '{',
+    '  "comment": "给学员看的鼓励式评论，先肯定做得好的地方，语气温暖具体",',
+    '  "issues": ["3到5条具体问题，每条指出在哪、为什么、怎么改，针对内容/删减/时长/命名"],',
+    '  "suggestions": "整体改稿建议，1到3句",',
+    '  "score": { "content": 0到40的整数, "naming": 0到10的整数, "visibleSubtotal": content加naming, "note": "这是AI可见部分(满分50)；听感30+音量20共50分需助教人工听后补" },',
+    '  "humanCheck": "提醒助教必须人工听的点：听感是否流畅、音量是否一致、接缝有没有咔哒声",',
+    '  "verdict": "建议通过 或 建议打回（只基于你能看到的维度，给出一句理由）"',
+    '}',
+  ].join('\n');
+
+  const userMsg = [
+    `音频文件名：${fileName}`,
+    `原始时长：${fmt(orig)}；粗剪后时长：${fmt(rough)}；删减时长：${fmt(removed)}`,
+    '',
+    '下面是带删/留/半删标记的逐字稿（【删】=整句删掉，【留】=保留进成品，【半删】=只删掉句子里一部分）：',
+    '',
+    transcript || '（没有逐字稿数据）',
+  ].join('\n');
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: userMsg },
+  ];
+}
+
 function normalizeReviewStatus(value) {
   const status = String(value || '').trim();
   if (['pending_review', 'approved', 'rejected'].includes(status)) return status;
@@ -1952,6 +2122,14 @@ async function handleCut(req, res, url) {
       sendJson(res, 400, { error: 'missing_audio_url', message: '缺少原始音频 URL，请从审查页重新导出。' });
       return;
     }
+    // 金句前置：从同一条原始音频里提取的金句时间段（仍保留在正文里，这里只是另存一份拼到开头）。
+    const goldenSegments = Array.isArray(body.goldenSegments)
+      ? body.goldenSegments
+          .map((seg) => ({ start: Number(seg.start) || 0, end: Number(seg.end) || 0 }))
+          .filter((seg) => seg.end > seg.start)
+      : [];
+    // 过渡音乐：只允许 /assets/music/ 下的素材，做路径归一防穿越；找不到就忽略（降级为无音乐）。
+    const musicPath = resolveIntroMusicPath(body.introMusic);
     let audioSource;
     try {
       audioSource = resolveTrustedAudioInput(audioUrl, req);
@@ -1976,6 +2154,8 @@ async function handleCut(req, res, url) {
       audioUrl,
       audioSource,
       segments,
+      goldenSegments,
+      musicPath,
       originalDuration: Number(body.originalDuration || body.original_duration || 0),
       createdAt: Date.now(),
       error: null,
@@ -2136,10 +2316,23 @@ async function cutProcess(job) {
   const duration = job.originalDuration > 0 ? job.originalDuration : await refineProbe(job.inputPath);
   const keepSegments = invertCutSegments(job.segments, duration);
   if (!keepSegments.length) throw new Error('所有音频都被标记删除了，无法生成成品。');
-  const args = buildServerCutArgs(keepSegments);
+
+  // 有金句时走"金句前置"拼接：金句 → (过渡音乐) → 正文；否则走原来的纯删减拼接。
+  const golden = Array.isArray(job.goldenSegments)
+    ? job.goldenSegments.filter((seg) => Number(seg.end) > Number(seg.start))
+    : [];
+  const hasMusic = Boolean(job.musicPath);
+  const inputs = ['-i', job.inputPath];
+  let args;
+  if (golden.length) {
+    if (hasMusic) inputs.push('-i', job.musicPath);
+    args = buildGoldCutArgs(keepSegments, golden, hasMusic);
+  } else {
+    args = buildServerCutArgs(keepSegments);
+  }
 
   await new Promise((resolve, reject) => {
-    const pass = spawn('ffmpeg', ['-i', job.inputPath, ...args, '-y', job.outputPath]);
+    const pass = spawn('ffmpeg', [...inputs, ...args, '-y', job.outputPath]);
     pass.stderr.on('data', (chunk) => {
       const line = chunk.toString();
       const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
@@ -2167,11 +2360,71 @@ function buildServerCutArgs(keepSegments) {
     return [...args, '-vn', '-c:a', 'libmp3lame', '-b:a', '192k'];
   }
 
+  // 每个保留段两端各加一个短淡变，消除剪断点接缝处的爆音/咔哒声。
+  // 淡变在段内进行，不改变段长度，成品总时长不变；删整句、删半句的接缝同样处理。
+  // 定稿口径（当当 2026-06-13 试听拍板 = 版本2）：淡入 3ms（字头干脆、不"咕噜"），淡出 8ms（句尾收得干净）。
+  // 段太短时按段长缩短淡变，避免淡入淡出重叠。
+  const FADE_IN = 0.003;
+  const FADE_OUT = 0.008;
   const trims = keepSegments
-    .map((seg, index) => `[0:a]atrim=${seg.start}:${seg.end},asetpts=PTS-STARTPTS[a${index}]`)
+    .map((seg, index) => {
+      let chain = `[0:a]atrim=${seg.start}:${seg.end},asetpts=PTS-STARTPTS`;
+      const segDur = Number(seg.end) - Number(seg.start);
+      if (Number.isFinite(segDur) && segDur > 0) {
+        const fadeIn = Math.min(FADE_IN, segDur / 4);
+        const fadeOut = Math.min(FADE_OUT, segDur / 4);
+        const fadeOutStart = Math.max(0, segDur - fadeOut);
+        chain += `,afade=t=in:st=0:d=${round3(fadeIn)},afade=t=out:st=${round3(fadeOutStart)}:d=${round3(fadeOut)}`;
+      }
+      return `${chain}[a${index}]`;
+    })
     .join(';');
   const concatInputs = keepSegments.map((_, index) => `[a${index}]`).join('');
   const filter = `${trims};${concatInputs}concat=n=${keepSegments.length}:v=0:a=1[out]`;
+  return ['-filter_complex', filter, '-map', '[out]', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k'];
+}
+
+// 把 /assets/music/xxx.mp3 安全解析成本机真实文件路径；非法/不存在返回 null（降级为无音乐）。
+function resolveIntroMusicPath(introMusic) {
+  const raw = String(introMusic || '').trim();
+  if (!raw.startsWith('/assets/music/')) return null;
+  const rel = path.posix.normalize(decodeURIComponent(raw));
+  if (!rel.startsWith('/assets/music/') || rel.includes('..')) return null;
+  const file = path.normalize(path.join(STATIC_ROOT, rel));
+  if (!file.startsWith(path.join(STATIC_ROOT, 'assets', 'music') + path.sep)) return null;
+  try {
+    if (fs.statSync(file).isFile()) return file;
+  } catch {}
+  return null;
+}
+
+// 金句前置拼接：金句段 → (过渡音乐) → 正文段。
+// 金句/正文每段都加同款短淡变（消咔哒），所有流统一重采样到 44.1k 立体声再 concat，规避不同来源/采样率拼接报错。
+function buildGoldCutArgs(keepSegments, goldenSegments, hasMusic) {
+  const FMT = 'aformat=sample_rates=44100:channel_layouts=stereo';
+  const FADE_IN = 0.003;
+  const FADE_OUT = 0.008;
+  const segChain = (srcLabel, seg, outLabel) => {
+    let chain = `[${srcLabel}]atrim=${seg.start}:${seg.end},asetpts=PTS-STARTPTS`;
+    const segDur = Number(seg.end) - Number(seg.start);
+    if (Number.isFinite(segDur) && segDur > 0) {
+      const fi = Math.min(FADE_IN, segDur / 4);
+      const fo = Math.min(FADE_OUT, segDur / 4);
+      chain += `,afade=t=in:st=0:d=${round3(fi)},afade=t=out:st=${round3(Math.max(0, segDur - fo))}:d=${round3(fo)}`;
+    }
+    return `${chain},${FMT}[${outLabel}]`;
+  };
+
+  const chains = [];
+  const order = [];
+  goldenSegments.forEach((seg, i) => { chains.push(segChain('0:a', seg, `g${i}`)); order.push(`[g${i}]`); });
+  if (hasMusic) {
+    // 音乐来自第二个输入；轻微 50ms 淡入，避免接金句尾巴时突起。
+    chains.push(`[1:a]${FMT},afade=t=in:st=0:d=0.05[mus]`);
+    order.push('[mus]');
+  }
+  keepSegments.forEach((seg, i) => { chains.push(segChain('0:a', seg, `b${i}`)); order.push(`[b${i}]`); });
+  const filter = `${chains.join(';')};${order.join('')}concat=n=${order.length}:v=0:a=1[out]`;
   return ['-filter_complex', filter, '-map', '[out]', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k'];
 }
 

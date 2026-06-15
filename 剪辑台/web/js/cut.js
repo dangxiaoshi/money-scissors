@@ -83,6 +83,8 @@ async function startServerCut(data) {
       segments: data.segments,
       originalDuration: data.original_duration || data.originalDuration || 0,
       fileName: data.fileName || 'podcast.mp3',
+      goldenSegments: Array.isArray(data.goldenSegments) ? data.goldenSegments : [],
+      introMusic: data.introMusic || null,
     }),
   });
   const payload = await resp.json().catch(() => ({}));

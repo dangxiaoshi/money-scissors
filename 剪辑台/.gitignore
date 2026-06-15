@@ -25,6 +25,7 @@ web/public/uploads/
 # Local media
 *.m4a
 *.mp3
+!web/assets/music/intro-default.mp3
 *.wav
 *.mp4
 

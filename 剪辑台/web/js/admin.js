@@ -1,5 +1,9 @@
 import { apiFetch, apiJson, ensureLoggedIn, getHomeUrl, setupSessionChrome } from './api.js?v=20260610-reviewflow-1';
 
+/* ===== 功能开关（盖盖子，2026-06-14）=====
+   SHOW_AI_REVIEW：后台学员作业行里的「AI批改」按钮。代码不删，想恢复改成 true 即可。 */
+const SHOW_AI_REVIEW = false;
+
 const els = {};
 let users = [];
 let snapshots = [];
@@ -163,6 +167,7 @@ function renderSnapshots() {
       <td>${formatDuration(snapshot.removedDuration)}</td>
       <td>
         <a class="secondary-btn mini-btn" href="review.html?snapshot=${encodeURIComponent(snapshot.id)}">查看</a>
+        ${SHOW_AI_REVIEW ? `<button class="secondary-btn mini-btn" data-ai-review data-snapshot-id="${escapeAttr(snapshot.id)}" type="button">AI批改</button>` : ''}
         <button class="secondary-btn mini-btn" data-snapshot-status="approved" data-snapshot-id="${escapeAttr(snapshot.id)}" type="button">通过</button>
         <button class="secondary-btn mini-btn" data-snapshot-status="rejected" data-snapshot-id="${escapeAttr(snapshot.id)}" type="button">打回</button>
       </td>
@@ -170,6 +175,72 @@ function renderSnapshots() {
   `).join('');
   els.snapshotTbody.querySelectorAll('[data-snapshot-status]').forEach((button) => {
     button.addEventListener('click', onReviewSnapshot);
+  });
+  els.snapshotTbody.querySelectorAll('[data-ai-review]').forEach((button) => {
+    button.addEventListener('click', () => onAiReview(button));
+  });
+}
+
+async function onAiReview(button) {
+  const id = button.dataset.snapshotId;
+  if (!id) return;
+  openModal('AI 批改草稿', '<div class="intro-empty">AI 正在批改，请稍候…（约 10-30 秒）</div>');
+  try {
+    const resp = await apiJson(`/api/admin/snapshots/${encodeURIComponent(id)}/ai-review`, { method: 'POST' });
+    const content = resp?.choices?.[0]?.message?.content || '';
+    let draft = null;
+    try { draft = JSON.parse(content); } catch { draft = null; }
+    if (!draft || typeof draft !== 'object') {
+      openModal('AI 批改草稿', `<div class="intro-empty">AI 返回内容无法解析，请重试。<br><br>原文片段：${escapeHtml(content).slice(0, 400)}</div>`);
+      return;
+    }
+    renderAiReviewDraft(draft);
+  } catch (error) {
+    openModal('AI 批改草稿', `<div class="intro-empty">AI 批改失败：${escapeHtml(error.message || String(error))}</div>`);
+  }
+}
+
+function renderAiReviewDraft(draft) {
+  const issues = Array.isArray(draft.issues) ? draft.issues : [];
+  const score = draft.score || {};
+  const content = Number(score.content) || 0;
+  const naming = Number(score.naming) || 0;
+  const subtotal = Number(score.visibleSubtotal) || (content + naming);
+  const pass = String(draft.verdict || '').includes('通过');
+  const assembled = [
+    String(draft.comment || '').trim(),
+    '',
+    '需要改的地方：',
+    ...issues.map((item, i) => `${i + 1}. ${item}`),
+    '',
+    draft.suggestions ? `改稿建议：${draft.suggestions}` : '',
+  ].filter((line) => line !== undefined).join('\n');
+  const html = `
+    <div class="ai-review">
+      <div class="ai-pill ${pass ? 'ok' : 'warn'}">AI 初判：${escapeHtml(draft.verdict || '—')}</div>
+      <div class="ai-score">
+        AI 可见部分评分：内容逻辑 ${content}/40 · 命名交付 ${naming}/10 · 小计 ${subtotal}/50
+        <div class="ai-muted">${escapeHtml(score.note || '这是 AI 可见部分（满分50）；听感30+音量20 共50分需助教人工听后补')}</div>
+      </div>
+      <div class="ai-human">⚠️ 需助教人工听：${escapeHtml(draft.humanCheck || '听感是否流畅、音量是否一致、接缝有没有咔哒声')}</div>
+      <label class="ai-label" for="ai-draft-text">给学员的批改草稿（可直接改，确认后自己复制发出）</label>
+      <textarea class="ai-textarea" id="ai-draft-text" rows="12">${escapeHtml(assembled)}</textarea>
+      <div class="ai-actions">
+        <button class="primary-btn mini-btn" type="button" id="ai-copy-btn">复制草稿</button>
+        <span class="ai-muted" id="ai-copy-hint"></span>
+      </div>
+      <p class="ai-muted">这是 AI 草稿，<b>不会自动发给学员</b>。请人工核对（尤其听感/音量/咔哒声）后，再决定通过或打回。</p>
+    </div>`;
+  openModal('AI 批改草稿', html);
+  document.getElementById('ai-copy-btn')?.addEventListener('click', () => {
+    const text = document.getElementById('ai-draft-text')?.value || '';
+    const hint = document.getElementById('ai-copy-hint');
+    const copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error('clipboard_unavailable'));
+    copy
+      .then(() => { if (hint) hint.textContent = '已复制 ✓'; })
+      .catch(() => { if (hint) hint.textContent = '复制失败，请手动选中'; });
   });
 }
 
