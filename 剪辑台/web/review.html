@@ -61,6 +61,31 @@ body {
   font-size: 12px; color: var(--muted);
   font-family: "SF Mono", monospace;
 }
+.topbar .iconbtn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  font-size: 18px;
+  font-weight: 750;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+  line-height: 1;
+}
+.topbar .iconbtn:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+.topbar .iconbtn:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+}
 .topbar .expbtn {
   background: var(--accent); color: #fff; border: none;
   padding: 9px 20px; font-size: 14px; font-weight: 600;
@@ -133,6 +158,7 @@ body.readonly .backupbtn,
 body.readonly .goldbtn,
 body.readonly .introbtn,
 body.readonly .gearbtn,
+body.readonly .iconbtn,
 body.readonly .chk,
 body.readonly #selbtn,
 body.readonly .decision-edit,
@@ -625,7 +651,7 @@ body.resizing-sidebar {
 .gear-popup {
   position: fixed; top: 64px; right: 16px; z-index: 2001;
   background: var(--surface); border: 1px solid var(--hairline);
-  border-radius: 12px; padding: 10px 12px; min-width: 160px;
+  border-radius: 12px; padding: 10px 12px; min-width: 188px;
   box-shadow: var(--shadow-md);
   display: none;
 }
@@ -634,6 +660,42 @@ body.resizing-sidebar {
   font-size: 11px; font-weight: 700; letter-spacing: 1px;
   text-transform: uppercase; color: var(--muted);
   margin-bottom: 6px; padding: 0 4px;
+}
+.gear-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.gear-action {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0 8px;
+  transition: all .15s;
+}
+.gear-action:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.gear-action:disabled {
+  opacity: .58;
+  cursor: wait;
+}
+.gear-action.primary {
+  color: var(--accent-deep);
 }
 
 /* Duration + speaker info bar in mode-bar */
@@ -1069,18 +1131,22 @@ body.readonly .star { display: none; }
   <span class="brand">金钱剪刀 💰✂️</span>
   <span class="proj">测试剪辑审查稿 (3人对话)</span>
   <span class="fill"></span>
-  <span class="status" id="sv">自动保存：已保存</span>
-  <span class="info-icon" onclick="document.getElementById('info-tip').classList.toggle('vis')" title="关于提交审核">?</span>
   <button class="goldbtn" id="gold-ai-btn" onclick="recommendGold()" title="让 AI 推荐适合放到开头的金句">AI推荐金句</button>
-  <button class="introbtn" id="intro-btn" onclick="openIntroMaker()" title="整理片头金句">片头制作 <span id="intro-count">0</span></button>
-  <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="音频精修设置">⚙</button>
-  <button class="backupbtn" onclick="doExport({next:'cut'})">生成 MP3</button>
+  <button class="iconbtn" id="undo-btn" onclick="kpUndo()" title="撤销">↶</button>
+  <button class="iconbtn" id="redo-btn" onclick="kpRedo()" title="前进">↷</button>
+  <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="工具">⚙</button>
   <button class="snapshot-cutbtn" id="snapshot-cut-btn" onclick="downloadSnapshotCut()" hidden>下载审核 MP3</button>
-  <button class="expbtn" id="submit-review-btn" onclick="doExport()">提交助教审核</button>
+  <button class="expbtn" id="submit-review-btn" onclick="doExport()">提交审核</button>
 </div>
 
 <!-- Gear popup: audio processing options -->
 <div class="gear-popup" id="gear-popup">
+  <div class="gear-menu">
+    <button class="gear-action primary" id="intro-btn" onclick="openIntroMaker()">片头金句 <span id="intro-count">0</span></button>
+    <button class="gear-action" id="manual-save-btn" onclick="manualSaveNow()">保存</button>
+    <button class="gear-action" onclick="doExport({next:'cut'})">生成 MP3</button>
+    <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交说明</button>
+  </div>
   <div class="gear-popup-title">音频精修</div>
   <label class="refine-option">
     <input type="checkbox" id="refine-normalize">
@@ -1272,7 +1338,7 @@ requestAnimationFrame(() => {
   }
   const submitBtn = document.getElementById('submit-review-btn');
   if (submitBtn && ['pending_review', 'approved', 'rejected', 'exported'].includes(window.__PROJECT_STATUS)) {
-    submitBtn.textContent = '重新提交助教审核';
+    submitBtn.textContent = '重新提交';
     submitBtn.title = '会生成一份新的审核记录，旧记录保留';
   }
 });
@@ -1627,6 +1693,7 @@ function kpPushUndo(){
   kpUndoStack.push(kpSnap());
   if(kpUndoStack.length>60) kpUndoStack.shift();
   kpRedoStack.length=0;          // 新操作后清空前进栈（标准撤销语义）
+  updateTopbarHistoryButtons();
 }
 function kpUndo(){
   if(window.__READ_ONLY) return;
@@ -1644,6 +1711,12 @@ function kpRedo(){
 }
 function kpCanUndo(){ return kpUndoStack.length>0; }   // 供顶栏窗口控制按钮置灰
 function kpCanRedo(){ return kpRedoStack.length>0; }
+function updateTopbarHistoryButtons(){
+  const undoBtn=document.getElementById('undo-btn');
+  const redoBtn=document.getElementById('redo-btn');
+  if(undoBtn) undoBtn.disabled=window.__READ_ONLY || !kpCanUndo();
+  if(redoBtn) redoBtn.disabled=window.__READ_ONLY || !kpCanRedo();
+}
 // 键盘：⌘/Ctrl+Z 撤销，⌘/Ctrl+Shift+Z 或 Ctrl+Y 前进
 document.addEventListener('keydown', e=>{
   const tag=(e.target.tagName||'').toLowerCase();
@@ -2065,6 +2138,19 @@ document.addEventListener('click', e => {
   }
 });
 
+async function manualSaveNow(){
+  if (window.__READ_ONLY) return;
+  const btn=document.getElementById('manual-save-btn');
+  if(btn){ btn.disabled=true; btn.textContent='保存中'; }
+  persistCurrentPayload();
+  const saved=window.__PROJECT_ID ? await saveProjectNow(true) : true;
+  if(btn){
+    btn.textContent=saved ? '已保存' : '保存';
+    setTimeout(()=>{ btn.textContent='保存'; btn.disabled=false; }, 900);
+  }
+  toast(saved ? '已保存' : '服务器暂时没保存成功，本机已保存');
+}
+
 // ===== DUR INFO BAR =====
 function renderDurInfo() {
   const bar = document.getElementById('dur-info-bar');
@@ -2225,7 +2311,7 @@ function renderTx() {
 }
 
 function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
-function renderAll(){renderSidebar();renderTx();kpUpdateCount();updateIntroCount()}
+function renderAll(){renderSidebar();renderTx();kpUpdateCount();updateIntroCount();updateTopbarHistoryButtons()}
 
 function updateIntroCount(){
   const el=document.getElementById('intro-count');
