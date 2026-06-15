@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>金钱剪刀 · 接单台后台</title>
-  <link rel="stylesheet" href="css/shared.css?v=20260610a">
+  <link rel="stylesheet" href="/css/shared.css?v=20260610a">
   <style>
     body.has-station-nav .top-chrome { display: none; }
     [hidden] { display: none !important; }
@@ -16,6 +16,8 @@
       background: #fff; border: 1px solid var(--hairline); border-radius: 10px;
       box-sizing: border-box; font: inherit; padding: 10px 12px; width: 100%;
     }
+    .field-row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 520px) { .field-row { grid-template-columns: 1fr; } }
     .field textarea { min-height: 142px; resize: vertical; }
     .check-row { align-items: center; display: flex; gap: 8px; margin: 14px 0; }
     .check-row input { height: 18px; width: 18px; }
@@ -25,6 +27,12 @@
       display: flex; gap: 12px; min-height: 116px; padding: 16px; transition: all 0.16s;
     }
     .upload-box:hover { border-color: var(--accent); box-shadow: var(--shadow-accent); }
+    .upload-box.dragging {
+      background: linear-gradient(180deg, #fff7df, #ffefd0);
+      border-color: var(--accent);
+      box-shadow: var(--shadow-accent);
+      transform: translateY(-1px);
+    }
     .upload-icon {
       align-items: center; background: #fff; border: 1px solid var(--hairline);
       border-radius: 12px; display: flex; font-size: 24px; height: 48px; justify-content: center; width: 48px;
@@ -36,6 +44,10 @@
       background: #f0e3c6; border-radius: 999px; height: 6px; margin-top: 10px; overflow: hidden;
     }
     .upload-progress > div { background: var(--accent-grad); height: 100%; width: 0%; }
+    .pick-file-btn {
+      display: inline-flex;
+      margin-top: 10px;
+    }
     #f-audio { display: none; }
     #material-link { color: var(--accent-deep); display: none; font-size: 12px; font-weight: 700; margin-top: 8px; }
     #material-link.visible { display: inline-block; }
@@ -46,6 +58,19 @@
     .task-item.draft { opacity: 0.82; border-style: dashed; }
     .task-head { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
     .task-title { font-size: 15px; font-weight: 750; }
+    .inline-editable {
+      border-radius: 7px;
+      cursor: text;
+      outline: none;
+      padding: 2px 4px;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .inline-editable:hover,
+    .inline-editable:focus {
+      background: #fff7df;
+      box-shadow: 0 0 0 1px rgba(200, 149, 42, 0.22);
+    }
+    .inline-placeholder { color: var(--muted); }
     .badge { border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 10px; }
     .badge.pub { background: #e6f4ea; color: #1e7a3c; }
     .badge.draft { background: #fdecea; color: #c0392b; }
@@ -85,14 +110,25 @@
           <label for="f-title">任务标题</label>
           <input id="f-title" type="text" placeholder="不填也可以，会自动用音频文件名">
         </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-budget">价格</label>
+            <input id="f-budget" type="text" placeholder="例如：30元">
+          </div>
+          <div class="field">
+            <label for="f-difficulty">任务类型 / 难度</label>
+            <input id="f-difficulty" type="text" placeholder="例如：普通访谈">
+          </div>
+        </div>
         <div class="field">
           <label>上传音频素材 *</label>
           <div class="upload-box" id="upload-box" tabindex="0" role="button" aria-label="上传音频素材">
             <div class="upload-icon">🎙️</div>
             <div class="upload-main">
-              <div class="upload-title">点击上传 mp3 / wav / m4a</div>
-              <div class="upload-status" id="upload-status">上传完成后，学员点任务就能直接进入剪辑台。</div>
+              <div class="upload-title">点击或拖入 mp3 / wav / m4a</div>
+              <div class="upload-status" id="upload-status">选择或拖入音频后会立刻上传，上传成功后再保存任务。</div>
               <div class="upload-progress"><div id="upload-fill"></div></div>
+              <label class="secondary-btn inline-btn pick-file-btn" for="f-audio">选择音频文件</label>
               <a id="material-link" href="#" target="_blank" rel="noopener">查看已上传音频</a>
             </div>
           </div>
@@ -103,13 +139,9 @@
           <label for="f-demand">任务需求 *</label>
           <textarea id="f-demand" placeholder="直接写给学员看的任务要求：这条音频要剪成什么感觉、重点保留什么、哪里可以压缩、最终交付时注意什么。"></textarea>
         </div>
-        <div class="check-row">
-          <input id="f-published" type="checkbox">
-          <label for="f-published" style="margin:0">立即发布（不勾选则存为草稿，学员看不到）</label>
-        </div>
         <div class="actions">
-          <button class="primary-btn" id="save-btn" type="button">保存</button>
-          <button class="secondary-btn inline-btn" id="reset-btn" type="button" hidden>取消编辑</button>
+          <button class="primary-btn" id="publish-btn" type="button">立即发布</button>
+          <button class="secondary-btn inline-btn" id="draft-btn" type="button">存为草稿</button>
         </div>
       </section>
 
@@ -124,15 +156,16 @@
   </main>
 
   <script type="module">
-    import { ensureLoggedIn, apiJson, getToken, setupSessionChrome } from './js/api.js?v=20260610-reviewflow-1';
-    import { initStationNav } from './js/station-nav.js?v=20260612-unlock';
-    import { uploadAudioToOSS } from './js/upload.js?v=20260610-reviewflow-1';
+    import { ensureLoggedIn, apiJson, getToken, setupSessionChrome } from '/js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from '/js/station-nav.js?v=20260612-unlock';
+    import { uploadAudioToOSS } from '/js/upload.js?v=20260610-reviewflow-1';
 
     const navAuth = await initStationNav({ active: 'orders' });
     const auth = navAuth || ensureLoggedIn();
     let editingId = null;
     let selectedAudioFile = null;
     let uploadedAudioUrl = '';
+    let uploadPromise = null;
 
     const els = {
       error: document.getElementById('error'),
@@ -140,10 +173,12 @@
       grid: document.getElementById('admin-grid'),
       list: document.getElementById('task-list'),
       formTitle: document.getElementById('form-title'),
-      saveBtn: document.getElementById('save-btn'),
-      resetBtn: document.getElementById('reset-btn'),
+      publishBtn: document.getElementById('publish-btn'),
+      draftBtn: document.getElementById('draft-btn'),
       exportBtn: document.getElementById('export-btn'),
       title: document.getElementById('f-title'),
+      budget: document.getElementById('f-budget'),
+      difficulty: document.getElementById('f-difficulty'),
       demand: document.getElementById('f-demand'),
       audio: document.getElementById('f-audio'),
       uploadBox: document.getElementById('upload-box'),
@@ -164,32 +199,42 @@
       if (!me?.user?.isAdmin) { els.notAdmin.hidden = false; return; }
       els.grid.hidden = false;
       els.exportBtn.href = `/api/orders/admin/tasks.json`;
-      els.published.checked = true;
       bind();
       await load();
     }
 
     function bind() {
-      els.saveBtn.addEventListener('click', save);
-      els.resetBtn.addEventListener('click', resetForm);
-      els.uploadBox.addEventListener('click', () => els.audio.click());
+      els.publishBtn.addEventListener('click', () => save(true));
+      els.draftBtn.addEventListener('click', () => save(false));
+      els.uploadBox.addEventListener('click', (event) => {
+        if (event.target.closest('label,a')) return;
+        els.audio.click();
+      });
       els.uploadBox.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         els.audio.click();
       });
-      els.audio.addEventListener('change', () => {
+      els.uploadBox.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        els.uploadBox.classList.add('dragging');
+        els.uploadStatus.textContent = '松手就会上传这条音频。';
+      });
+      els.uploadBox.addEventListener('dragleave', (event) => {
+        if (els.uploadBox.contains(event.relatedTarget)) return;
+        els.uploadBox.classList.remove('dragging');
+      });
+      els.uploadBox.addEventListener('drop', async (event) => {
+        event.preventDefault();
+        els.uploadBox.classList.remove('dragging');
+        const file = [...(event.dataTransfer?.files || [])].find((item) => item.type.startsWith('audio/') || /\.(mp3|wav|m4a|aac|flac)$/i.test(item.name));
+        if (!file) { showError('请拖入 mp3 / wav / m4a 音频文件。'); return; }
+        await handleAudioFile(file);
+      });
+      els.audio.addEventListener('change', async () => {
         const file = els.audio.files?.[0];
         if (!file) return;
-        selectedAudioFile = file;
-        uploadedAudioUrl = '';
-        els.material.value = '';
-        els.uploadFill.style.width = '0%';
-        els.uploadStatus.textContent = `已选择：${file.name}，保存时会自动上传。`;
-        els.materialLink.classList.remove('visible');
-        if (!els.title.value.trim()) {
-          els.title.value = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
-        }
+        await handleAudioFile(file);
       });
       // 让导出带上鉴权：点击时改用 fetch + token 触发下载
       els.exportBtn.addEventListener('click', async (e) => {
@@ -209,13 +254,13 @@
       return {
         title: els.title.value.trim(),
         client: '',
-        budget: '',
+        budget: els.budget.value.trim(),
         demand: els.demand.value.trim(),
         delivery: '',
-        difficulty: '',
+        difficulty: els.difficulty.value.trim(),
         sortOrder: 0,
         materialLink: uploadedAudioUrl || els.material.value.trim(),
-        published: els.published.checked,
+        published: true,
       };
     }
 
@@ -223,25 +268,25 @@
       editingId = null;
       selectedAudioFile = null;
       uploadedAudioUrl = '';
+      uploadPromise = null;
       els.formTitle.textContent = '新增接单任务';
-      els.resetBtn.hidden = true;
-      els.title.value = els.demand.value = els.material.value = '';
+      els.title.value = els.budget.value = els.difficulty.value = els.demand.value = els.material.value = '';
       els.audio.value = '';
-      els.uploadStatus.textContent = '上传完成后，学员点任务就能直接进入剪辑台。';
+      els.uploadStatus.textContent = '选择或拖入音频后会立刻上传，上传成功后再保存任务。';
       els.uploadFill.style.width = '0%';
       els.materialLink.classList.remove('visible');
       els.materialLink.href = '#';
-      els.published.checked = true;
       showError('');
     }
 
-    async function save() {
+    async function save(published) {
       const body = readForm();
+      body.published = Boolean(published);
       if (!body.demand) { showError('请先写任务需求。'); return; }
-      els.saveBtn.disabled = true;
+      els.publishBtn.disabled = els.draftBtn.disabled = true;
       try {
         body.materialLink = await ensureMaterialUploaded();
-        if (!body.materialLink) { showError('请先上传音频素材。'); return; }
+        if (!body.materialLink && body.published) { showError('立即发布前请先上传音频素材；如果素材暂时在群里，可以先点“存为草稿”。'); return; }
         if (!body.title) body.title = selectedAudioFile?.name?.replace(/\.[^.]+$/, '').slice(0, 80) || '未命名接单任务';
         if (editingId) {
           await apiJson(`/api/orders/admin/tasks/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -253,37 +298,76 @@
       } catch (err) {
         showError(err?.message || '保存失败');
       } finally {
-        els.saveBtn.disabled = false;
+        els.publishBtn.disabled = els.draftBtn.disabled = false;
       }
+    }
+
+    async function handleAudioFile(file) {
+      selectedAudioFile = file;
+      uploadedAudioUrl = '';
+      els.material.value = '';
+      els.uploadFill.style.width = '0%';
+      els.uploadStatus.textContent = `已选择：${file.name}，准备上传。`;
+      els.materialLink.classList.remove('visible');
+      if (!els.title.value.trim()) {
+        els.title.value = file.name.replace(/\.[^.]+$/, '').slice(0, 80);
+      }
+      uploadPromise = uploadSelectedAudio(file).catch((error) => {
+        showError(error?.message || '上传失败');
+        uploadPromise = null;
+        return '';
+      });
+      await uploadPromise;
     }
 
     async function ensureMaterialUploaded() {
       const current = uploadedAudioUrl || els.material.value.trim();
       if (current && !selectedAudioFile) return current;
+      if (uploadPromise) return uploadPromise;
       if (!selectedAudioFile) return current;
-      els.uploadStatus.textContent = `正在上传：${selectedAudioFile.name}`;
+      return uploadSelectedAudio(selectedAudioFile);
+    }
+
+    async function uploadSelectedAudio(file) {
+      if (!file) return '';
+      els.uploadStatus.textContent = `正在上传：${file.name}`;
       els.uploadFill.style.width = '2%';
-      const uploaded = await uploadAudioToOSS(selectedAudioFile, {
+      showError('');
+      const uploaded = await uploadAudioToOSS(file, {
         onProgress: (percentage) => {
           els.uploadFill.style.width = `${percentage}%`;
-          els.uploadStatus.textContent = `正在上传：${selectedAudioFile.name} · ${percentage}%`;
+          els.uploadStatus.textContent = `正在上传：${file.name} · ${percentage}%`;
         },
       });
-      uploadedAudioUrl = uploaded.audioUrl;
+      uploadedAudioUrl = normalizeUploadedAudioUrl(uploaded);
       els.material.value = uploadedAudioUrl;
       els.uploadFill.style.width = '100%';
-      els.uploadStatus.textContent = `已上传：${selectedAudioFile.name}`;
+      els.uploadStatus.textContent = `已上传：${file.name}`;
       els.materialLink.href = uploadedAudioUrl;
       els.materialLink.classList.add('visible');
       selectedAudioFile = null;
+      uploadPromise = null;
       return uploadedAudioUrl;
+    }
+
+    function normalizeUploadedAudioUrl(uploaded) {
+      const key = String(uploaded?.objectKey || '').replace(/^\/+/, '');
+      if (key) return `${location.origin}/${key}`;
+      const rawUrl = String(uploaded?.audioUrl || '');
+      if (!rawUrl) return '';
+      try {
+        const value = new URL(rawUrl);
+        if (value.pathname.startsWith('/uploads/')) return `${location.origin}${value.pathname}`;
+      } catch (_) {}
+      return rawUrl;
     }
 
     function startEdit(task) {
       editingId = task.id;
       els.formTitle.textContent = `编辑任务 #${task.id}`;
-      els.resetBtn.hidden = false;
       els.title.value = task.title || '';
+      els.budget.value = task.budget || '';
+      els.difficulty.value = task.difficulty || '';
       els.demand.value = task.demand || '';
       els.material.value = task.materialLink || '';
       selectedAudioFile = null;
@@ -293,7 +377,7 @@
       els.uploadStatus.textContent = task.materialLink ? '已使用之前上传的音频。需要更换时重新上传即可。' : '这条任务还没有音频素材。';
       els.materialLink.href = task.materialLink || '#';
       els.materialLink.classList.toggle('visible', !!task.materialLink);
-      els.published.checked = !!task.published;
+      showError('');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 

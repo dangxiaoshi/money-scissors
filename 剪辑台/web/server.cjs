@@ -290,6 +290,59 @@ const statements = {
     WHERE id=@id
   `),
   deleteDispatchTask: db.prepare('DELETE FROM dispatch_tasks WHERE id = ?'),
+  countClaimsByTask: db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM dispatch_claims
+    WHERE task_id = ?
+      AND status != 'abandoned'
+  `),
+  countReviewingClaimsByTask: db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM dispatch_claims
+    WHERE task_id = ?
+      AND status = 'submitted'
+  `),
+  findDispatchClaimByTaskUser: db.prepare(`
+    SELECT * FROM dispatch_claims
+    WHERE task_id = @task_id AND user_id = @user_id
+  `),
+  findActiveDispatchClaimByUser: db.prepare(`
+    SELECT c.*, t.title AS task_title
+    FROM dispatch_claims c
+    JOIN dispatch_tasks t ON t.id = c.task_id
+    WHERE c.user_id = @user_id
+      AND c.status IN ('in_progress', 'returned')
+    ORDER BY c.updated_at DESC
+    LIMIT 1
+  `),
+  listDispatchClaimsByUser: db.prepare(`
+    SELECT c.*, t.title, t.client, t.budget, t.demand, t.delivery, t.difficulty, t.material_link,
+      t.published, t.sort_order, t.created_at AS task_created_at, t.updated_at AS task_updated_at
+    FROM dispatch_claims c
+    JOIN dispatch_tasks t ON t.id = c.task_id
+    WHERE c.user_id = ?
+      AND c.status != 'abandoned'
+    ORDER BY c.updated_at DESC, c.claimed_at DESC
+  `),
+  insertDispatchClaim: db.prepare(`
+    INSERT INTO dispatch_claims (task_id, user_id, status, claimed_at, updated_at)
+    VALUES (@task_id, @user_id, @status, @claimed_at, @updated_at)
+  `),
+  reactivateDispatchClaim: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'in_progress',
+        claimed_at = @claimed_at,
+        updated_at = @updated_at,
+        abandoned_at = NULL
+    WHERE id = @id
+  `),
+  abandonDispatchClaim: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'abandoned',
+        abandoned_at = @abandoned_at,
+        updated_at = @updated_at
+    WHERE id = @id AND user_id = @user_id AND status IN ('in_progress', 'returned')
+  `),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -320,7 +373,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (url.pathname === '/api/orders/tasks' || url.pathname.startsWith('/api/orders/admin/')) {
+    if (url.pathname.startsWith('/api/orders/')) {
       await handleDispatchTasks(req, res, url);
       return;
     }
@@ -601,7 +654,13 @@ async function handleOrdersData(req, res) {
 }
 
 // ── 接单台后台：钱钱自己增删改/发布练习派单任务 ────────────────────────────────
-function publicDispatchTask(row) {
+function publicDispatchTask(row, viewer = null) {
+  const maxClaims = Number(row.max_claims || 5);
+  const claimCount = Number(statements.countClaimsByTask.get(row.id)?.count || 0);
+  const reviewingCount = Number(statements.countReviewingClaimsByTask.get(row.id)?.count || 0);
+  const myClaim = viewer?.id
+    ? statements.findDispatchClaimByTaskUser.get({ task_id: row.id, user_id: viewer.id })
+    : null;
   return {
     id: row.id,
     title: row.title,
@@ -613,8 +672,44 @@ function publicDispatchTask(row) {
     materialLink: row.material_link,
     published: Boolean(row.published),
     sortOrder: row.sort_order,
+    maxClaims,
+    claimCount,
+    reviewingCount,
+    myClaim: myClaim && myClaim.status !== 'abandoned' ? publicDispatchClaim(myClaim, row) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function publicDispatchClaim(row, taskRow = null) {
+  const task = taskRow || row;
+  return {
+    id: Number(row.id || 0),
+    taskId: Number(row.task_id || task.id || 0),
+    status: row.status || 'in_progress',
+    claimedAt: row.claimed_at || null,
+    updatedAt: row.updated_at || null,
+    submittedAt: row.submitted_at || null,
+    reviewedAt: row.reviewed_at || null,
+    completedAt: row.completed_at || null,
+    abandonedAt: row.abandoned_at || null,
+    reviewNote: row.review_note || '',
+    projectId: row.project_id || '',
+    snapshotId: row.snapshot_id || '',
+    task: {
+      id: Number(row.task_id || task.id || 0),
+      title: task.title || '',
+      client: task.client || '',
+      budget: task.budget || '',
+      demand: task.demand || '',
+      delivery: task.delivery || '',
+      difficulty: task.difficulty || '',
+      materialLink: task.material_link || '',
+      published: Boolean(task.published),
+      sortOrder: Number(task.sort_order || 0),
+      createdAt: task.task_created_at || task.created_at || null,
+      updatedAt: task.task_updated_at || task.updated_at || null,
+    },
   };
 }
 
@@ -660,8 +755,107 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 403, { error: 'day2_required', message: '请先完成第二天剪辑练习，并提交一次助教审核。' });
       return;
     }
-    const tasks = statements.listPublishedDispatchTasks.all().map(publicDispatchTask);
+    const tasks = statements.listPublishedDispatchTasks.all().map((row) => publicDispatchTask(row, user));
     sendJson(res, 200, { tasks });
+    return;
+  }
+
+  if (url.pathname === '/api/orders/my-claims') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    if (!hasDay2Access(user)) {
+      sendJson(res, 403, { error: 'day2_required', message: '请先完成第二天剪辑练习，并提交一次助教审核。' });
+      return;
+    }
+    const claims = statements.listDispatchClaimsByUser.all(user.id).map((row) => publicDispatchClaim(row));
+    sendJson(res, 200, { claims });
+    return;
+  }
+
+  const claimTaskMatch = url.pathname.match(/^\/api\/orders\/tasks\/(\d+)\/claim$/);
+  if (claimTaskMatch && req.method === 'POST') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    if (!hasDay2Access(user)) {
+      sendJson(res, 403, { error: 'day2_required', message: '请先完成第二天剪辑练习，并提交一次助教审核。' });
+      return;
+    }
+    const taskId = Number(claimTaskMatch[1]);
+    const task = statements.findDispatchTask.get(taskId);
+    if (!task || !task.published) {
+      sendJson(res, 404, { error: 'task_not_found', message: '这单暂时不可抢。' });
+      return;
+    }
+
+    const existing = statements.findDispatchClaimByTaskUser.get({ task_id: taskId, user_id: user.id });
+    if (existing && existing.status !== 'abandoned') {
+      sendJson(res, 200, {
+        claim: publicDispatchClaim(existing, task),
+        task: publicDispatchTask(task, user),
+        reused: true,
+      });
+      return;
+    }
+
+    const active = statements.findActiveDispatchClaimByUser.get({ user_id: user.id });
+    if (active && Number(active.task_id) !== taskId) {
+      sendJson(res, 409, {
+        error: 'active_claim_exists',
+        message: `你还有一单「${active.task_title || '未命名任务'}」在制作中，请先提交或放弃后再抢下一单。`,
+        activeClaim: publicDispatchClaim(active),
+      });
+      return;
+    }
+
+    const maxClaims = Number(task.max_claims || 5);
+    const claimCount = Number(statements.countClaimsByTask.get(taskId)?.count || 0);
+    if (claimCount >= maxClaims) {
+      sendJson(res, 409, { error: 'claim_full', message: '这单已经满员了，换一单试试。' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let claimId = existing?.id;
+    if (existing && existing.status === 'abandoned') {
+      statements.reactivateDispatchClaim.run({ id: existing.id, claimed_at: now, updated_at: now });
+      claimId = existing.id;
+    } else {
+      const info = statements.insertDispatchClaim.run({
+        task_id: taskId,
+        user_id: user.id,
+        status: 'in_progress',
+        claimed_at: now,
+        updated_at: now,
+      });
+      claimId = info.lastInsertRowid;
+    }
+    const claim = statements.findDispatchClaimByTaskUser.get({ task_id: taskId, user_id: user.id });
+    sendJson(res, 201, {
+      claim: publicDispatchClaim(claim, task),
+      task: publicDispatchTask(task, user),
+      claimId,
+      reused: false,
+    });
+    return;
+  }
+
+  const abandonClaimMatch = url.pathname.match(/^\/api\/orders\/claims\/(\d+)\/abandon$/);
+  if (abandonClaimMatch && req.method === 'POST') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const id = Number(abandonClaimMatch[1]);
+    const now = new Date().toISOString();
+    const info = statements.abandonDispatchClaim.run({
+      id,
+      user_id: user.id,
+      abandoned_at: now,
+      updated_at: now,
+    });
+    if (!info.changes) {
+      sendJson(res, 404, { error: 'claim_not_found', message: '这条接单记录不能放弃。' });
+      return;
+    }
+    sendJson(res, 200, { ok: true });
     return;
   }
 
@@ -1603,12 +1797,34 @@ function initializeDatabase(database) {
       difficulty TEXT NOT NULL DEFAULT '',
       material_link TEXT NOT NULL DEFAULT '',
       published INTEGER NOT NULL DEFAULT 0,
+      max_claims INTEGER NOT NULL DEFAULT 5,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_dispatch_tasks_pub
       ON dispatch_tasks(published, sort_order, id DESC);
+
+    CREATE TABLE IF NOT EXISTS dispatch_claims (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'in_progress',
+      claimed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      submitted_at TEXT,
+      reviewed_at TEXT,
+      completed_at TEXT,
+      abandoned_at TEXT,
+      review_note TEXT NOT NULL DEFAULT '',
+      project_id TEXT NOT NULL DEFAULT '',
+      snapshot_id TEXT NOT NULL DEFAULT '',
+      UNIQUE(task_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_dispatch_claims_task
+      ON dispatch_claims(task_id, status);
+    CREATE INDEX IF NOT EXISTS idx_dispatch_claims_user
+      ON dispatch_claims(user_id, status, updated_at DESC);
   `);
   try { database.exec(`ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE users ADD COLUMN day1_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
@@ -1617,6 +1833,7 @@ function initializeDatabase(database) {
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_review'`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_by INTEGER`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN max_claims INTEGER NOT NULL DEFAULT 5`); } catch {}
   database.exec(`
     UPDATE users
     SET day1_complete = 1,
