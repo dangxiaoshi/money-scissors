@@ -996,6 +996,33 @@ body.readonly .star { display: none; }
   .main { padding: 24px; }
   .main-title { font-size:26px; }
 }
+
+/* ===== 左栏 Tab（进度/解读/口癖）+ 口癖标注 — 2026-06-15 ===== */
+.kp-tabs{display:flex;gap:4px;background:#eef0f3;border-radius:10px;padding:4px;margin-bottom:14px;}
+.kp-tab{flex:1;border:none;background:transparent;font-size:13px;padding:7px 0;border-radius:7px;cursor:pointer;color:#666;font-family:inherit;}
+.kp-tab.active{background:#fff;color:#222;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06);}
+.kp-pane{display:none;}
+.kp-pane.active{display:block;}
+.kp-count{font-size:13px;color:#666;margin-bottom:10px;}
+.kp-count strong{color:#222;font-size:17px;}
+.kp-acts{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+.kp-nav{display:flex;gap:6px;}
+.kp-nav button{width:30px;height:30px;border-radius:8px;border:1px solid #e3e3e3;background:#fff;cursor:pointer;font-size:15px;color:#555;}
+.kp-killall{flex:1;border:1px solid #e3e3e3;background:#f4f5f7;border-radius:8px;padding:7px;font-size:13px;cursor:pointer;color:#333;}
+.kp-killall:hover{background:#ececec;}
+.kp-libtoggle{font-size:13px;color:#b9821f;cursor:pointer;border-top:1px dashed #eee;padding-top:10px;display:flex;justify-content:space-between;align-items:center;}
+.kp-lib-h{font-size:12px;color:#999;font-weight:600;margin:10px 0 6px;}
+.kp-words{display:flex;flex-wrap:wrap;gap:6px;}
+.kp-word{font-size:12.5px;border-radius:14px;padding:4px 10px;border:1px solid #e3e3e3;background:#fafafa;cursor:pointer;user-select:none;}
+.kp-word.on{background:#fff3d6;border-color:#f0cf7a;color:#8a5a00;font-weight:600;}
+.kp-add{display:flex;gap:6px;margin-top:8px;}
+.kp-add input{flex:1;border:1px solid #e3e3e3;border-radius:8px;padding:6px 9px;font-size:12.5px;min-width:0;font-family:inherit;}
+.kp-add button{background:#e0a92b;color:#fff;border:none;border-radius:8px;padding:0 12px;font-size:13px;cursor:pointer;}
+.kp-hint{font-size:11.5px;color:#999;margin-top:8px;line-height:1.6;}
+/* 口癖词标记：灰色虚线下划线（金黄留给金句，划线留给删除）*/
+.r-txt .kp{ text-decoration:underline dashed #b3b8c0; text-underline-offset:3px; text-decoration-thickness:1.5px; cursor:pointer; }
+.r-txt .kp:hover{ background:#f0f0f0; }
+.r-txt .kp.cur{ background:#e8e8e8; outline:1px solid #d0d0d0; }
 </style>
 </head>
 <body>
@@ -1064,8 +1091,14 @@ body.readonly .star { display: none; }
 <div class="layout">
 <aside class="sidebar">
 
-  <details class="side-fold" open>
-    <summary>删减概要 <span class="side-fold-mini" id="d-mini">0:00 → 0:00</span></summary>
+  <div class="kp-tabs">
+    <button class="kp-tab active" data-tab="prog" onclick="switchSideTab('prog')">进度</button>
+    <button class="kp-tab" data-tab="read" onclick="switchSideTab('read')">解读</button>
+    <button class="kp-tab" data-tab="koupi" onclick="switchSideTab('koupi')">口癖</button>
+  </div>
+
+  <!-- 进度：原「删减概要」时长+删减量+说话人占比 -->
+  <div class="kp-pane active" id="pane-prog">
     <div class="side-fold-body">
       <div class="dur-block">
         <div class="dur-main">
@@ -1078,10 +1111,37 @@ body.readonly .star { display: none; }
       <div class="summary-text" id="summ" style="margin-top:12px"></div>
       <div class="sp-legend" id="spleg" style="margin-top:12px"></div>
     </div>
-  </details>
+  </div>
 
-  <div class="nav-section">
-    <div class="nav-list" id="nav"></div>
+  <!-- 解读：前情总览 + AI 剪辑决策（#nav 已合并渲染）-->
+  <div class="kp-pane" id="pane-read">
+    <div class="nav-section">
+      <div class="nav-list" id="nav"></div>
+    </div>
+  </div>
+
+  <!-- 口癖：检测计数 + 逐个跳转 + 一键全标删 + 词库 -->
+  <div class="kp-pane" id="pane-koupi">
+    <div class="kp-count">检测到 <strong id="kp-count">0</strong> 个口癖</div>
+    <div class="kp-acts">
+      <div class="kp-nav">
+        <button onclick="kpJump(-1)" title="上一个口癖">←</button>
+        <button onclick="kpJump(1)" title="下一个口癖">→</button>
+      </div>
+      <button class="kp-killall" onclick="kpKillAll()">一键全标删</button>
+    </div>
+    <div class="kp-libtoggle" onclick="kpToggleLib()"><span>词库设置</span><span id="kp-lib-arrow">▸</span></div>
+    <div class="kp-lib" id="kp-lib" style="display:none">
+      <div class="kp-lib-h">默认标这些</div>
+      <div class="kp-words" id="kp-words-on"></div>
+      <div class="kp-lib-h">默认不标（点亮才标）</div>
+      <div class="kp-words" id="kp-words-off"></div>
+      <div class="kp-add">
+        <input id="kp-new" placeholder="自定义口癖词" onkeydown="if(event.key==='Enter')kpAddWord()">
+        <button onclick="kpAddWord()">加</button>
+      </div>
+      <div class="kp-hint">宁可少标别多标：默认只标语气词，不标「的」这种，免得把话删碎、爆咔哒。</div>
+    </div>
   </div>
 
 </aside>
@@ -1318,21 +1378,117 @@ function initRefineBar(){
 function txtHtml(x){
   if(!x.w || !x.w.length) return esc(x.t);  // 兼容无逐词时间的旧数据
   const full = x.w.map(w=>w.t).join('');
-  const ranges = pdel[x.idx] || [];
+  const ranges = pdel[x.idx] || [];          // 半句删除（划线）优先级最高
+  const kranges = kpHits(x);                  // 口癖词（灰虚线），已排除被 pdel 盖住的词
   let html='', i=0;
   while(i < full.length){
     const ri = ranges.findIndex(r => i >= r.cs && i < r.ce);
     if(ri >= 0){
       html += `<span class="pd" data-ri="${ri}">${esc(full.slice(i, ranges[ri].ce))}</span>`;
-      i = ranges[ri].ce;
-    } else {
-      const starts = ranges.filter(r => r.cs > i).map(r => r.cs);
-      const nx = starts.length ? Math.min(...starts) : full.length;
-      html += esc(full.slice(i, nx));
-      i = nx;
+      i = ranges[ri].ce; continue;
     }
+    const ki = kranges.findIndex(r => i >= r.cs && i < r.ce);
+    if(ki >= 0){
+      html += `<span class="kp" data-kpidx="${x.idx}" data-kpwi="${kranges[ki].wi}">${esc(full.slice(i, kranges[ki].ce))}</span>`;
+      i = kranges[ki].ce; continue;
+    }
+    const starts = ranges.filter(r => r.cs > i).map(r => r.cs)
+      .concat(kranges.filter(r => r.cs > i).map(r => r.cs));
+    const nx = starts.length ? Math.min(...starts) : full.length;
+    html += esc(full.slice(i, nx));
+    i = nx;
   }
   return html;
+}
+
+// ===== 口癖检测（词级，复用 pdel/del 删除，不新建删除机制）=====
+const KP_DEFAULT_ON = ['嗯','啊','呃','那个','就是','然后','这个'];
+const KP_DEFAULT_OFF = ['可能','比较','其实'];
+let kpActive = new Set(KP_DEFAULT_ON);   // 当前算口癖的词
+let kpCustom = [];                        // 用户自定义新增
+let kpCurKey = null;                      // 逐个跳转：当前定位 {idx,wi}
+// 归一化：去标点空格，避免「嗯，」「那个。」漏匹配
+function kpNorm(t){ return String(t||'').replace(/[\s，。、！？,.!?；;：:（）()\[\]【】"'""'']/g,''); }
+// 一句话里命中的口癖词（字符区间），排除整句已删、已被半句删除盖住的词
+function kpHits(x){
+  if(!x || !x.w || del.has(x.idx)) return [];
+  const pr = pdel[x.idx] || [];
+  const out=[]; let cc=0;
+  for(let i=0;i<x.w.length;i++){
+    const wt=x.w[i].t, cs=cc, ce=cc+wt.length; cc=ce;
+    if(!kpActive.has(kpNorm(wt))) continue;
+    if(pr.some(r => cs>=r.cs && ce<=r.ce)) continue;
+    out.push({idx:x.idx, wi:i, cs, ce, s:x.w[i].s, e:x.w[i].e});
+  }
+  return out;
+}
+function kpAllHits(){ const o=[]; S.forEach(x=>kpHits(x).forEach(h=>o.push(h))); return o; }
+function kpUpdateCount(){ const el=document.getElementById('kp-count'); if(el) el.textContent = kpAllHits().length; }
+
+function switchSideTab(name){
+  document.querySelectorAll('.kp-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.kp-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
+}
+
+// 单个口癖词 → 写进 pdel（半句删除），完全复用现有机制
+function kpKillWord(idx, wi){
+  if(window.__READ_ONLY) return;
+  const x=S.find(s=>s.idx===idx); if(!x||!x.w||!x.w[wi]) return;
+  let cs=0; for(let i=0;i<wi;i++) cs+=x.w[i].t.length;
+  const ce=cs+x.w[wi].t.length, w=x.w[wi];
+  (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(w.s), e:r3(w.e)});
+  um.add(idx); kpCurKey=null; renderAll(); sv();
+}
+// 一键全标删：整句都是口癖 → 删整句(del)，否则逐词进 pdel
+function kpKillAll(){
+  if(window.__READ_ONLY) return;
+  const hits=kpAllHits();
+  if(!hits.length){ toast('没有检测到口癖'); return; }
+  const bySent={}; hits.forEach(h=>{ (bySent[h.idx]=bySent[h.idx]||[]).push(h); });
+  Object.keys(bySent).forEach(k=>{
+    const idx=+k, x=S.find(s=>s.idx===idx); if(!x||!x.w) return;
+    const allKoupi = x.w.every(w=>kpActive.has(kpNorm(w.t)));
+    if(allKoupi){ del.add(idx); gold.delete(idx); um.add(idx); return; }
+    bySent[k].forEach(h=>{
+      let cs=0; for(let i=0;i<h.wi;i++) cs+=x.w[i].t.length;
+      const ce=cs+x.w[h.wi].t.length;
+      (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(x.w[h.wi].s), e:r3(x.w[h.wi].e)});
+    });
+    um.add(idx);
+  });
+  kpCurKey=null; renderAll(); sv(); toast('已标删口癖');
+}
+// 逐个跳转
+function kpJump(dir){
+  const hits=kpAllHits();
+  if(!hits.length){ toast('没有检测到口癖'); return; }
+  let ci = hits.findIndex(h=>kpCurKey && h.idx===kpCurKey.idx && h.wi===kpCurKey.wi);
+  ci = (ci<0 ? (dir>0 ? -1 : 0) : ci);
+  ci = (ci + dir + hits.length) % hits.length;
+  const h=hits[ci]; kpCurKey={idx:h.idx, wi:h.wi};
+  document.querySelectorAll('.r-txt .kp.cur').forEach(e=>e.classList.remove('cur'));
+  const el=document.querySelector(`.r-txt .kp[data-kpidx="${h.idx}"][data-kpwi="${h.wi}"]`);
+  if(el){ el.classList.add('cur'); el.scrollIntoView({behavior:'smooth', block:'center'}); }
+}
+// 词库
+function kpChip(w){ return `<span class="kp-word${kpActive.has(w)?' on':''}" onclick="kpToggleWord('${w}')">${esc(w)}</span>`; }
+function kpRenderLib(){
+  const on=document.getElementById('kp-words-on'), off=document.getElementById('kp-words-off');
+  if(!on||!off) return;
+  const offList = KP_DEFAULT_OFF.concat(kpCustom.filter(w=>!KP_DEFAULT_ON.includes(w)&&!KP_DEFAULT_OFF.includes(w)));
+  on.innerHTML = KP_DEFAULT_ON.map(kpChip).join('');
+  off.innerHTML = offList.map(kpChip).join('');
+}
+function kpToggleWord(w){ if(kpActive.has(w))kpActive.delete(w); else kpActive.add(w); kpCurKey=null; kpRenderLib(); renderAll(); }
+function kpAddWord(){
+  const i=document.getElementById('kp-new'); const w=kpNorm(i.value); if(!w)return;
+  kpActive.add(w);
+  if(!KP_DEFAULT_ON.includes(w)&&!KP_DEFAULT_OFF.includes(w)&&!kpCustom.includes(w)) kpCustom.push(w);
+  i.value=''; kpRenderLib(); renderAll();
+}
+function kpToggleLib(){
+  const l=document.getElementById('kp-lib'), a=document.getElementById('kp-lib-arrow');
+  const show=l.style.display==='none'; l.style.display=show?'block':'none'; if(a)a.textContent=show?'▾':'▸';
 }
 
 // ===== STATS =====
@@ -1907,7 +2063,7 @@ function renderTx() {
 }
 
 function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
-function renderAll(){renderSidebar();renderTx()}
+function renderAll(){renderSidebar();renderTx();kpUpdateCount()}
 
 // ===== INTERACTIONS =====
 function tgS(i){
@@ -2000,6 +2156,14 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
     const idx=+row.id.slice(1), ri=+e.target.dataset.ri;
     if(pdel[idx]){ pdel[idx].splice(ri,1); if(!pdel[idx].length) delete pdel[idx]; }
     renderTx(); sv(); hideSelBtn(); return;
+  }
+  // 点口癖词（灰虚线）→ 单个标删，写进 pdel。仅纯点击触发；正在划选则放行给选区删除逻辑
+  if(e.target.classList && e.target.classList.contains('kp')){
+    const kpSel=window.getSelection();
+    if(!kpSel || kpSel.isCollapsed || !kpSel.toString().trim()){
+      const idx=+e.target.dataset.kpidx, wi=+e.target.dataset.kpwi;
+      kpKillWord(idx, wi); hideSelBtn(); return;
+    }
   }
   setTimeout(()=>{
     const sel=window.getSelection();
@@ -2593,7 +2757,7 @@ window.addEventListener('pagehide', () => {
 });
 function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
 
-rs();renderAll();initRefineBar();initSidebarResize();
+rs();renderAll();initRefineBar();initSidebarResize();kpRenderLib();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
 
 </script>
