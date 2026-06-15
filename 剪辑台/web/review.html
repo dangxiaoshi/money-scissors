@@ -100,6 +100,19 @@ body {
 }
 .topbar .goldbtn:hover { background:#ffefad; }
 .topbar .goldbtn[disabled] { opacity:.6; cursor:wait; }
+.topbar .introbtn {
+  background:#fffaf0;
+  border:1px solid #f0cf7a;
+  color:#9a6a00;
+  padding:8px 12px;
+  font-size:13px;
+  font-weight:800;
+  border-radius:10px;
+  cursor:pointer;
+  transition:all .15s;
+  white-space:nowrap;
+}
+.topbar .introbtn:hover { background:#fff3d6; }
 .topbar .snapshot-cutbtn {
   background: var(--accent-soft);
   border: 1px solid rgba(245,166,35,0.35);
@@ -118,6 +131,7 @@ body {
 body.readonly .expbtn,
 body.readonly .backupbtn,
 body.readonly .goldbtn,
+body.readonly .introbtn,
 body.readonly .gearbtn,
 body.readonly .chk,
 body.readonly #selbtn,
@@ -795,6 +809,12 @@ body.readonly .star { display: none; }
 .row.gold { background: #FFF7DC; }
 .row.gold:hover { background: #FCEFC0; }
 .row.gold .r-txt { background: linear-gradient(transparent 60%, #FFE89A 60%); }
+.r-txt .intro-gold {
+  background:#FFE89A;
+  border-bottom:2px solid #E6B422;
+  border-radius:4px;
+  padding:0 2px;
+}
 
 /* Sentence row */
 .row {
@@ -850,6 +870,20 @@ body.readonly .star { display: none; }
   font-family: inherit;
 }
 #selbtn:hover { background: var(--accent); }
+#selbtn button {
+  border:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-weight:700;
+  padding:0 4px;
+  cursor:pointer;
+}
+#selbtn button + button {
+  border-left:1px solid rgba(255,255,255,.24);
+  margin-left:8px;
+  padding-left:12px;
+}
 
 /* ===== PLAYER ===== */
 .player {
@@ -1034,6 +1068,7 @@ body.readonly .star { display: none; }
   <span class="status" id="sv">自动保存：已保存</span>
   <span class="info-icon" onclick="document.getElementById('info-tip').classList.toggle('vis')" title="关于提交审核">?</span>
   <button class="goldbtn" id="gold-ai-btn" onclick="recommendGold()" title="让 AI 推荐适合放到开头的金句">AI推荐金句</button>
+  <button class="introbtn" id="intro-btn" onclick="openIntroMaker()" title="整理片头金句">片头制作 <span id="intro-count">0</span></button>
   <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="音频精修设置">⚙</button>
   <button class="backupbtn" onclick="doExport({next:'cut'})">生成 MP3</button>
   <button class="snapshot-cutbtn" id="snapshot-cut-btn" onclick="downloadSnapshotCut()" hidden>下载审核 MP3</button>
@@ -1288,6 +1323,7 @@ S.forEach(x=>{ if(x.sp && !spCMap[x.sp]){ spCMap[x.sp]=spShades[spList.length%3]
 
 // State
 const del=new Set(), um=new Set(), gold=new Set();
+let introClips=[];
 const INTRO_MUSIC_URL = '/assets/music/intro-default.mp3';
 const INTRO_MUSIC_DURATION_SECONDS = 12.84;
 // 半句删除：sentenceIdx → [{a,b,s,e}]（a/b=词索引范围，s/e=删除时间段）
@@ -1379,6 +1415,7 @@ function txtHtml(x){
   if(!x.w || !x.w.length) return esc(x.t);  // 兼容无逐词时间的旧数据
   const full = x.w.map(w=>w.t).join('');
   const ranges = pdel[x.idx] || [];          // 半句删除（划线）优先级最高
+  const introRanges = introRangesForSentence(x.idx);
   const kranges = kpHits(x);                  // 口癖词（灰虚线），已排除被 pdel 盖住的词
   let html='', i=0;
   while(i < full.length){
@@ -1387,6 +1424,12 @@ function txtHtml(x){
       html += `<span class="pd" data-ri="${ri}">${esc(full.slice(i, ranges[ri].ce))}</span>`;
       i = ranges[ri].ce; continue;
     }
+    const gi = introRanges.findIndex(r => i >= r.cs && i < r.ce);
+    if(gi >= 0){
+      const g=introRanges[gi];
+      html += `<span class="intro-gold" data-introid="${g.id}">${esc(full.slice(i, g.ce))}</span>`;
+      i = g.ce; continue;
+    }
     const ki = kranges.findIndex(r => i >= r.cs && i < r.ce);
     if(ki >= 0){
       const h=kranges[ki];
@@ -1394,12 +1437,20 @@ function txtHtml(x){
       i = kranges[ki].ce; continue;
     }
     const starts = ranges.filter(r => r.cs > i).map(r => r.cs)
+      .concat(introRanges.filter(r => r.cs > i).map(r => r.cs))
       .concat(kranges.filter(r => r.cs > i).map(r => r.cs));
     const nx = starts.length ? Math.min(...starts) : full.length;
     html += esc(full.slice(i, nx));
     i = nx;
   }
   return html;
+}
+
+function introRangesForSentence(idx){
+  return introClips
+    .filter(c=>Number(c.idx)===Number(idx) && !del.has(Number(c.idx)))
+    .filter(c=>Number.isFinite(Number(c.cs))&&Number.isFinite(Number(c.ce))&&Number(c.ce)>Number(c.cs))
+    .sort((a,b)=>Number(a.cs)-Number(b.cs)||Number(a.ce)-Number(b.ce));
 }
 
 // ===== 口癖检测（词级，复用 pdel/del 删除，不新建删除机制）=====
@@ -1560,12 +1611,13 @@ function kpToggleLib(){
 // 逻辑放这里，顶栏窗口只需把右上角两个按钮接到 kpUndo() / kpRedo()。
 // 删除类操作前调 kpPushUndo() 存一份 del/pdel/gold 快照。
 const kpUndoStack=[], kpRedoStack=[];
-function kpSnap(){ return { del:[...del], gold:[...gold], pdel:JSON.parse(JSON.stringify(pdel)) }; }
+function kpSnap(){ return { del:[...del], gold:[...gold], pdel:JSON.parse(JSON.stringify(pdel)), intro:JSON.parse(JSON.stringify(introClips)) }; }
 function kpApply(s){
   del.clear(); s.del.forEach(i=>del.add(i));
   gold.clear(); s.gold.forEach(i=>gold.add(i));
   for(const k in pdel) delete pdel[k];
   Object.assign(pdel, JSON.parse(JSON.stringify(s.pdel)));
+  introClips = Array.isArray(s.intro) ? JSON.parse(JSON.stringify(s.intro)) : [];
 }
 function kpPushUndo(){
   kpUndoStack.push(kpSnap());
@@ -2169,7 +2221,19 @@ function renderTx() {
 }
 
 function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
-function renderAll(){renderSidebar();renderTx();kpUpdateCount()}
+function renderAll(){renderSidebar();renderTx();kpUpdateCount();updateIntroCount()}
+
+function updateIntroCount(){
+  const el=document.getElementById('intro-count');
+  if(el) el.textContent=String(introClips.length);
+}
+
+async function openIntroMaker(){
+  if(window.__READ_ONLY) return;
+  await saveProjectNow(false);
+  const query = window.__PROJECT_ID ? `?project=${encodeURIComponent(window.__PROJECT_ID)}` : '';
+  location.href = `opening.html${query}`;
+}
 
 // ===== INTERACTIONS =====
 function tgS(i){
@@ -2248,12 +2312,17 @@ function tgB(id){if(window.__READ_ONLY)return;kpPushUndo();const b=BLK.find(x=>x
 
 // ===== 半句删除（选区 → 词 → 时间段）=====
 const selbtn=document.createElement('div');
-selbtn.id='selbtn'; selbtn.textContent='✂ 删除选中';
+selbtn.id='selbtn';
+selbtn.innerHTML='<button type="button" data-act="delete">✂ 删除选中</button><button type="button" data-act="intro">★ 加入片头</button>';
 selbtn.onmousedown=e=>e.preventDefault();   // 防止点按钮时清空选区
-selbtn.onclick=delSel;
+selbtn.onclick=e=>{
+  const act=e.target && e.target.dataset ? e.target.dataset.act : '';
+  if(act==='intro') addIntroFromSelection();
+  else delSel();
+};
 document.body.appendChild(selbtn);
 function hideSelBtn(){ selbtn.style.display='none'; }
-document.addEventListener('mousedown',e=>{ if(e.target!==selbtn) hideSelBtn(); });
+document.addEventListener('mousedown',e=>{ if(!selbtn.contains(e.target)) hideSelBtn(); });
 
 document.getElementById('tx').addEventListener('mouseup',e=>{
   if (window.__READ_ONLY) return;
@@ -2291,7 +2360,7 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
   },10);
 });
 
-function delSel(){
+function selectedSentenceRange(){
   if (window.__READ_ONLY) return;
   const sel=window.getSelection(); if(!sel||sel.isCollapsed) return;
   const range=sel.getRangeAt(0);
@@ -2326,9 +2395,37 @@ function delSel(){
   if(sOff===0 && sW>0){ const pv=x.w[sW-1]; const g=st-pv.e; if(g>=0&&g<0.20) st=pv.e; }
   if(eOff===0 && eW<x.w.length-1){ const nx=x.w[eW+1]; const g=nx.s-et; if(g>=0&&g<2.0) et=nx.s; }
 
-  (pdel[idx]=pdel[idx]||[]).push({cs:pos, ce:delEnd, s:Math.round(st*1000)/1000, e:Math.round(et*1000)/1000});
-  um.add(idx);
-  sel.removeAllRanges(); hideSelBtn(); renderTx(); sv();
+  return {sel, idx, x, cs:pos, ce:delEnd, s:r3(st), e:r3(et), text:full.slice(pos, delEnd)};
+}
+
+function delSel(){
+  const hit=selectedSentenceRange();
+  if(!hit) return;
+  kpPushUndo();
+  (pdel[hit.idx]=pdel[hit.idx]||[]).push({cs:hit.cs, ce:hit.ce, s:hit.s, e:hit.e});
+  um.add(hit.idx);
+  hit.sel.removeAllRanges(); hideSelBtn(); renderTx(); sv();
+}
+
+function addIntroFromSelection(){
+  const hit=selectedSentenceRange();
+  if(!hit || !hit.text.trim()) return;
+  const exists=introClips.some(c=>Number(c.idx)===hit.idx && Number(c.cs)===hit.cs && Number(c.ce)===hit.ce);
+  if(exists){ toast('这段已经在片头里了'); hideSelBtn(); return; }
+  kpPushUndo();
+  introClips.push({
+    id:`intro_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    idx:hit.idx,
+    cs:hit.cs,
+    ce:hit.ce,
+    s:hit.s,
+    e:hit.e,
+    text:hit.text.trim(),
+    speaker:displaySp(hit.x.sp),
+    ts:hit.x.ts || fm(hit.s),
+  });
+  um.add(hit.idx);
+  hit.sel.removeAllRanges(); hideSelBtn(); renderAll(); sv(); toast('已加入片头');
 }
 
 // 收集所有半句删除时间段（跳过整句已删的句子，避免重复）
@@ -2776,7 +2873,7 @@ function rs(){
   }catch(e){}
 }
 function buildEditState(){
-  return {d:Array.from(del),m:Array.from(um),p:pdel,sp:spDisplayNames,g:Array.from(gold)};
+  return {d:Array.from(del),m:Array.from(um),p:pdel,sp:spDisplayNames,g:Array.from(gold),intro:introClips};
 }
 function applyEditState(s){
   if(s.d){del.clear();s.d.forEach(i=>del.add(i))}
@@ -2784,6 +2881,7 @@ function applyEditState(s){
   if(s.p){for(const k in pdel)delete pdel[k];Object.assign(pdel,s.p)}
   if(s.sp && typeof s.sp === 'object') Object.assign(spDisplayNames, s.sp);
   if(s.g){gold.clear();s.g.forEach(i=>gold.add(i))}
+  introClips = Array.isArray(s.intro) ? s.intro.map(c=>({...c})) : [];
 }
 function persistCurrentPayload(editState = buildEditState()){
   if (window.__READ_ONLY) return null;

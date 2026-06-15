@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 片头制作</title>
+  <link rel="stylesheet" href="css/shared.css?v=20260529b">
+  <style>
+    :root{--gold:#e0a92b;--gold-soft:#fff6df;--line:#ececec;--muted:#8f95a1;--ink:#242424;}
+    body{background:#f6f7f9;color:var(--ink);}
+    .shell{max-width:860px;}
+    .opening-head{display:flex;align-items:center;gap:12px;margin:18px 0 10px;}
+    .back-link{border:0;background:transparent;color:var(--gold);font-weight:700;cursor:pointer;padding:0;}
+    .opening-title{font-size:28px;font-weight:820;margin:0;}
+    .opening-sub{color:var(--muted);font-size:14px;margin:0 0 20px;line-height:1.7;}
+    .block{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px;}
+    .block.dim{background:#fafbfc;border-style:dashed;color:#a4a9b2;}
+    .block-head{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;margin-bottom:6px;}
+    .pill{font-size:12px;border-radius:999px;padding:3px 9px;background:var(--gold-soft);color:#9a6a00;font-weight:700;}
+    .pill.soon{background:#eef0f3;color:#8f95a1;}
+    .desc{font-size:13px;color:var(--muted);line-height:1.7;margin:6px 0 0;}
+    .count{font-size:13px;color:var(--muted);margin:10px 0 14px;}
+    .count b{font-size:18px;color:var(--ink);}
+    .warn{display:none;background:#fff1df;border:1px solid #edd0a6;color:#9a6a00;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;margin-bottom:12px;}
+    .warn.show{display:block;}
+    .empty{color:#b4b8c0;text-align:center;font-size:14px;line-height:1.8;padding:30px 8px;}
+    .item{display:flex;align-items:flex-start;gap:10px;background:#fffaf0;border:1px solid #f0cf7a;border-radius:10px;padding:12px;margin-bottom:10px;}
+    .item.dragging{opacity:.45;}
+    .num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--gold);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:2px;}
+    .txt{flex:1;font-size:15px;line-height:1.65;}
+    .meta{color:var(--muted);font-size:12px;margin-top:5px;}
+    .handle{border:0;background:transparent;color:#c7ad70;cursor:grab;font-size:18px;line-height:1;padding:0 2px;}
+    .remove{border:0;background:transparent;color:#b8bcc4;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;}
+    .remove:hover{color:#d55343;}
+    .export-btn{width:100%;height:48px;border:0;border-radius:12px;background:var(--gold);color:#fff;font-size:16px;font-weight:820;cursor:pointer;margin-top:4px;}
+    .export-btn:disabled{background:#e1ded4;cursor:not-allowed;}
+    .status{min-height:22px;color:var(--muted);font-size:13px;text-align:center;margin-top:10px;}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top-chrome">
+      <div>
+        <div class="top-title">金钱剪刀</div>
+        <div class="top-sub">片头制作：先把金句排好，音乐和开场白下一步接入。</div>
+      </div>
+      <div class="top-actions">
+        <a class="secondary-btn inline-btn" href="/projects">我的项目</a>
+        <span class="user-chip" id="user-phone"></span>
+        <button class="secondary-btn inline-btn" id="logout-btn" type="button">退出</button>
+      </div>
+    </header>
+
+    <div class="opening-head">
+      <button class="back-link" id="back-btn" type="button">← 返回剪辑</button>
+      <h1 class="opening-title">片头制作</h1>
+    </div>
+    <p class="opening-sub">片头顺序先定为：片头音乐 → 金句 → 节目开场白。本期先做金句，导出后会拼到当前粗剪正文前面。</p>
+
+    <section class="block dim">
+      <div class="block-head">① 片头音乐 <span class="pill soon">第二步</span></div>
+      <p class="desc">以后在这里选择音乐、调整淡入淡出。现在先不接真功能。</p>
+    </section>
+
+    <section class="block">
+      <div class="block-head">② 金句 <span class="pill">第一步</span></div>
+      <div class="count">共 <b id="clip-count">0</b> 条 · 拖动排序 · 可移出</div>
+      <div class="warn" id="warn">片头有点长了，听众可能等不及。超过 5 条建议精简，但不强制。</div>
+      <div id="clip-list"></div>
+      <div class="empty" id="empty">还没有金句<br>回剪辑页框选文字，点“加入片头”。</div>
+    </section>
+
+    <section class="block dim">
+      <div class="block-head">③ 节目开场白 <span class="pill soon">第二步</span></div>
+      <p class="desc">以后在这里放固定开场白或录一小段。现在先不接真功能。</p>
+    </section>
+
+    <button class="export-btn" id="export-btn" type="button" disabled>导出片头 + 正文 MP3</button>
+    <div class="status" id="status"></div>
+  </main>
+
+  <script type="module">
+    import { apiFetch, ensureLoggedIn, setupSessionChrome } from './js/api.js?v=20260610-reviewflow-1';
+
+    ensureLoggedIn();
+    setupSessionChrome();
+
+    const query = new URLSearchParams(location.search);
+    const projectId = query.get('project') || '';
+    const els = {
+      list: document.getElementById('clip-list'),
+      empty: document.getElementById('empty'),
+      count: document.getElementById('clip-count'),
+      warn: document.getElementById('warn'),
+      export: document.getElementById('export-btn'),
+      status: document.getElementById('status'),
+      back: document.getElementById('back-btn'),
+    };
+    let payload = await loadPayload();
+    let editState = payload.editState || {};
+    let clips = Array.isArray(editState.intro) ? editState.intro.map(c => ({...c})) : [];
+    let draggingId = '';
+
+    els.back.addEventListener('click', () => {
+      location.href = projectId ? `review.html?project=${encodeURIComponent(projectId)}` : 'review.html';
+    });
+    els.export.addEventListener('click', exportOpening);
+    render();
+
+    async function loadPayload(){
+      if(projectId){
+        try{
+          const resp = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`);
+          const data = await resp.json().catch(()=>({}));
+          if(resp.ok && data.payload){
+            cachePayload(data.payload);
+            return data.payload;
+          }
+        }catch(error){
+          console.warn('片头页读取项目失败', error);
+        }
+      }
+      try{
+        return JSON.parse(sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data') || '{}');
+      }catch{
+        return {};
+      }
+    }
+
+    function render(){
+      clips = clips.map((clip, i) => ({...clip, order:i}));
+      els.count.textContent = String(clips.length);
+      els.warn.classList.toggle('show', clips.length > 5);
+      els.empty.style.display = clips.length ? 'none' : 'block';
+      els.export.disabled = !clips.length;
+      els.list.innerHTML = clips.map((clip, i) => `
+        <div class="item" draggable="true" data-id="${escAttr(clip.id)}">
+          <span class="num">${i + 1}</span>
+          <button class="handle" type="button" title="拖动排序">☰</button>
+          <div class="txt">
+            ${esc(clip.text || '')}
+            <div class="meta">${esc(clip.speaker || '说话人')} · ${esc(clip.ts || '')}</div>
+          </div>
+          <button class="remove" type="button" title="移出片头" data-remove="${escAttr(clip.id)}">×</button>
+        </div>
+      `).join('');
+      bindItems();
+    }
+
+    function bindItems(){
+      els.list.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          clips = clips.filter(c => c.id !== btn.dataset.remove);
+          await saveIntroState('已移出片头');
+          render();
+        });
+      });
+      els.list.querySelectorAll('.item').forEach(item => {
+        item.addEventListener('dragstart', () => {
+          draggingId = item.dataset.id;
+          item.classList.add('dragging');
+        });
+        item.addEventListener('dragend', () => {
+          draggingId = '';
+          item.classList.remove('dragging');
+        });
+        item.addEventListener('dragover', (event) => event.preventDefault());
+        item.addEventListener('drop', async (event) => {
+          event.preventDefault();
+          const targetId = item.dataset.id;
+          if(!draggingId || draggingId === targetId) return;
+          const from = clips.findIndex(c => c.id === draggingId);
+          const to = clips.findIndex(c => c.id === targetId);
+          if(from < 0 || to < 0) return;
+          const [moved] = clips.splice(from, 1);
+          clips.splice(to, 0, moved);
+          await saveIntroState('排序已保存');
+          render();
+        });
+      });
+    }
+
+    async function saveIntroState(message){
+      editState = {...editState, intro: clips};
+      payload = {...payload, editState};
+      cachePayload(payload);
+      if(projectId){
+        try{
+          const metrics = buildMetrics();
+          const resp = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+            method:'PATCH',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              fileName: payload.fileName || '未命名音频',
+              audioUrl: payload.audioUrl || '',
+              payload,
+              metrics,
+            }),
+          });
+          if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        }catch(error){
+          els.status.textContent = '服务器暂时没保存成功，本机已保存';
+          console.warn('片头状态保存失败', error);
+          return;
+        }
+      }
+      els.status.textContent = message || '已保存';
+    }
+
+    async function exportOpening(){
+      await saveIntroState('准备导出');
+      const segments = buildCutSegments();
+      const goldenSegments = clips
+        .map(c => ({start:r3(c.s), end:r3(c.e), text:c.text || ''}))
+        .filter(seg => Number.isFinite(seg.start) && Number.isFinite(seg.end) && seg.end > seg.start);
+      const metrics = buildMetrics();
+      const cutPayload = {
+        version:'opening_v1',
+        exported_at:new Date().toISOString(),
+        original_duration:metrics.originalDuration,
+        roughcut_duration:metrics.roughcutDuration,
+        removed_duration:metrics.removedDuration,
+        audioUrl: payload.audioUrl || '',
+        fileName: payload.fileName || 'podcast.mp3',
+        refineSettings: payload.refineSettings || {},
+        segments,
+        goldenSegments,
+        introMusic:null,
+      };
+      const serialized = JSON.stringify(cutPayload);
+      sessionStorage.setItem('jinqian_cut_data', serialized);
+      localStorage.setItem('jinqian_cut_data', serialized);
+      location.href = 'cut.html';
+    }
+
+    function buildMetrics(){
+      const originalDuration = Math.round(Number(payload.originalDuration || lastSentenceEnd() || 0));
+      const removedDuration = Math.round(sumDuration(buildCutSegments()));
+      const introDuration = Math.round(sumDuration(clips.map(c => ({start:c.s, end:c.e}))));
+      return {
+        originalDuration,
+        removedDuration,
+        roughcutDuration: Math.max(0, originalDuration - removedDuration + introDuration),
+      };
+    }
+
+    function buildCutSegments(){
+      const S = Array.isArray(payload.S) ? payload.S : [];
+      const state = editState || {};
+      const del = new Set(Array.isArray(state.d) ? state.d.map(Number) : []);
+      const pdel = state.p && typeof state.p === 'object' ? state.p : {};
+      const ranges = [];
+      S.forEach(x => { if(del.has(Number(x.idx))) ranges.push([Number(x.s), Number(x.e)]); });
+      Object.keys(pdel).forEach(key => {
+        const idx = Number(key);
+        if(del.has(idx)) return;
+        (pdel[key] || []).forEach(r => ranges.push([Number(r.s), Number(r.e)]));
+      });
+      return mergeRanges(ranges);
+    }
+
+    function mergeRanges(ranges){
+      const MERGE_GAP = 0.08;
+      const sorted = ranges
+        .filter(r => Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0])
+        .sort((a,b)=>a[0]-b[0]);
+      const out = [];
+      let cur = null;
+      sorted.forEach(r => {
+        if(cur && r[0] - cur.end < MERGE_GAP){
+          cur.end = Math.max(cur.end, r[1]);
+        }else{
+          if(cur) out.push(cur);
+          cur = {start:r3(r[0]), end:r3(r[1])};
+        }
+      });
+      if(cur) out.push(cur);
+      if(out.length && out[0].start < 5) out[0].start = 0;
+      return out;
+    }
+
+    function cachePayload(nextPayload){
+      const serialized = JSON.stringify(nextPayload || {});
+      sessionStorage.setItem('jinqian_data', serialized);
+      localStorage.setItem('jinqian_data', serialized);
+    }
+
+    function lastSentenceEnd(){
+      const S = Array.isArray(payload.S) ? payload.S : [];
+      return S.length ? Number(S[S.length - 1]?.e || 0) : 0;
+    }
+
+    function sumDuration(items){
+      return (items || []).reduce((sum, item) => {
+        const start = Number(item.start ?? item.s);
+        const end = Number(item.end ?? item.e);
+        return sum + (Number.isFinite(start) && Number.isFinite(end) && end > start ? end - start : 0);
+      }, 0);
+    }
+
+    function r3(value){ return Math.round(Number(value) * 1000) / 1000; }
+    function esc(text){ return String(text ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(text){ return esc(text).replace(/"/g,'&quot;'); }
+  </script>
+</body>
+</html>
