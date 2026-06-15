@@ -863,26 +863,30 @@ body.readonly .star { display: none; }
   position: fixed; z-index: 9999; display:none;
   background: var(--ink); color:#fff;
   font-size: 13px; font-weight:600;
-  padding: 8px 14px; border-radius: 8px;
+  padding: 6px; border-radius: 10px;
   cursor:pointer;
   box-shadow: 0 4px 16px rgba(0,0,0,.18);
   user-select:none;
   font-family: inherit;
+  gap:4px;
 }
-#selbtn:hover { background: var(--accent); }
 #selbtn button {
   border:0;
   background:transparent;
   color:inherit;
   font:inherit;
   font-weight:700;
-  padding:0 4px;
+  padding:8px 12px;
+  border-radius:7px;
   cursor:pointer;
 }
-#selbtn button + button {
-  border-left:1px solid rgba(255,255,255,.24);
-  margin-left:8px;
-  padding-left:12px;
+#selbtn button:hover { background:rgba(255,255,255,.12); }
+#selbtn button[data-act="intro"] {
+  background:var(--accent);
+  color:#fff;
+}
+#selbtn button[data-act="intro"]:hover {
+  background:var(--accent-deep);
 }
 
 /* ===== PLAYER ===== */
@@ -2354,9 +2358,10 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
     const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
     const txt=el&&el.closest('.r-txt'); if(!txt){ hideSelBtn(); return; }
     const rect=sel.getRangeAt(0).getBoundingClientRect();
-    selbtn.style.left=Math.max(8,rect.left+rect.width/2-44)+'px';
+    selbtn.style.display='flex';
+    const popWidth=selbtn.offsetWidth || 260;
+    selbtn.style.left=Math.max(8,Math.min(window.innerWidth-popWidth-8,rect.left+rect.width/2-popWidth/2))+'px';
     selbtn.style.top=Math.max(8,rect.top-38)+'px';
-    selbtn.style.display='block';
   },10);
 });
 
@@ -2387,7 +2392,6 @@ function selectedSentenceRange(){
   }
   if(sW===null||eW===null){ hideSelBtn(); return; }
   const sw=x.w[sW], ew=x.w[eW];
-  kpPushUndo();
   // 词内按字符比例插值时间（ASR 合词时也能切准）
   let st=(sOff>0 && wt[sW].length>0) ? sw.s+(sw.e-sw.s)*(sOff/wt[sW].length) : sw.s;
   let et=(eOff>0 && wt[eW].length>0) ? ew.e-(ew.e-ew.s)*(eOff/wt[eW].length) : ew.e;
@@ -2464,11 +2468,21 @@ function keepSegmentsAfterSentenceCuts(sentence){
 }
 
 function currentGoldenSegments(){
+  const introSegments = introClips
+    .map(c => ({start:r3(c.s), end:r3(c.e), text:c.text || ''}))
+    .filter(seg => Number.isFinite(seg.start) && Number.isFinite(seg.end) && seg.end > seg.start);
+  if (introSegments.length) return introSegments;
+
   /* 开关关闭时金句链整体停用：导出不前置金句、不加片头音乐，
      即使旧存档里存过金句也不触发（开关翻回 true 即恢复）。 */
   if (!SHOW_GOLDEN) return [];
   const goldIdx = Array.from(gold).filter(i => !del.has(i)).sort((a,b)=>a-b);
   return goldIdx.flatMap(i => keepSegmentsAfterSentenceCuts(S.find(y=>y.idx===i)));
+}
+
+function currentIntroMusic(goldenSegments){
+  if (introClips.length) return null;
+  return SHOW_GOLDEN && goldenSegments.length ? INTRO_MUSIC_URL : null;
 }
 
 function sumSegmentDuration(segments){
@@ -2479,8 +2493,8 @@ function sumSegmentDuration(segments){
   }, 0);
 }
 
-function computeExportRoughcutDuration(stats, goldenSegments){
-  const introDuration = goldenSegments.length ? INTRO_MUSIC_DURATION_SECONDS : 0;
+function computeExportRoughcutDuration(stats, goldenSegments, introMusic){
+  const introDuration = introMusic ? INTRO_MUSIC_DURATION_SECONDS : 0;
   return (Number(stats.rc) || 0) + sumSegmentDuration(goldenSegments) + introDuration;
 }
 
@@ -2774,8 +2788,9 @@ async function doExport(options = {}){
   // 金句前置：把标黄的句子（未被删的）按顺序提取为时间段，导出时拼到开头。
   // 金句原位置仍保留在正文里（不从正文删除），避免上下文被剪坏。
   const goldenSegments = currentGoldenSegments();
+  const introMusic = currentIntroMusic(goldenSegments);
   const stats = computeStats();
-  const exportDuration = computeExportRoughcutDuration(stats, goldenSegments);
+  const exportDuration = computeExportRoughcutDuration(stats, goldenSegments, introMusic);
   const data = {
     version: "roughcut_v1",
     exported_at: new Date().toISOString(),
@@ -2791,8 +2806,8 @@ async function doExport(options = {}){
     fileName: injected.fileName || window.__FILE_NAME || 'podcast.mp3',
     refineSettings: {...refineSettings},
     goldenSegments,
-    // 有金句时才在金句和正文之间插过渡音乐；没标金句时导出保持原样。
-    introMusic: goldenSegments.length ? INTRO_MUSIC_URL : null,
+    // 新片头页只负责金句段落；音乐仍等第二步接入。旧金句链保留原过渡音乐逻辑。
+    introMusic,
   };
   const serializedCutPayload = JSON.stringify(cutPayload);
   sessionStorage.setItem('jinqian_cut_data', serializedCutPayload);
@@ -2938,9 +2953,10 @@ async function saveProjectNow(showSaved = true){
 function buildCurrentMetrics(){
   const stats = computeStats();
   const goldenSegments = currentGoldenSegments();
+  const introMusic = currentIntroMusic(goldenSegments);
   return {
     originalDuration: Math.round(stats.td || 0),
-    roughcutDuration: Math.round(computeExportRoughcutDuration(stats, goldenSegments)),
+    roughcutDuration: Math.round(computeExportRoughcutDuration(stats, goldenSegments, introMusic)),
     removedDuration: Math.round(stats.rd || 0),
   };
 }

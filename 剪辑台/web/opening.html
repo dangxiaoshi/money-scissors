@@ -32,8 +32,7 @@
     .handle{border:0;background:transparent;color:#c7ad70;cursor:grab;font-size:18px;line-height:1;padding:0 2px;}
     .remove{border:0;background:transparent;color:#b8bcc4;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;}
     .remove:hover{color:#d55343;}
-    .export-btn{width:100%;height:48px;border:0;border-radius:12px;background:var(--gold);color:#fff;font-size:16px;font-weight:820;cursor:pointer;margin-top:4px;}
-    .export-btn:disabled{background:#e1ded4;cursor:not-allowed;}
+    .finish-btn{width:100%;height:48px;border:0;border-radius:12px;background:var(--gold);color:#fff;font-size:16px;font-weight:820;cursor:pointer;margin-top:4px;}
     .status{min-height:22px;color:var(--muted);font-size:13px;text-align:center;margin-top:10px;}
   </style>
 </head>
@@ -42,7 +41,7 @@
     <header class="top-chrome">
       <div>
         <div class="top-title">金钱剪刀</div>
-        <div class="top-sub">片头制作：先把金句排好，音乐和开场白下一步接入。</div>
+        <div class="top-sub">片头制作：先把金句排好，回剪辑页统一生成 MP3。</div>
       </div>
       <div class="top-actions">
         <a class="secondary-btn inline-btn" href="/projects">我的项目</a>
@@ -55,7 +54,7 @@
       <button class="back-link" id="back-btn" type="button">← 返回剪辑</button>
       <h1 class="opening-title">片头制作</h1>
     </div>
-    <p class="opening-sub">片头顺序先定为：片头音乐 → 金句 → 节目开场白。本期先做金句，导出后会拼到当前粗剪正文前面。</p>
+    <p class="opening-sub">片头顺序先定为：片头音乐 → 金句 → 节目开场白。本期先做金句排序，完成后回剪辑页点“生成 MP3”。</p>
 
     <section class="block dim">
       <div class="block-head">① 片头音乐 <span class="pill soon">第二步</span></div>
@@ -75,8 +74,8 @@
       <p class="desc">以后在这里放固定开场白或录一小段。现在先不接真功能。</p>
     </section>
 
-    <button class="export-btn" id="export-btn" type="button" disabled>导出片头 + 正文 MP3</button>
-    <div class="status" id="status"></div>
+    <button class="finish-btn" id="finish-btn" type="button">完成，返回剪辑</button>
+    <div class="status" id="status">导出请回剪辑页点“生成 MP3”。</div>
   </main>
 
   <script type="module">
@@ -92,7 +91,7 @@
       empty: document.getElementById('empty'),
       count: document.getElementById('clip-count'),
       warn: document.getElementById('warn'),
-      export: document.getElementById('export-btn'),
+      finish: document.getElementById('finish-btn'),
       status: document.getElementById('status'),
       back: document.getElementById('back-btn'),
     };
@@ -101,10 +100,11 @@
     let clips = Array.isArray(editState.intro) ? editState.intro.map(c => ({...c})) : [];
     let draggingId = '';
 
-    els.back.addEventListener('click', () => {
-      location.href = projectId ? `review.html?project=${encodeURIComponent(projectId)}` : 'review.html';
+    els.back.addEventListener('click', goReview);
+    els.finish.addEventListener('click', async () => {
+      await saveIntroState('已保存，正在返回剪辑页');
+      goReview();
     });
-    els.export.addEventListener('click', exportOpening);
     render();
 
     async function loadPayload(){
@@ -132,7 +132,6 @@
       els.count.textContent = String(clips.length);
       els.warn.classList.toggle('show', clips.length > 5);
       els.empty.style.display = clips.length ? 'none' : 'block';
-      els.export.disabled = !clips.length;
       els.list.innerHTML = clips.map((clip, i) => `
         <div class="item" draggable="true" data-id="${escAttr(clip.id)}">
           <span class="num">${i + 1}</span>
@@ -207,32 +206,6 @@
       els.status.textContent = message || '已保存';
     }
 
-    async function exportOpening(){
-      await saveIntroState('准备导出');
-      const segments = buildCutSegments();
-      const goldenSegments = clips
-        .map(c => ({start:r3(c.s), end:r3(c.e), text:c.text || ''}))
-        .filter(seg => Number.isFinite(seg.start) && Number.isFinite(seg.end) && seg.end > seg.start);
-      const metrics = buildMetrics();
-      const cutPayload = {
-        version:'opening_v1',
-        exported_at:new Date().toISOString(),
-        original_duration:metrics.originalDuration,
-        roughcut_duration:metrics.roughcutDuration,
-        removed_duration:metrics.removedDuration,
-        audioUrl: payload.audioUrl || '',
-        fileName: payload.fileName || 'podcast.mp3',
-        refineSettings: payload.refineSettings || {},
-        segments,
-        goldenSegments,
-        introMusic:null,
-      };
-      const serialized = JSON.stringify(cutPayload);
-      sessionStorage.setItem('jinqian_cut_data', serialized);
-      localStorage.setItem('jinqian_cut_data', serialized);
-      location.href = 'cut.html';
-    }
-
     function buildMetrics(){
       const originalDuration = Math.round(Number(payload.originalDuration || lastSentenceEnd() || 0));
       const removedDuration = Math.round(sumDuration(buildCutSegments()));
@@ -283,6 +256,10 @@
       const serialized = JSON.stringify(nextPayload || {});
       sessionStorage.setItem('jinqian_data', serialized);
       localStorage.setItem('jinqian_data', serialized);
+    }
+
+    function goReview(){
+      location.href = projectId ? `review.html?project=${encodeURIComponent(projectId)}` : 'review.html';
     }
 
     function lastSentenceEnd(){
