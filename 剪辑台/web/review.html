@@ -1130,8 +1130,8 @@ body.readonly .star { display: none; }
       </div>
       <button class="kp-killall" onclick="kpKillAll()">一键全标删</button>
     </div>
-    <div class="kp-libtoggle" onclick="kpToggleLib()"><span>词库设置</span><span id="kp-lib-arrow">▸</span></div>
-    <div class="kp-lib" id="kp-lib" style="display:none">
+    <div class="kp-libtoggle" onclick="kpToggleLib()"><span>词库设置</span><span id="kp-lib-arrow">▾</span></div>
+    <div class="kp-lib" id="kp-lib" style="display:block">
       <div class="kp-lib-h">默认标这些</div>
       <div class="kp-words" id="kp-words-on"></div>
       <div class="kp-lib-h">默认不标（点亮才标）</div>
@@ -1389,7 +1389,8 @@ function txtHtml(x){
     }
     const ki = kranges.findIndex(r => i >= r.cs && i < r.ce);
     if(ki >= 0){
-      html += `<span class="kp" data-kpidx="${x.idx}" data-kpwi="${kranges[ki].wi}">${esc(full.slice(i, kranges[ki].ce))}</span>`;
+      const h=kranges[ki];
+      html += `<span class="kp" data-kpidx="${x.idx}" data-kpwi="${h.wi}" data-kpcs="${h.cs}" data-kpce="${h.ce}" data-kps="${h.s}" data-kpe="${h.e}">${esc(full.slice(i, h.ce))}</span>`;
       i = kranges[ki].ce; continue;
     }
     const starts = ranges.filter(r => r.cs > i).map(r => r.cs)
@@ -1409,20 +1410,80 @@ let kpCustom = [];                        // 用户自定义新增
 let kpCurKey = null;                      // 逐个跳转：当前定位 {idx,wi}
 // 归一化：去标点空格，避免「嗯，」「那个。」漏匹配
 function kpNorm(t){ return String(t||'').replace(/[\s，。、！？,.!?；;：:（）()\[\]【】"'""'']/g,''); }
+function kpWordRanges(text, activeWords){
+  const raw=String(text||'');
+  if(!raw || !activeWords || !activeWords.length) return [];
+  const out=[];
+  activeWords.forEach(word=>{
+    const needle=String(word||'');
+    if(!needle) return;
+    let from=0;
+    while(from<raw.length){
+      const at=raw.indexOf(needle, from);
+      if(at<0) break;
+      out.push({cs:at, ce:at+needle.length, word:needle});
+      from=at+needle.length;
+    }
+  });
+  out.sort((a,b)=>a.cs-b.cs||a.ce-b.ce);
+  const dedup=[]; let last='';
+  out.forEach(r=>{
+    const key=`${r.cs}:${r.ce}`;
+    if(key===last) return;
+    last=key; dedup.push(r);
+  });
+  return dedup;
+}
 // 一句话里命中的口癖词（字符区间），排除整句已删、已被半句删除盖住的词
 function kpHits(x){
   if(!x || !x.w || del.has(x.idx)) return [];
   const pr = pdel[x.idx] || [];
+  const activeWords=[...kpActive].filter(Boolean).sort((a,b)=>b.length-a.length);
   const out=[]; let cc=0;
   for(let i=0;i<x.w.length;i++){
-    const wt=x.w[i].t, cs=cc, ce=cc+wt.length; cc=ce;
-    if(!kpActive.has(kpNorm(wt))) continue;
-    if(pr.some(r => cs>=r.cs && ce<=r.ce)) continue;
-    out.push({idx:x.idx, wi:i, cs, ce, s:x.w[i].s, e:x.w[i].e});
+    const wt=String(x.w[i].t||''), baseCs=cc, chunkLen=wt.length; cc=baseCs+chunkLen;
+    if(!wt || !chunkLen) continue;
+    const ranges=kpWordRanges(wt, activeWords);
+    if(!ranges.length) continue;
+    ranges.forEach(range=>{
+      const cs=baseCs+range.cs, ce=baseCs+range.ce;
+      if(pr.some(r => cs>=r.cs && ce<=r.ce)) return;
+      const dur=Math.max(0, Number(x.w[i].e)-Number(x.w[i].s));
+      const s=dur ? Number(x.w[i].s)+(dur*(range.cs/chunkLen)) : Number(x.w[i].s);
+      const e=dur ? Number(x.w[i].s)+(dur*(range.ce/chunkLen)) : Number(x.w[i].e);
+      out.push({idx:x.idx, wi:i, cs, ce, s:r3(s), e:r3(e)});
+    });
   }
   return out;
 }
-function kpAllHits(){ const o=[]; S.forEach(x=>kpHits(x).forEach(h=>o.push(h))); return o; }
+function kpAllHitsFromData(){ const o=[]; S.forEach(x=>kpHits(x).forEach(h=>o.push(h))); return o; }
+function kpAllHitsFromDom(){
+  const seen=new Set(), out=[];
+  document.querySelectorAll('.r-txt .kp[data-kpidx][data-kpwi]').forEach(el=>{
+    const idx=Number(el.dataset.kpidx), wi=Number(el.dataset.kpwi);
+    if(!Number.isFinite(idx)||!Number.isFinite(wi)) return;
+    const x=S.find(s=>s.idx===idx), word=x&&x.w&&x.w[wi];
+    if(!x||!word) return;
+    let cs=Number(el.dataset.kpcs), ce=Number(el.dataset.kpce);
+    let s=Number(el.dataset.kps), e=Number(el.dataset.kpe);
+    if(!Number.isFinite(cs)||!Number.isFinite(ce)||ce<=cs){
+      cs=0; for(let i=0;i<wi;i++) cs+=(x.w[i].t||'').length;
+      ce=cs+(word.t||'').length;
+    }
+    if(!Number.isFinite(s)) s=word.s;
+    if(!Number.isFinite(e)) e=word.e;
+    const key=`${idx}:${wi}:${cs}:${ce}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({idx, wi, cs, ce, s:r3(s), e:r3(e)});
+  });
+  return out;
+}
+function kpAllHits(){
+  const dataHits=kpAllHitsFromData();
+  if(dataHits.length) return dataHits;
+  return kpAllHitsFromDom();
+}
 function kpUpdateCount(){ const el=document.getElementById('kp-count'); if(el) el.textContent = kpAllHits().length; }
 
 function switchSideTab(name){
@@ -1431,13 +1492,15 @@ function switchSideTab(name){
 }
 
 // 单个口癖词 → 写进 pdel（半句删除），完全复用现有机制
-function kpKillWord(idx, wi){
+function kpKillHit(hit){
   if(window.__READ_ONLY) return;
+  const idx=Number(hit&&hit.idx), wi=Number(hit&&hit.wi);
   const x=S.find(s=>s.idx===idx); if(!x||!x.w||!x.w[wi]) return;
+  const cs=Number(hit.cs), ce=Number(hit.ce);
+  const s=Number(hit.s), e=Number(hit.e);
+  if(!Number.isFinite(cs)||!Number.isFinite(ce)||ce<=cs||!Number.isFinite(s)||!Number.isFinite(e)||e<=s) return;
   kpPushUndo();
-  let cs=0; for(let i=0;i<wi;i++) cs+=x.w[i].t.length;
-  const ce=cs+x.w[wi].t.length, w=x.w[wi];
-  (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(w.s), e:r3(w.e)});
+  (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(s), e:r3(e)});
   um.add(idx); kpCurKey=null; renderAll(); sv();
 }
 // 一键全标删：整句都是口癖 → 删整句(del)，否则逐词进 pdel
@@ -1452,9 +1515,9 @@ function kpKillAll(){
     const allKoupi = x.w.every(w=>kpActive.has(kpNorm(w.t)));
     if(allKoupi){ del.add(idx); gold.delete(idx); um.add(idx); return; }
     bySent[k].forEach(h=>{
-      let cs=0; for(let i=0;i<h.wi;i++) cs+=x.w[i].t.length;
-      const ce=cs+x.w[h.wi].t.length;
-      (pdel[idx]=pdel[idx]||[]).push({cs, ce, s:r3(x.w[h.wi].s), e:r3(x.w[h.wi].e)});
+      if(!Number.isFinite(h.cs)||!Number.isFinite(h.ce)||h.ce<=h.cs) return;
+      if(!Number.isFinite(h.s)||!Number.isFinite(h.e)||h.e<=h.s) return;
+      (pdel[idx]=pdel[idx]||[]).push({cs:h.cs, ce:h.ce, s:r3(h.s), e:r3(h.e)});
     });
     um.add(idx);
   });
@@ -1464,12 +1527,12 @@ function kpKillAll(){
 function kpJump(dir){
   const hits=kpAllHits();
   if(!hits.length){ toast('没有检测到口癖'); return; }
-  let ci = hits.findIndex(h=>kpCurKey && h.idx===kpCurKey.idx && h.wi===kpCurKey.wi);
+  let ci = hits.findIndex(h=>kpCurKey && h.idx===kpCurKey.idx && h.wi===kpCurKey.wi && h.cs===kpCurKey.cs && h.ce===kpCurKey.ce);
   ci = (ci<0 ? (dir>0 ? -1 : 0) : ci);
   ci = (ci + dir + hits.length) % hits.length;
-  const h=hits[ci]; kpCurKey={idx:h.idx, wi:h.wi};
+  const h=hits[ci]; kpCurKey={idx:h.idx, wi:h.wi, cs:h.cs, ce:h.ce};
   document.querySelectorAll('.r-txt .kp.cur').forEach(e=>e.classList.remove('cur'));
-  const el=document.querySelector(`.r-txt .kp[data-kpidx="${h.idx}"][data-kpwi="${h.wi}"]`);
+  const el=document.querySelector(`.r-txt .kp[data-kpidx="${h.idx}"][data-kpwi="${h.wi}"][data-kpcs="${h.cs}"][data-kpce="${h.ce}"]`);
   if(el){ el.classList.add('cur'); el.scrollIntoView({behavior:'smooth', block:'center'}); }
 }
 // 词库
@@ -2205,8 +2268,15 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
   if(e.target.classList && e.target.classList.contains('kp')){
     const kpSel=window.getSelection();
     if(!kpSel || kpSel.isCollapsed || !kpSel.toString().trim()){
-      const idx=+e.target.dataset.kpidx, wi=+e.target.dataset.kpwi;
-      kpKillWord(idx, wi); hideSelBtn(); return;
+      kpKillHit({
+        idx:+e.target.dataset.kpidx,
+        wi:+e.target.dataset.kpwi,
+        cs:+e.target.dataset.kpcs,
+        ce:+e.target.dataset.kpce,
+        s:+e.target.dataset.kps,
+        e:+e.target.dataset.kpe,
+      });
+      hideSelBtn(); return;
     }
   }
   setTimeout(()=>{
