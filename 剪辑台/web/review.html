@@ -1010,8 +1010,6 @@ body.readonly .star { display: none; }
 .kp-nav button{width:30px;height:30px;border-radius:8px;border:1px solid #e3e3e3;background:#fff;cursor:pointer;font-size:15px;color:#555;}
 .kp-killall{flex:1;border:1px solid #e3e3e3;background:#f4f5f7;border-radius:8px;padding:7px;font-size:13px;cursor:pointer;color:#333;}
 .kp-killall:hover{background:#ececec;}
-.kp-undo{border:1px solid #e3e3e3;background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;color:#555;white-space:nowrap;}
-.kp-undo:hover{background:#f4f5f7;}
 .kp-libtoggle{font-size:13px;color:#b9821f;cursor:pointer;border-top:1px dashed #eee;padding-top:10px;display:flex;justify-content:space-between;align-items:center;}
 .kp-lib-h{font-size:12px;color:#999;font-weight:600;margin:10px 0 6px;}
 .kp-words{display:flex;flex-wrap:wrap;gap:6px;}
@@ -1131,7 +1129,6 @@ body.readonly .star { display: none; }
         <button onclick="kpJump(1)" title="下一个口癖">→</button>
       </div>
       <button class="kp-killall" onclick="kpKillAll()">一键全标删</button>
-      <button class="kp-undo" onclick="kpUndo()" title="撤销上一步（也可按 Ctrl/⌘+Z）">↩ 撤销</button>
     </div>
     <div class="kp-libtoggle" onclick="kpToggleLib()"><span>词库设置</span><span id="kp-lib-arrow">▸</span></div>
     <div class="kp-lib" id="kp-lib" style="display:none">
@@ -1496,30 +1493,45 @@ function kpToggleLib(){
   const show=l.style.display==='none'; l.style.display=show?'block':'none'; if(a)a.textContent=show?'▾':'▸';
 }
 
-// ===== 撤销栈（解决「一键全标删」无法回退）=====
-// 在每次删除类操作前存一份 del/pdel/gold 快照，Ctrl/⌘+Z 或「撤销」按钮逐步还原。
-const kpUndoStack=[];
-function kpPushUndo(){
-  kpUndoStack.push({ del:[...del], gold:[...gold], pdel:JSON.parse(JSON.stringify(pdel)) });
-  if(kpUndoStack.length>60) kpUndoStack.shift();
-}
-function kpUndo(){
-  if(window.__READ_ONLY) return;
-  if(!kpUndoStack.length){ toast('没有可撤销的操作'); return; }
-  const s=kpUndoStack.pop();
+// ===== 撤销 / 前进 栈（全局，覆盖整句删/半句删/块删/口癖删）=====
+// 逻辑放这里，顶栏窗口只需把右上角两个按钮接到 kpUndo() / kpRedo()。
+// 删除类操作前调 kpPushUndo() 存一份 del/pdel/gold 快照。
+const kpUndoStack=[], kpRedoStack=[];
+function kpSnap(){ return { del:[...del], gold:[...gold], pdel:JSON.parse(JSON.stringify(pdel)) }; }
+function kpApply(s){
   del.clear(); s.del.forEach(i=>del.add(i));
   gold.clear(); s.gold.forEach(i=>gold.add(i));
   for(const k in pdel) delete pdel[k];
   Object.assign(pdel, JSON.parse(JSON.stringify(s.pdel)));
+}
+function kpPushUndo(){
+  kpUndoStack.push(kpSnap());
+  if(kpUndoStack.length>60) kpUndoStack.shift();
+  kpRedoStack.length=0;          // 新操作后清空前进栈（标准撤销语义）
+}
+function kpUndo(){
+  if(window.__READ_ONLY) return;
+  if(!kpUndoStack.length){ toast('没有可撤销的操作'); return; }
+  kpRedoStack.push(kpSnap());
+  kpApply(kpUndoStack.pop());
   kpCurKey=null; renderAll(); sv(); toast('已撤销');
 }
-// Ctrl/⌘+Z 全局撤销
+function kpRedo(){
+  if(window.__READ_ONLY) return;
+  if(!kpRedoStack.length){ toast('没有可前进的操作'); return; }
+  kpUndoStack.push(kpSnap());
+  kpApply(kpRedoStack.pop());
+  kpCurKey=null; renderAll(); sv(); toast('已前进');
+}
+function kpCanUndo(){ return kpUndoStack.length>0; }   // 供顶栏窗口控制按钮置灰
+function kpCanRedo(){ return kpRedoStack.length>0; }
+// 键盘：⌘/Ctrl+Z 撤销，⌘/Ctrl+Shift+Z 或 Ctrl+Y 前进
 document.addEventListener('keydown', e=>{
-  if((e.metaKey||e.ctrlKey) && !e.shiftKey && (e.key==='z'||e.key==='Z')){
-    const tag=(e.target.tagName||'').toLowerCase();
-    if(tag==='input'||tag==='textarea'||e.target.isContentEditable) return; // 输入框里不抢
-    e.preventDefault(); kpUndo();
-  }
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||e.target.isContentEditable) return; // 输入框里不抢
+  const mod=e.metaKey||e.ctrlKey;
+  if(mod && (e.key==='z'||e.key==='Z')){ e.preventDefault(); e.shiftKey?kpRedo():kpUndo(); }
+  else if(mod && (e.key==='y'||e.key==='Y')){ e.preventDefault(); kpRedo(); }
 });
 
 // ===== STATS =====
