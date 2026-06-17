@@ -1525,7 +1525,7 @@ function initRefineBar(){
 
 // 半句删除：字符级渲染。pdel 段用 [cs,ce) 字符区间标记，落在区间内的字符串划线。
 // 字符级（而非整词）才能显示"词内部分删除"，与导出的插值时间一致。
-function txtHtml(x){
+function txtHtml(x, breathByPrev){
   if(!x.w || !x.w.length) return esc(x.t);  // 兼容无逐词时间的旧数据
   const full = x.w.map(w=>w.t).join('');
   const ranges = pdel[x.idx] || [];          // 半句删除（划线）优先级最高
@@ -1557,7 +1557,7 @@ function txtHtml(x){
     html += esc(full.slice(i, nx));
     i = nx;
   }
-  const after = breathGapAfterSentence(x.idx);
+  const after = breathGapAfterSentence(x.idx, breathByPrev);
   if(after) html += breathGapHtml(after);
   return html;
 }
@@ -1767,7 +1767,16 @@ function breathCandidates(){
 function breathPendingCandidates(){
   return breathCandidates().filter(g=>!g.done);
 }
-function breathGapAfterSentence(idx){
+function breathMapByPrev(candidates=breathCandidates()){
+  const map=new Map();
+  candidates.forEach(g=>{
+    const idx=Number(g.prevSentenceIdx);
+    if(!map.has(idx)) map.set(idx,g);
+  });
+  return map;
+}
+function breathGapAfterSentence(idx, byPrev){
+  if(byPrev) return byPrev.get(Number(idx));
   return breathCandidates().find(g=>Number(g.prevSentenceIdx)===Number(idx));
 }
 function breathGapHtml(g){
@@ -1775,8 +1784,7 @@ function breathGapHtml(g){
   const label=g.done?'气口 已缩短':`气口 ${g.duration.toFixed(1)}s`;
   return `<span class="${cls}" data-breath-id="${esc(g.id)}" onclick="breathToggle('${esc(g.id)}')">${esc(label)}</span>`;
 }
-function breathUpdate(){
-  const all=breathCandidates();
+function breathUpdate(all=breathCandidates()){
   const countEl=document.getElementById('breath-count');
   const totalEl=document.getElementById('breath-total');
   const posEl=document.getElementById('breath-pos');
@@ -1915,18 +1923,34 @@ document.addEventListener('keydown', e=>{
 });
 
 // ===== STATS =====
-function computeStats() {
-  const td=S.length?S[S.length-1].e:0; let rd=0; const rbt={}, sd={};
-  S.forEach(x=>{const d=x.e-x.s;if(del.has(x.idx)){rd+=d;rbt[x.dt||'other']=(rbt[x.dt||'other']||0)+d}else if(x.sp){sd[x.sp]=(sd[x.sp]||0)+d}});
+let cachedStats=null;
+let cachedPreviewDeletionRanges=null;
+
+function currentStats(){
+  if(!cachedStats) cachedStats=computeStats();
+  return cachedStats;
+}
+
+function currentPreviewDeletionRanges(){
+  if(!cachedPreviewDeletionRanges) cachedPreviewDeletionRanges=currentExportDeleteSegments();
+  return cachedPreviewDeletionRanges;
+}
+
+function computeStats(deleteSegments=currentExportDeleteSegments()) {
+  const td=S.length?S[S.length-1].e:0; let categoryRemoved=0; const rbt={}, sd={};
+  S.forEach(x=>{const d=x.e-x.s;if(del.has(x.idx)){categoryRemoved+=d;rbt[x.dt||'other']=(rbt[x.dt||'other']||0)+d}else if(x.sp){sd[x.sp]=(sd[x.sp]||0)+d}});
   // 半句删除（仅对未整句删除的句子生效）
-  for(const k in pdel){ const idx=+k; if(del.has(idx))continue; const x=S.find(s=>s.idx===idx); pdel[k].forEach(r=>{const d=r.e-r.s; rd+=d; rbt.partial=(rbt.partial||0)+d; if(x&&x.sp&&sd[x.sp])sd[x.sp]=Math.max(0,sd[x.sp]-d);}); }
-  breathRanges().forEach(r=>{const d=r[1]-r[0]; rd+=d; rbt.breath=(rbt.breath||0)+d;});
-  return {td, rd, rc:td-rd, rbt, sd};
+  for(const k in pdel){ const idx=+k; if(del.has(idx))continue; const x=S.find(s=>s.idx===idx); pdel[k].forEach(r=>{const d=r.e-r.s; categoryRemoved+=d; rbt.partial=(rbt.partial||0)+d; if(x&&x.sp&&sd[x.sp])sd[x.sp]=Math.max(0,sd[x.sp]-d);}); }
+  breathRanges().forEach(r=>{const d=r[1]-r[0]; categoryRemoved+=d; rbt.breath=(rbt.breath||0)+d;});
+  const rd=sumSegmentDuration(deleteSegments);
+  return {td, rd, rc:Math.max(0,td-rd), rbt, sd, categoryRemoved};
 }
 
 // ===== SIDEBAR =====
 function renderSidebar() {
-  const {td, rd, rc, rbt, sd} = computeStats();
+  cachedPreviewDeletionRanges = currentExportDeleteSegments();
+  cachedStats = computeStats(cachedPreviewDeletionRanges);
+  const {td, rd, rc, rbt, sd} = cachedStats;
 
   document.getElementById('d-from').textContent=fm(td);
   document.getElementById('d-to').textContent=fm(rc);
@@ -1945,7 +1969,7 @@ function renderSidebar() {
   // Count suggested deletes
   const sugCount = S.filter(x => x.sug && del.has(x.idx)).length;
   let summText = '';
-  if(pts.length) summText += `共删除 ${pts.join('，')}。`;
+  if(pts.length) summText += `删减内容主要包括 ${pts.join('，')}。`;
   if(sugCount > 0) summText += `另有 ${sugCount} 句建议精简（重复叙述/展开过多），可在右侧逐条恢复。`;
   if(!summText) summText = '未做任何删减。';
   document.getElementById('summ').textContent = summText;
@@ -2437,8 +2461,10 @@ function setSidebarWidth(rawWidth) {
 }
 
 // ===== TRANSCRIPT =====
-function renderTx() {
+function renderTx(options = {}) {
   const c=document.getElementById('tx');let h='';
+  const breathList=options.breathCandidates || breathCandidates();
+  const breathByPrev=breathMapByPrev(breathList);
   // Block map (deleted sections)
   const bm={};BLK.forEach(b=>{for(let i=b.r[0];i<=b.r[1];i++)bm[i]=b});
   // Chapter map (content sections)
@@ -2494,13 +2520,17 @@ function renderTx() {
     if(isLast) cl+=' sp-last';
     const reasonTag = (isSug && x.sugReason) ? `<span class="sug-reason">${esc(x.sugReason)}</span>` : '';
     const goldBtn = SHOW_GOLDEN ? `<div class="star ${ig?'on':''}" title="${ig?'取消金句':'设为金句（开头播放）'}" onclick="event.stopPropagation();tgG(${x.idx})">★</div>` : '';
-    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div>${goldBtn}</div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${esc(displaySp(x.sp))}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x)}${reasonTag}</div></div>`;
+    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div>${goldBtn}</div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${esc(displaySp(x.sp))}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x, breathByPrev)}${reasonTag}</div></div>`;
   });
   c.innerHTML=h;
 }
 
 function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
-function renderAll(){renderSidebar();renderTx();kpUpdateCount();breathUpdate();updateIntroCount();updateTopbarHistoryButtons()}
+function renderAll(){
+  pruneInvalidBreathCuts();
+  const breaths=breathCandidates();
+  renderSidebar();renderTx({breathCandidates:breaths});kpUpdateCount();breathUpdate(breaths);updateIntroCount();updateTopbarHistoryButtons()
+}
 
 function updateIntroCount(){
   const el=document.getElementById('intro-count');
@@ -2518,9 +2548,15 @@ async function openIntroMaker(){
 function tgS(i){
   if(window.__READ_ONLY)return;
   kpPushUndo();
-  if(del.has(i)){del.delete(i)}
+  let restoreAt=null;
+  if(del.has(i)){
+    del.delete(i);
+    const x=S.find(s=>s.idx===i);
+    restoreAt=x?x.s:null;
+  }
   else{del.add(i);gold.delete(i)}
   um.add(i);renderAll();sv()
+  if(restoreAt!==null) previewRestoredAudio(restoreAt);
 }
 // 标黄/取消金句：最多 3 条。被删的句子不能设金句（先恢复再标）。
 const GOLD_MAX=3;
@@ -2609,8 +2645,15 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
   if(e.target.classList && e.target.classList.contains('pd')){
     const row=e.target.closest('.row'); if(!row) return;
     const idx=+row.id.slice(1), ri=+e.target.dataset.ri;
-    if(pdel[idx]){ pdel[idx].splice(ri,1); if(!pdel[idx].length) delete pdel[idx]; }
-    renderTx(); sv(); hideSelBtn(); return;
+    const restored=pdel[idx]&&pdel[idx][ri] ? {...pdel[idx][ri]} : null;
+    if(pdel[idx]){
+      kpPushUndo();
+      pdel[idx].splice(ri,1);
+      if(!pdel[idx].length) delete pdel[idx];
+    }
+    renderAll(); sv(); hideSelBtn();
+    if(restored) previewRestoredAudio(restored.s);
+    return;
   }
   // 点口癖词（灰虚线）→ 单个标删，写进 pdel。仅纯点击触发；正在划选则放行给选区删除逻辑
   if(e.target.classList && e.target.classList.contains('kp')){
@@ -2683,7 +2726,7 @@ function delSel(){
   kpPushUndo();
   (pdel[hit.idx]=pdel[hit.idx]||[]).push({cs:hit.cs, ce:hit.ce, s:hit.s, e:hit.e});
   um.add(hit.idx);
-  hit.sel.removeAllRanges(); hideSelBtn(); renderTx(); sv();
+  hit.sel.removeAllRanges(); hideSelBtn(); renderAll(); sv();
 }
 
 function addIntroFromSelection(){
@@ -2719,6 +2762,34 @@ function breathRanges(){
     .filter(c=>c && c.status==='shortened')
     .map(c=>[Number(c.deleteStart),Number(c.deleteEnd)])
     .filter(r=>Number.isFinite(r[0])&&Number.isFinite(r[1])&&r[1]>r[0]);
+}
+
+function breathCutDeleteRange(cut){
+  if(!cut) return null;
+  const start=Number(cut.deleteStart);
+  const end=Number(cut.deleteEnd);
+  if(Number.isFinite(start)&&Number.isFinite(end)&&end>start) return {start,end};
+  const fallbackStart=Number(cut.start);
+  const fallbackEnd=Number(cut.end);
+  return Number.isFinite(fallbackStart)&&Number.isFinite(fallbackEnd)&&fallbackEnd>fallbackStart
+    ? {start:fallbackStart,end:fallbackEnd}
+    : null;
+}
+
+function rangesOverlapEnough(a,b,tolerance=0.04){
+  return Math.min(a.end,b.end)-Math.max(a.start,b.start)>tolerance;
+}
+
+function pruneInvalidBreathCuts(){
+  if(!Array.isArray(breathCuts)||!breathCuts.length) return 0;
+  const kept=currentKeptWordTimeline(pdelRanges());
+  const before=breathCuts.length;
+  breathCuts=breathCuts.filter(cut=>{
+    const range=breathCutDeleteRange(cut);
+    if(!range) return false;
+    return !kept.some(word=>rangesOverlapEnough(range,word));
+  });
+  return before-breathCuts.length;
 }
 
 const EXPORT_MERGE_GAP = 0.08;
@@ -2790,7 +2861,7 @@ function snapDeletionRanges(ranges){
 function mergeDeletionRanges(ranges, extendFirstToZero=true){
   const segs=[];let c=null;
   ranges
-    .map(r=>[Number(r[0]),Number(r[1])])
+    .map(r=>Array.isArray(r) ? [Number(r[0]),Number(r[1])] : [Number(r?.start),Number(r?.end)])
     .filter(r=>Number.isFinite(r[0])&&Number.isFinite(r[1])&&r[1]>r[0])
     .sort((p,q)=>p[0]-q[0])
     .forEach(r=>{
@@ -3037,11 +3108,23 @@ window.addEventListener('resize', positionSlider);
 // Compute virtual time (rough cut position) from original time
 function originalToVirtual(origTime) {
   let removedBefore = 0;
-  for(const r of mergeDeletionRanges(rawDeletionRanges(), false)){
+  for(const r of currentPreviewDeletionRanges()){
     if(origTime >= r.end) removedBefore += r.end-r.start;
     else if(origTime > r.start) removedBefore += origTime-r.start;
   }
   return Math.max(0, origTime-removedBefore);
+}
+
+function virtualToOriginal(virtualTime) {
+  const target=Math.max(0,Number(virtualTime)||0);
+  let originalCursor=0, virtualCursor=0;
+  for(const r of currentPreviewDeletionRanges()){
+    const keepDuration=Math.max(0,Number(r.start)-originalCursor);
+    if(target<=virtualCursor+keepDuration) return originalCursor+(target-virtualCursor);
+    virtualCursor+=keepDuration;
+    originalCursor=Math.max(originalCursor,Number(r.end));
+  }
+  return originalCursor+(target-virtualCursor);
 }
 
 // ===== AUDIO =====
@@ -3058,8 +3141,24 @@ function startDrag(e){
   document.addEventListener('mousemove',onMove);
   document.addEventListener('mouseup',onUp);
 }
-function seekFromPos(e){const rc=document.getElementById('ptrk').getBoundingClientRect();const pct=Math.max(0,Math.min(1,(e.clientX-rc.left)/rc.width));if(au.duration){au.currentTime=pct*au.duration;document.getElementById('pfill').style.width=(pct*100)+'%'}}
+function seekFromPos(e){
+  const rc=document.getElementById('ptrk').getBoundingClientRect();
+  const pct=Math.max(0,Math.min(1,(e.clientX-rc.left)/rc.width));
+  if(!au.duration) return;
+  if(previewMode){
+    const stats=currentStats();
+    au.currentTime=Math.min(au.duration,virtualToOriginal(pct*Math.max(0,stats.rc||0)));
+  }else{
+    au.currentTime=pct*au.duration;
+  }
+  document.getElementById('pfill').style.width=(pct*100)+'%';
+}
 function cySpd(){si=(si+1)%spds.length;au.playbackRate=spds[si];document.getElementById('pspd').textContent=spds[si]+'×'}
+function previewRestoredAudio(start){
+  const t=Number(start);
+  if(!Number.isFinite(t)||!au) return;
+  au.currentTime=Math.max(0,t-0.3);
+}
 
 au.addEventListener('play',()=>{pl=true;enableAutoFollowTranscript();document.getElementById('pbtn').textContent='暂停'});
 au.addEventListener('pause',()=>{pl=false;document.getElementById('pbtn').textContent='播放'});
@@ -3067,7 +3166,7 @@ au.addEventListener('loadedmetadata',()=>{ updatePlayerDuration(); });
 
 function updatePlayerDuration() {
   if(previewMode) {
-    const stats = computeStats();
+    const stats = currentStats();
     document.getElementById('pdur').textContent=fm(stats.rc);
   } else {
     document.getElementById('pdur').textContent=fm(au.duration||0);
@@ -3082,7 +3181,7 @@ au.addEventListener('timeupdate',()=>{
     const vt = originalToVirtual(t);
     document.getElementById('ptm').textContent=fm(vt);
     // Progress bar based on virtual time / rough cut duration
-    const stats = computeStats();
+    const stats = currentStats();
     if(stats.rc > 0) document.getElementById('pfill').style.width=(vt/stats.rc*100)+'%';
   } else {
     document.getElementById('ptm').textContent=fm(t);
@@ -3106,10 +3205,8 @@ au.addEventListener('timeupdate',()=>{
     }
   }
   updateNav(t);
-  // Always skip deleted segments during playback (both modes)
-  if(pl)for(const x of S)if(del.has(x.idx)&&t>=x.s&&t<x.e){au.currentTime=x.e+.05;return}
-  if(pl)for(const r of pdelRanges())if(t>=r[0]&&t<r[1]){au.currentTime=r[1]+.02;return}
-  if(pl)for(const r of breathRanges())if(t>=r[0]&&t<r[1]){au.currentTime=r[1]+.02;return}
+  // Always skip the same cut segments that export uses, so preview duration matches the MP3.
+  if(pl)for(const r of currentPreviewDeletionRanges())if(t>=r.start&&t<r.end){au.currentTime=r.end+.02;return}
 });
 
 // ===== EXPORT =====

@@ -56,8 +56,8 @@
       margin-bottom: 12px; padding: 14px 16px;
     }
     .task-item.draft { opacity: 0.82; border-style: dashed; }
-    .task-head { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
-    .task-title { font-size: 15px; font-weight: 750; }
+    .task-head { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; }
+    .task-title { flex: 1; font-size: 15px; font-weight: 750; min-width: 0; }
     .inline-editable {
       border-radius: 7px;
       cursor: text;
@@ -70,6 +70,7 @@
       background: #fff7df;
       box-shadow: 0 0 0 1px rgba(200, 149, 42, 0.22);
     }
+    .inline-editable.saving { opacity: 0.65; }
     .inline-placeholder { color: var(--muted); }
     .badge { border-radius: 999px; font-size: 12px; font-weight: 700; padding: 2px 10px; }
     .badge.pub { background: #e6f4ea; color: #1e7a3c; }
@@ -186,11 +187,11 @@
       uploadFill: document.getElementById('upload-fill'),
       material: document.getElementById('f-material'),
       materialLink: document.getElementById('material-link'),
-      published: document.getElementById('f-published'),
     };
 
     function showError(msg) { els.error.textContent = msg || ''; els.error.classList.toggle('visible', !!msg); }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    function attr(s) { return esc(s).replace(/'/g, '&#39;'); }
 
     async function init() {
       if (auth) setupSessionChrome();
@@ -404,23 +405,117 @@
       }
     }
 
+    function editableHtml(task, field, value, placeholder, className = 'inline-editable') {
+      const text = String(value == null ? '' : value).trim();
+      const tag = field === 'demand' ? 'div' : 'span';
+      const placeholderClass = text ? '' : ' inline-placeholder';
+      return `<${tag} class="${className}${placeholderClass}" contenteditable="true" spellcheck="false" data-field="${attr(field)}" data-placeholder="${attr(placeholder)}">${esc(text || placeholder)}</${tag}>`;
+    }
+
+    function getInlineValue(el) {
+      const value = String(el.innerText || el.textContent || '').replace(/\u00a0/g, ' ');
+      if (el.dataset.field === 'demand') return value.replace(/\n{3,}/g, '\n\n').trim();
+      return value.replace(/\s+/g, ' ').trim();
+    }
+
+    function paintInlineValue(el, value) {
+      const nextValue = String(value == null ? '' : value).trim();
+      if (!nextValue) {
+        el.textContent = el.dataset.placeholder || '';
+        el.classList.add('inline-placeholder');
+        return;
+      }
+      el.textContent = nextValue;
+      el.classList.remove('inline-placeholder');
+    }
+
+    async function saveInlineEdit(task, el) {
+      const field = el.dataset.field;
+      const original = el.dataset.originalValue || '';
+      const value = getInlineValue(el);
+      if (field === 'title' && !value) {
+        paintInlineValue(el, original || task.title || '');
+        showError('任务标题不能为空。');
+        return;
+      }
+      if (value === original) {
+        paintInlineValue(el, value);
+        return;
+      }
+      el.classList.add('saving');
+      try {
+        const data = await apiJson(`/api/orders/admin/tasks/${task.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ [field]: value }),
+        });
+        const nextTask = data.task || {};
+        Object.assign(task, nextTask);
+        paintInlineValue(el, nextTask[field] ?? value);
+        showError('');
+      } catch (err) {
+        paintInlineValue(el, original);
+        showError(err?.message || '保存失败');
+      } finally {
+        el.classList.remove('saving');
+      }
+    }
+
+    function bindInlineEdit(item, task) {
+      item.querySelectorAll('[contenteditable="true"]').forEach((el) => {
+        el.addEventListener('focus', () => {
+          const value = el.classList.contains('inline-placeholder') ? '' : getInlineValue(el);
+          el.dataset.originalValue = value;
+          if (el.classList.contains('inline-placeholder')) {
+            el.textContent = '';
+            el.classList.remove('inline-placeholder');
+          }
+        });
+        el.addEventListener('blur', () => saveInlineEdit(task, el));
+        el.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            paintInlineValue(el, el.dataset.originalValue || '');
+            el.blur();
+            return;
+          }
+          const isLongText = el.dataset.field === 'demand';
+          if (!isLongText && event.key === 'Enter') {
+            event.preventDefault();
+            el.blur();
+          }
+          if (isLongText && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            el.blur();
+          }
+        });
+        el.addEventListener('paste', (event) => {
+          if (el.dataset.field === 'demand') return;
+          event.preventDefault();
+          document.execCommand('insertText', false, event.clipboardData.getData('text/plain').replace(/\s+/g, ' '));
+        });
+      });
+    }
+
     function render(tasks) {
       if (!tasks.length) { els.list.innerHTML = '<div class="empty">还没有任务，先在左边新增一个。</div>'; return; }
       els.list.innerHTML = '';
       tasks.forEach((task) => {
         const item = document.createElement('div');
         item.className = `task-item ${task.published ? '' : 'draft'}`;
-        const meta = [task.client, task.budget, task.difficulty].filter(Boolean).map(esc).join(' · ');
+        const meta = [
+          `价格：${editableHtml(task, 'budget', task.budget, '点这里填价格')}`,
+          `类型：${editableHtml(task, 'difficulty', task.difficulty, '点这里填类型')}`,
+        ].join(' · ');
         const material = task.materialLink
           ? `<div class="task-meta">音频素材：<a href="${esc(task.materialLink)}" target="_blank" rel="noopener">打开音频</a></div>`
           : '';
         item.innerHTML = `
           <div class="task-head">
-            <span class="task-title">${esc(task.title)}</span>
+            ${editableHtml(task, 'title', task.title, '点这里写任务标题', 'task-title inline-editable')}
             <span class="badge ${task.published ? 'pub' : 'draft'}">${task.published ? '已发布' : '草稿'}</span>
           </div>
-          ${meta ? `<div class="task-meta">${meta}</div>` : ''}
-          ${task.demand ? `<div class="task-demand">${esc(task.demand)}</div>` : ''}
+          <div class="task-meta">${meta}</div>
+          ${editableHtml(task, 'demand', task.demand, '点这里写任务需求', 'task-demand inline-editable')}
           ${task.delivery ? `<div class="task-meta">交付：${esc(task.delivery)}</div>` : ''}
           ${material}
           <div class="task-actions">
@@ -431,6 +526,7 @@
         item.querySelector('[data-act=publish]').addEventListener('click', () => togglePublish(task));
         item.querySelector('[data-act=edit]').addEventListener('click', () => startEdit(task));
         item.querySelector('[data-act=del]').addEventListener('click', () => removeTask(task));
+        bindInlineEdit(item, task);
         els.list.appendChild(item);
       });
     }

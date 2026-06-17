@@ -47,7 +47,10 @@ const SMS_IP_WINDOW_MINUTES = Number(process.env.SMS_IP_WINDOW_MINUTES || 10);
 const MAX_VERIFY_ATTEMPTS = Number(process.env.MAX_VERIFY_ATTEMPTS || 5);
 const VERIFY_TTL_MINUTES = Number(process.env.VERIFY_CODE_TTL_MINUTES || 5);
 const LOCK_MINUTES = Number(process.env.VERIFY_LOCK_MINUTES || 30);
-const AUTH_DISABLED = process.env.AUTH_DISABLED !== '0';
+// 安全默认：鉴权默认开启，只有显式设置 AUTH_DISABLED=1 才关闭。
+// （旧逻辑是 !== '0'，默认关闭鉴权，env 一旦漏配=全站后台裸奔、人人是管理员；
+//   2026-06-16 改为安全默认：漏配=锁上而不是大开。要关必须明写 =1。）
+const AUTH_DISABLED = process.env.AUTH_DISABLED === '1';
 const DEV_SEND_CODE_FALLBACK = process.env.ALLOW_DEV_SEND_CODE_FALLBACK === '1';
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/g, '');
 const ADMIN_PHONES = new Set(
@@ -104,6 +107,14 @@ if (!API_KEY) {
 if (!AUTH_DISABLED && !JWT_SECRET) {
   console.error('Missing JWT_SECRET');
   process.exit(1);
+}
+// 启动自检：鉴权一旦处于关闭状态，打一条非常醒目的告警，避免“悄无声息地裸奔”。
+if (AUTH_DISABLED) {
+  console.error('\n' + '='.repeat(60));
+  console.error('⚠️  警告：鉴权已关闭 (AUTH_DISABLED=1)！全站接口无需登录，');
+  console.error('⚠️  后台数据对任何人开放。正式环境严禁如此运行。');
+  console.error('⚠️  如果这不是你的本意，请把 .env 里的 AUTH_DISABLED 改回 0 并重启。');
+  console.error('='.repeat(60) + '\n');
 }
 
 const MIME = {
@@ -2306,7 +2317,7 @@ function createSmsClient() {
 
 const cutJobs = new Map();
 const CUT_JOB_TTL = 2 * 60 * 60 * 1000;
-const CUT_MAX_ACTIVE_JOBS = Number(process.env.CUT_MAX_ACTIVE_JOBS || 2);
+const CUT_MAX_ACTIVE_JOBS = Number(process.env.CUT_MAX_ACTIVE_JOBS || 1);
 const CUT_MAX_ACTIVE_JOBS_PER_USER = Number(process.env.CUT_MAX_ACTIVE_JOBS_PER_USER || 1);
 
 setInterval(() => cleanupAudioJobs(cutJobs, CUT_JOB_TTL), 20 * 60 * 1000);
@@ -2549,7 +2560,7 @@ async function cutProcess(job) {
   }
 
   await new Promise((resolve, reject) => {
-    const pass = spawn('ffmpeg', [...inputs, ...args, '-y', job.outputPath]);
+    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...inputs, ...args, '-y', job.outputPath]);
     pass.stderr.on('data', (chunk) => {
       const line = chunk.toString();
       const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
@@ -2798,7 +2809,7 @@ async function concatProcess(job) {
   args.push('-filter_complex', filter, '-map', '[out]', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath);
 
   await new Promise((resolve, reject) => {
-    const pass = spawn('ffmpeg', args);
+    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...args]);
     pass.stderr.on('data', (chunk) => {
       const t = chunk.toString().match(/time=(\d+):(\d+):(\d+\.\d+)/);
       if (t && totalDur > 0) {
@@ -2848,7 +2859,7 @@ function round3(value) {
 const refineJobs = new Map();
 const REFINE_JOB_TTL = 2 * 60 * 60 * 1000; // 2 hours
 const REFINE_MAX_BYTES = 500 * 1024 * 1024;
-const REFINE_MAX_ACTIVE_JOBS = Number(process.env.REFINE_MAX_ACTIVE_JOBS || 2);
+const REFINE_MAX_ACTIVE_JOBS = Number(process.env.REFINE_MAX_ACTIVE_JOBS || 1);
 const REFINE_MAX_ACTIVE_JOBS_PER_USER = Number(process.env.REFINE_MAX_ACTIVE_JOBS_PER_USER || 1);
 
 setInterval(() => {
@@ -3014,7 +3025,7 @@ function refineProcess(job) {
     job.progress = 10;
     job.log.push(`正在处理: ${describeRefineJob(job).join('、')}`);
 
-    const pass = spawn('ffmpeg', ['-i', job.inputPath, '-af', audioFilter, '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath]);
+    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', '-i', job.inputPath, '-af', audioFilter, '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath]);
     pass.stderr.on('data', d => {
       const line = d.toString();
       const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
