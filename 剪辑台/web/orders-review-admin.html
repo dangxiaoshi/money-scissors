@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 订单审核</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #f5f0e8;
+      --surface: #fffcf0;
+      --surface-2: #fff7e8;
+      --line: rgba(200, 149, 42, 0.24);
+      --line-strong: rgba(184, 130, 30, 0.38);
+      --gold: #c8952a;
+      --gold-deep: #9b681d;
+      --ink: #22180d;
+      --ink-2: #5f513b;
+      --muted: #897653;
+      --green: #247343;
+      --red: #aa4a35;
+      --shadow: 0 14px 34px rgba(115, 82, 29, 0.13);
+    }
+
+    body {
+      background: linear-gradient(160deg, #f6edcf 0%, #ead9a6 55%, #ddc98c 100%);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    button, a {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .shell {
+      display: grid;
+      gap: 18px;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 100vh;
+      padding: 22px;
+    }
+
+    .topbar {
+      align-items: end;
+      display: flex;
+      gap: 18px;
+      justify-content: space-between;
+    }
+
+    h1 {
+      font-size: clamp(27px, 4vw, 40px);
+      line-height: 1.08;
+      margin: 0 0 8px;
+    }
+
+    .sub {
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      align-items: center;
+      border-radius: 999px;
+      display: inline-flex;
+      font-size: 13px;
+      font-weight: 850;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 15px;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, #b8821e, #c8952a, #e8b84b);
+      color: #fff;
+    }
+
+    .btn.secondary {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--gold-deep);
+    }
+
+    .btn.dark {
+      background: #2f271d;
+      color: #fff8e8;
+    }
+
+    .btn.good {
+      background: #e3f1e6;
+      color: var(--green);
+    }
+
+    .btn.bad {
+      background: #f7dfd7;
+      color: var(--red);
+    }
+
+    .metrics {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+    }
+
+    .metric {
+      background: rgba(255, 252, 240, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      font-weight: 750;
+      margin-bottom: 4px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 23px;
+      line-height: 1;
+    }
+
+    .workspace {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(420px, 0.9fr) minmax(560px, 1.2fr);
+      min-height: 0;
+    }
+
+    .panel {
+      background: rgba(255, 252, 240, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      padding: 15px 16px;
+    }
+
+    .panel-title {
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tab {
+      background: #f2e6cf;
+      border-radius: 999px;
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 850;
+      min-height: 30px;
+      padding: 0 10px;
+    }
+
+    .tab.active {
+      background: #2f271d;
+      color: #fff8e8;
+    }
+
+    .order-list {
+      display: grid;
+      gap: 10px;
+      height: calc(100vh - 218px);
+      min-height: 560px;
+      overflow: auto;
+      padding: 13px;
+    }
+
+    .order-row {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 58px minmax(0, 1fr) 86px;
+      min-height: 108px;
+      padding: 13px;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+      width: 100%;
+    }
+
+    .order-row:hover,
+    .order-row.active {
+      background: #fff4df;
+      border-color: var(--gold);
+      transform: translateY(-1px);
+    }
+
+    .order-no {
+      align-items: center;
+      background: var(--gold);
+      border-radius: 8px;
+      color: #fff;
+      display: flex;
+      font-size: 17px;
+      font-weight: 950;
+      height: 46px;
+      justify-content: center;
+      width: 46px;
+    }
+
+    .order-title {
+      font-size: 15px;
+      font-weight: 900;
+      line-height: 1.35;
+      margin-bottom: 8px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      background: #f1e5cf;
+      border-radius: 999px;
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 780;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+
+    .chip.warn {
+      background: #f8e1d9;
+      color: var(--red);
+    }
+
+    .chip.good {
+      background: #e4f1e7;
+      color: var(--green);
+    }
+
+    .count-box {
+      align-self: center;
+      background: #fffaf1;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 6px;
+      text-align: center;
+    }
+
+    .count-box strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .count-box span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .detail-body {
+      display: grid;
+      gap: 13px;
+      grid-template-columns: minmax(250px, 0.84fr) minmax(360px, 1.16fr);
+      height: calc(100vh - 218px);
+      min-height: 560px;
+      overflow: hidden;
+      padding: 13px;
+    }
+
+    .subpanel {
+      background: #fffaf1;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 0;
+      overflow: auto;
+      padding: 15px;
+    }
+
+    .subpanel h2,
+    .subpanel h3 {
+      font-size: 16px;
+      margin: 0 0 12px;
+    }
+
+    .block {
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 13px;
+      padding-bottom: 13px;
+    }
+
+    .block:last-child {
+      border-bottom: 0;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+
+    .text {
+      color: var(--ink-2);
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    .submission-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .submission {
+      background: #fffdf8;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .submission-head {
+      align-items: center;
+      background: #fbefd9;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      padding: 11px 13px;
+    }
+
+    .student {
+      align-items: center;
+      display: flex;
+      gap: 9px;
+      font-weight: 900;
+      min-width: 0;
+    }
+
+    .work-no {
+      align-items: center;
+      background: var(--gold);
+      border-radius: 8px;
+      color: #fff;
+      display: inline-flex;
+      flex: 0 0 auto;
+      font-weight: 950;
+      height: 32px;
+      justify-content: center;
+      width: 40px;
+    }
+
+    .submission-body {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      padding: 13px;
+    }
+
+    .note {
+      background: var(--surface-2);
+      border: 1px solid rgba(200, 149, 42, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .note h4 {
+      font-size: 13px;
+      margin: 0 0 8px;
+    }
+
+    .note p,
+    .note li {
+      color: var(--ink-2);
+      font-size: 13px;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .note ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .submission-actions {
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 13px;
+    }
+
+    .empty,
+    .notice {
+      background: rgba(255, 252, 240, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .notice {
+      text-align: left;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1060px) {
+      .shell {
+        height: auto;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .metrics,
+      .workspace,
+      .detail-body {
+        grid-template-columns: 1fr;
+      }
+
+      .order-list,
+      .detail-body {
+        height: auto;
+        min-height: 0;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        padding: 14px;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .order-row {
+        grid-template-columns: 52px minmax(0, 1fr);
+      }
+
+      .count-box {
+        grid-column: 1 / -1;
+      }
+
+      .submission-body {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>订单审核</h1>
+        <p class="sub">按订单排队。助教先处理 001、002、003，点进订单后再看这个订单下的 1号、2号、3号作品。</p>
+      </div>
+      <div class="top-actions">
+        <a class="btn secondary" href="/orders/">看学员接单台</a>
+        <a class="btn secondary" href="/orders-admin.html">接单后台</a>
+        <a class="btn secondary" href="/admin.html">系统后台</a>
+      </div>
+    </header>
+
+    <section class="metrics">
+      <div class="metric"><span>待审核订单</span><strong id="metric-orders">0</strong></div>
+      <div class="metric"><span>已抢作品</span><strong id="metric-claims">0</strong></div>
+      <div class="metric"><span>待审核作品</span><strong id="metric-reviewing">0</strong></div>
+      <div class="metric"><span>当前版本</span><strong>真实数据</strong></div>
+    </section>
+
+    <div class="notice" id="login-notice">
+      正在读取测试站真实订单。若这里提示没权限，请先用管理员手机号登录测试站，再打开本页。
+    </div>
+
+    <section class="workspace hidden" id="workspace">
+      <aside class="panel">
+        <div class="panel-head">
+          <div class="panel-title">订单列表</div>
+          <div class="tabs">
+            <button class="tab active" type="button">待审核</button>
+            <button class="tab" type="button">已采用</button>
+            <button class="tab" type="button">全部</button>
+          </div>
+        </div>
+        <div class="order-list" id="order-list"></div>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title" id="detail-title">订单详情</div>
+            <p class="sub" id="detail-subtitle"></p>
+          </div>
+          <div class="tabs">
+            <button class="tab active" type="button">详情</button>
+            <button class="tab" type="button">记录</button>
+          </div>
+        </div>
+        <div class="detail-body">
+          <div class="subpanel" id="brief-panel"></div>
+          <div class="subpanel">
+            <h3>提交作品</h3>
+            <div class="submission-stack" id="submission-stack"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module">
+    import { apiJson, readAuth, getLoginUrl } from './js/api.js?v=20260617-orders-review-real';
+
+    let tasks = [];
+    let selectedId = '';
+
+    const els = {
+      notice: document.getElementById('login-notice'),
+      workspace: document.getElementById('workspace'),
+      orderList: document.getElementById('order-list'),
+      detailTitle: document.getElementById('detail-title'),
+      detailSubtitle: document.getElementById('detail-subtitle'),
+      briefPanel: document.getElementById('brief-panel'),
+      submissionStack: document.getElementById('submission-stack'),
+      metricOrders: document.getElementById('metric-orders'),
+      metricClaims: document.getElementById('metric-claims'),
+      metricReviewing: document.getElementById('metric-reviewing'),
+    };
+
+    load();
+
+    async function load() {
+      const auth = readAuth();
+      if (!auth?.token) {
+        els.notice.innerHTML = `请先登录测试站管理员账号。<a class="btn primary" href="${getLoginUrl('/orders-review-admin.html')}">去登录</a>`;
+        return;
+      }
+
+      try {
+        const data = await apiJson('/api/orders/admin/review');
+        const claims = Array.isArray(data.claims) ? data.claims.map(normalizeClaim) : [];
+        tasks = (Array.isArray(data.tasks) ? data.tasks : [])
+          .filter((task) => task.published)
+          .sort((a, b) => Number(a.sortOrder || a.id || 0) - Number(b.sortOrder || b.id || 0))
+          .map((task) => normalizeTask(task, claims));
+        selectedId = tasks[0]?.id || '';
+        render();
+      } catch (error) {
+        els.notice.innerHTML = `读取订单失败：${escapeHtml(error?.message || '未知错误')}。请确认当前登录的是管理员账号。`;
+      }
+    }
+
+    function normalizeTask(task, claims = []) {
+      const demand = String(task.demand || '').trim();
+      const sections = parseDemand(demand);
+      const claimCount = Number(task.claimCount || task.claim_count || 0);
+      const reviewingCount = Number(task.reviewingCount || task.reviewing_count || 0);
+      const maxClaims = Number(task.maxClaims || task.max_claims || 5);
+      const taskId = String(task.id);
+      return {
+        id: taskId,
+        title: task.title || `接单任务 ${task.id}`,
+        type: task.difficulty || inferType(task.title, demand),
+        price: task.budget || extractPrice(demand) || '待定',
+        client: task.client || '',
+        demand,
+        delivery: task.delivery || '',
+        materialLink: task.materialLink || task.material_link || '',
+        claimCount,
+        reviewingCount,
+        maxClaims,
+        claims: claims.filter((claim) => String(claim.taskId) === taskId),
+        target: [sections.intro, sections.target].filter(Boolean).join('\n\n') || demand || '后台还没有填写任务需求。',
+        keep: sections.keep || '按任务需求保留核心信息。',
+        remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
+        submit: sections.submit || sections.ad || '提交前确认符合任务需求，并能顺畅收听。',
+      };
+    }
+
+    function normalizeClaim(claim) {
+      return {
+        id: String(claim.id || ''),
+        taskId: String(claim.taskId || claim.task_id || ''),
+        userId: String(claim.userId || claim.user_id || ''),
+        editorName: claim.editorName || claim.editor_name || '未命名学员',
+        editorPhone: claim.editorPhone || claim.editor_phone || '',
+        status: claim.status || 'in_progress',
+        claimedAt: claim.claimedAt || claim.claimed_at || '',
+        updatedAt: claim.updatedAt || claim.updated_at || '',
+        submittedAt: claim.submittedAt || claim.submitted_at || '',
+        projectId: claim.projectId || claim.project_id || '',
+        snapshotId: claim.snapshotId || claim.snapshot_id || '',
+        snapshot: claim.snapshot || null,
+      };
+    }
+
+    function render() {
+      els.notice.classList.add('hidden');
+      els.workspace.classList.remove('hidden');
+      els.metricOrders.textContent = String(tasks.length);
+      els.metricClaims.textContent = String(tasks.reduce((sum, task) => sum + task.claimCount, 0));
+      els.metricReviewing.textContent = String(tasks.reduce((sum, task) => sum + task.reviewingCount, 0));
+      renderList();
+      renderDetail();
+    }
+
+    function renderList() {
+      if (!tasks.length) {
+        els.orderList.innerHTML = '<div class="empty">还没有发布中的订单。</div>';
+        return;
+      }
+      els.orderList.innerHTML = tasks.map((task, index) => `
+        <button class="order-row ${task.id === selectedId ? 'active' : ''}" type="button" data-id="${escapeAttr(task.id)}">
+          <div class="order-no">${String(index + 1).padStart(3, '0')}</div>
+          <div>
+            <div class="order-title">${escapeHtml(task.title)}</div>
+            <div class="chips">
+              <span class="chip">${escapeHtml(task.type)}</span>
+              <span class="chip">${escapeHtml(task.price)}</span>
+              <span class="chip">${task.claimCount}/${task.maxClaims} 已抢</span>
+              <span class="chip warn">${task.reviewingCount ? `${task.reviewingCount} 待审核` : '待提交'}</span>
+            </div>
+          </div>
+          <div class="count-box">
+            <strong>${task.claimCount}</strong>
+            <span>人已抢</span>
+          </div>
+        </button>
+      `).join('');
+      els.orderList.querySelectorAll('[data-id]').forEach((row) => {
+        row.addEventListener('click', () => {
+          selectedId = row.dataset.id;
+          renderList();
+          renderDetail();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const task = tasks.find((item) => item.id === selectedId);
+      if (!task) {
+        els.detailTitle.textContent = '订单详情';
+        els.detailSubtitle.textContent = '';
+        els.briefPanel.innerHTML = '<div class="empty">请选择左侧订单。</div>';
+        els.submissionStack.innerHTML = '';
+        return;
+      }
+
+      els.detailTitle.textContent = `订单 ${task.id} · ${task.title}`;
+      els.detailSubtitle.textContent = `${task.type} / ${task.price} / ${task.claimCount}/${task.maxClaims} 人已抢`;
+      els.briefPanel.innerHTML = `
+        <h2>订单要求</h2>
+        ${block('剪辑目标', task.target)}
+        ${block('必须保留', task.keep)}
+        ${block('必须删除 / 压缩', task.remove)}
+        ${block('提交重点', task.submit)}
+        ${block('AI参考意见', buildAiHint(task))}
+        ${block('素材', task.materialLink ? `<a class="btn secondary" href="${escapeAttr(task.materialLink)}" target="_blank" rel="noopener">打开素材</a>` : '这条订单暂未挂素材链接。', true)}
+      `;
+
+      els.submissionStack.innerHTML = buildSubmissions(task);
+    }
+
+    function buildSubmissions(task) {
+      const claims = [...task.claims].sort((a, b) => {
+        const aTime = Date.parse(a.claimedAt || a.updatedAt || '') || 0;
+        const bTime = Date.parse(b.claimedAt || b.updatedAt || '') || 0;
+        return aTime - bTime || Number(a.id || 0) - Number(b.id || 0);
+      });
+      const emptySlots = Math.max(Math.min(task.maxClaims || 5, 3) - claims.length, 0);
+      const realItems = claims.map((claim, index) => {
+        const no = index + 1;
+        const status = claimStatusLabel(claim.status);
+        const isReviewing = claim.status === 'submitted';
+        const hasSnapshot = Boolean(claim.snapshotId);
+        return `
+          <article class="submission">
+            <div class="submission-head">
+              <div class="student"><span class="work-no">${no}号</span><span>${escapeHtml(claim.editorName)}</span></div>
+              <div class="chips">
+                <span class="chip ${isReviewing ? 'warn' : ''}">${escapeHtml(status)}</span>
+                ${claim.editorPhone ? `<span class="chip">${escapeHtml(claim.editorPhone)}</span>` : ''}
+              </div>
+            </div>
+            <div class="submission-body">
+              <div class="note">
+                <h4>学员剪辑说明</h4>
+                <p>${hasSnapshot ? `已提交审核：${escapeHtml(formatTime(claim.submittedAt || claim.snapshot?.createdAt || claim.updatedAt))}` : `已抢单：${escapeHtml(formatTime(claim.claimedAt))}。还没有提交审核作品。`}</p>
+                ${claim.snapshot ? `<p>项目：${escapeHtml(claim.snapshot.fileName || '未命名音频')}；粗剪约 ${formatDuration(claim.snapshot.roughcutDuration)}。</p>` : ''}
+              </div>
+              <div class="note">
+                <h4>AI参考意见</h4>
+                <ul>
+                  <li>先按订单要求听开头、结尾和关键保留内容。</li>
+                  <li>重点判断是否符合派单需求，而不是只看剪得短不短。</li>
+                  <li>如果不确定，优先打回补剪辑说明，不直接采用。</li>
+                </ul>
+              </div>
+            </div>
+            <div class="submission-actions">
+              <button class="btn secondary" type="button">试听成品</button>
+              ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : '<button class="btn secondary" type="button" disabled>未提交</button>'}
+              <button class="btn good" type="button">采用这个</button>
+              <button class="btn bad" type="button">打回修改</button>
+              <button class="btn secondary" type="button">标记未采用</button>
+            </div>
+          </article>
+        `;
+      });
+      const emptyItems = Array.from({ length: emptySlots }, (_, index) => `
+        <div class="empty">${claims.length + index + 1}号位置还没有学员抢单或提交。</div>
+      `);
+      return [...realItems, ...emptyItems].join('') || '<div class="empty">这条订单还没有真实抢单记录。</div>';
+    }
+
+    function claimStatusLabel(status) {
+      const labels = {
+        in_progress: '制作中',
+        submitted: '待审核',
+        returned: '打回修改',
+        completed: '已采用',
+        rejected: '未采用',
+      };
+      return labels[status] || status || '制作中';
+    }
+
+    function formatTime(value) {
+      if (!value) return '暂无时间';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mi = String(date.getMinutes()).padStart(2, '0');
+      return `${mm}-${dd} ${hh}:${mi}`;
+    }
+
+    function formatDuration(seconds) {
+      const value = Number(seconds || 0);
+      if (!Number.isFinite(value) || value <= 0) return '暂无';
+      const minutes = Math.floor(value / 60);
+      const rest = Math.round(value % 60);
+      return `${minutes}:${String(rest).padStart(2, '0')}`;
+    }
+
+    function block(label, value, raw = false) {
+      return `
+        <div class="block">
+          <div class="label">${escapeHtml(label)}</div>
+          <p class="text">${raw ? value : escapeHtml(value)}</p>
+        </div>
+      `;
+    }
+
+    function buildAiHint(task) {
+      if (/咨询/.test(`${task.title} ${task.type} ${task.demand}`)) {
+        return '咨询录音重点看：是否保留了“问题怎么被诊断出来”的过程，是否删掉过私、过碎、只对当事人有用的细节。';
+      }
+      if (/销售|发售|招商/.test(`${task.title} ${task.type} ${task.demand}`)) {
+        return '销售类订单重点看：是否放大了成交故事和身份转变，是否删掉私人寒暄，是否能自然接到引流钩子。';
+      }
+      if (/直播|课/.test(`${task.title} ${task.type} ${task.demand}`)) {
+        return '直播课订单重点看：是否去掉直播现场废话，保留课程主线、关键案例和行动步骤。';
+      }
+      return '先检查三件事：符合派单需求，开头结尾完整，音频听感顺畅。AI只给参考，最终由助教判断。';
+    }
+
+    function parseDemand(text) {
+      const result = {};
+      const firstHeading = text.search(/\n\s*(成品目标|必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]/);
+      if (firstHeading > 0) result.intro = text.slice(0, firstHeading).trim();
+      const pairs = [
+        ['target', /成品目标[:：]([\s\S]*?)(?=\n\s*(必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
+        ['keep', /必须保留[:：]([\s\S]*?)(?=\n\s*(必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
+        ['remove', /必须删除[:：]([\s\S]*?)(?=\n\s*(广告\/引流口径|广告|提交重点)[:：]|$)/],
+        ['ad', /广告\/引流口径[:：]([\s\S]*?)(?=\n\s*提交重点[:：]|$)/],
+        ['submit', /提交重点[:：]([\s\S]*?)$/],
+      ];
+      pairs.forEach(([key, pattern]) => {
+        const match = text.match(pattern);
+        if (match?.[1]) result[key] = match[1].trim();
+      });
+      if (result.ad && result.submit) result.submit = `${result.ad}\n\n${result.submit}`;
+      return result;
+    }
+
+    function extractPrice(text) {
+      const match = String(text || '').match(/(\d+\s*元)/);
+      return match ? match[1].replace(/\s+/g, '') : '';
+    }
+
+    function inferType(title, demand) {
+      const text = `${title || ''} ${demand || ''}`;
+      if (/咨询/.test(text)) return '咨询录音';
+      if (/销售|发售/.test(text)) return '销售录音';
+      if (/直播|课/.test(text)) return '直播课';
+      if (/访谈/.test(text)) return '访谈播客';
+      return '真实任务';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

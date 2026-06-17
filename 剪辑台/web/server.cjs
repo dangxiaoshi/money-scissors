@@ -335,6 +335,20 @@ const statements = {
       AND c.status != 'abandoned'
     ORDER BY c.updated_at DESC, c.claimed_at DESC
   `),
+  listDispatchReviewClaims: db.prepare(`
+    SELECT c.*, u.phone, u.nickname,
+      s.file_name AS snapshot_file_name,
+      s.original_duration AS snapshot_original_duration,
+      s.roughcut_duration AS snapshot_roughcut_duration,
+      s.removed_duration AS snapshot_removed_duration,
+      s.status AS snapshot_status,
+      s.created_at AS snapshot_created_at
+    FROM dispatch_claims c
+    LEFT JOIN users u ON u.id = c.user_id
+    LEFT JOIN review_snapshots s ON s.id = c.snapshot_id
+    WHERE c.status != 'abandoned'
+    ORDER BY c.task_id ASC, c.claimed_at ASC, c.id ASC
+  `),
   insertDispatchClaim: db.prepare(`
     INSERT INTO dispatch_claims (task_id, user_id, status, claimed_at, updated_at)
     VALUES (@task_id, @user_id, @status, @claimed_at, @updated_at)
@@ -353,6 +367,17 @@ const statements = {
         abandoned_at = @abandoned_at,
         updated_at = @updated_at
     WHERE id = @id AND user_id = @user_id AND status IN ('in_progress', 'returned')
+  `),
+  markDispatchClaimSubmitted: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'submitted',
+        submitted_at = @submitted_at,
+        updated_at = @updated_at,
+        project_id = @project_id,
+        snapshot_id = @snapshot_id
+    WHERE task_id = @task_id
+      AND user_id = @user_id
+      AND status != 'abandoned'
   `),
 };
 
@@ -724,6 +749,46 @@ function publicDispatchClaim(row, taskRow = null) {
   };
 }
 
+function publicDispatchReviewClaim(row) {
+  const snapshotStatus = row.snapshot_status || '';
+  const visibleStatus = snapshotStatus === 'rejected'
+    ? 'returned'
+    : snapshotStatus === 'approved'
+      ? 'completed'
+      : row.status || 'in_progress';
+  return {
+    id: Number(row.id || 0),
+    taskId: Number(row.task_id || 0),
+    userId: Number(row.user_id || 0),
+    editorPhone: row.phone ? maskPhone(row.phone) : '',
+    editorName: (row.nickname || row.phone) ? (row.nickname || maskPhone(row.phone)) : `学员${row.user_id || ''}`,
+    status: visibleStatus,
+    claimedAt: row.claimed_at || null,
+    updatedAt: row.updated_at || null,
+    submittedAt: row.submitted_at || null,
+    reviewedAt: row.reviewed_at || null,
+    completedAt: row.completed_at || null,
+    reviewNote: row.review_note || '',
+    projectId: row.project_id || '',
+    snapshotId: row.snapshot_id || '',
+    snapshot: row.snapshot_id ? {
+      id: row.snapshot_id,
+      fileName: row.snapshot_file_name || '未命名音频',
+      status: row.snapshot_status || 'pending_review',
+      originalDuration: Number(row.snapshot_original_duration || 0),
+      roughcutDuration: Number(row.snapshot_roughcut_duration || 0),
+      removedDuration: Number(row.snapshot_removed_duration || 0),
+      createdAt: row.snapshot_created_at || null,
+    } : null,
+  };
+}
+
+function readDispatchTaskIdFromPayload(payload) {
+  const raw = payload?.dispatchTask?.id;
+  const taskId = Number(raw);
+  return Number.isFinite(taskId) && taskId > 0 ? taskId : 0;
+}
+
 function dispatchRowToBody(row) {
   return {
     title: row.title,
@@ -873,6 +938,13 @@ async function handleDispatchTasks(req, res, url) {
   // 后台：仅管理员
   const admin = requireAdmin(req, res);
   if (!admin) return;
+
+  if (req.method === 'GET' && url.pathname === '/api/orders/admin/review') {
+    const tasks = statements.listDispatchTasks.all().map(publicDispatchTask);
+    const claims = statements.listDispatchReviewClaims.all().map(publicDispatchReviewClaim);
+    sendJson(res, 200, { tasks, claims });
+    return;
+  }
 
   // 导出备份（误删兜底）
   if (req.method === 'GET' && url.pathname === '/api/orders/admin/tasks.json') {
@@ -1161,6 +1233,17 @@ async function handleProjects(req, res, url) {
       updated_at: now,
       exported_at: now,
     });
+    const dispatchTaskId = readDispatchTaskIdFromPayload(payload);
+    if (dispatchTaskId) {
+      statements.markDispatchClaimSubmitted.run({
+        task_id: dispatchTaskId,
+        user_id: project.row.user_id,
+        submitted_at: now,
+        updated_at: now,
+        project_id: project.row.id,
+        snapshot_id: snapshotId,
+      });
+    }
     statements.completeDay2.run({
       id: project.row.user_id,
       last_active_at: now,
@@ -2317,7 +2400,7 @@ function createSmsClient() {
 
 const cutJobs = new Map();
 const CUT_JOB_TTL = 2 * 60 * 60 * 1000;
-const CUT_MAX_ACTIVE_JOBS = Number(process.env.CUT_MAX_ACTIVE_JOBS || 1);
+const CUT_MAX_ACTIVE_JOBS = Number(process.env.CUT_MAX_ACTIVE_JOBS || 2);
 const CUT_MAX_ACTIVE_JOBS_PER_USER = Number(process.env.CUT_MAX_ACTIVE_JOBS_PER_USER || 1);
 
 setInterval(() => cleanupAudioJobs(cutJobs, CUT_JOB_TTL), 20 * 60 * 1000);
@@ -2335,11 +2418,21 @@ async function handleCut(req, res, url) {
       return;
     }
     if (countActiveCutJobs() >= CUT_MAX_ACTIVE_JOBS) {
-      sendJson(res, 429, { error: 'cut_busy', message: '当前剪辑任务较多，请稍后再试。' });
+      sendJson(res, 429, {
+        error: 'cut_busy',
+        message: '现在生成备用 MP3 的人比较多，先不用反复点。已经剪完请先点“提交审核”交给助教；备用 MP3 稍后再生成。',
+        retryAfterSeconds: 60,
+        activeJobs: countActiveCutJobs(),
+        maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
+      });
       return;
     }
     if (countActiveCutJobs(user.id) >= CUT_MAX_ACTIVE_JOBS_PER_USER) {
-      sendJson(res, 429, { error: 'cut_user_busy', message: '你已有剪辑任务在处理中，请完成后再提交新的音频。' });
+      sendJson(res, 429, {
+        error: 'cut_user_busy',
+        message: '你已有备用 MP3 正在生成中，请保持页面打开等待完成，不用重复提交。',
+        retryAfterSeconds: 30,
+      });
       return;
     }
 

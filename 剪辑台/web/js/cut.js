@@ -25,10 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const label = els.download.textContent;
     clearError();
     els.download.disabled = true;
-    els.download.textContent = '正在下载…';
+    els.download.textContent = '准备下载…';
     try {
       postUsage('download').catch(() => {});
-      await triggerDownload(outputUrl, outputName || buildOutputName(false));
+      await triggerDownload(outputUrl, outputName || buildOutputName(false), ({ received, total }) => {
+        const percent = total ? Math.floor((received / total) * 100) : 0;
+        els.download.textContent = total ? `正在下载 ${percent}%` : '正在下载…';
+        const detail = total
+          ? `已准备 ${formatBytes(received)} / ${formatBytes(total)}，请不要关闭页面。`
+          : `已准备 ${formatBytes(received)}，请不要关闭页面。`;
+        setStatus('正在下载备用 MP3', detail, total ? Math.max(92, Math.min(99, percent)) : 98);
+      });
       setStatus('下载已开始', '如果没有看到文件，请看一下浏览器右上角下载记录或下载文件夹。', 100);
     } catch (error) {
       showError(error.message || String(error));
@@ -46,12 +53,12 @@ async function runCut() {
   if (!data.audioUrl) throw new Error('缺少原始音频 URL，请从审查页重新导出。');
   if (!Array.isArray(data.segments)) throw new Error('缺少删除段数据，请从审查页重新导出。');
 
-  setStatus('提交剪辑任务', '服务器正在准备生成 MP3，请保持页面打开。', 5);
+  setStatus('提交剪辑任务', '这是备用 MP3，不影响提交给助教；请保持页面打开。', 5);
   const cutJob = await startServerCut(data);
   const cutResult = await pollServerCut(cutJob.jobId);
   if (!cutResult) throw new Error('剪辑任务未完成');
 
-  setStatus('生成下载链接', '正在准备 MP3 下载。', 92);
+  setStatus('生成下载链接', '正在准备备用 MP3 下载。', 92);
   const roughcutUrl = `/api/cut/download/${encodeURIComponent(cutJob.jobId)}`;
 
   const refineSettings = data.refineSettings || {};
@@ -69,7 +76,7 @@ async function runCut() {
   outputUrl = roughcutUrl;
   outputName = buildOutputName(false);
   els.download.textContent = '下载粗剪 MP3';
-  setStatus('备用 MP3 已生成', '可以下载自己先听；正式作业状态请回我的项目查看。', 100);
+  setStatus('备用 MP3 已生成', '可以下载自己先听；如果已经点过提交审核，助教后台已经能看到。', 100);
   els.download.disabled = false;
   els.download.classList.add('ready');
 }
@@ -105,8 +112,8 @@ async function pollServerCut(jobId) {
     if (Number.isFinite(progress)) setProgress(Math.max(5, Math.min(99, progress)));
     if (data.status === 'done' || data.stage === 'done') return true;
     if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || '剪辑处理失败');
-    if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频。', Math.max(10, Math.min(30, progress || 10)));
-    else setStatus('正在生成粗剪 MP3', '服务器正在剪辑并编码 MP3。', Math.max(30, Math.min(95, progress || 30)));
+    if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频；这是备用 MP3，不用重复提交。', Math.max(10, Math.min(30, progress || 10)));
+    else setStatus('正在生成粗剪 MP3', '服务器正在剪辑并编码 MP3；请保持页面打开。', Math.max(30, Math.min(95, progress || 30)));
   }
   throw new Error('剪辑等待超时，请稍后重试。');
 }
@@ -142,7 +149,7 @@ async function runRefine(blob, filename, refineSettings) {
   els.download.textContent = '下载精修版 MP3';
   els.download.disabled = false;
   els.download.classList.add('ready');
-  setStatus('备用精修 MP3 已生成', '可以下载自己先听；正式作业状态请回我的项目查看。', 100);
+  setStatus('备用精修 MP3 已生成', '可以下载自己先听；如果已经点过提交审核，助教后台已经能看到。', 100);
 }
 
 async function pollRefine(jobId, optionText) {
@@ -194,7 +201,7 @@ function setDownload(blob, filename, label) {
   els.download.textContent = label;
 }
 
-async function triggerDownload(url, filename) {
+async function triggerDownload(url, filename, onProgress) {
   let href = url;
   let revoke = false;
   if (!url.startsWith('blob:')) {
@@ -203,10 +210,12 @@ async function triggerDownload(url, filename) {
       const data = await resp.json().catch(() => ({}));
       throw new Error(data.message || data.error || `下载失败：HTTP ${resp.status}`);
     }
-    const blob = await resp.blob();
+    const blob = await readBlobWithProgress(resp, onProgress);
     if (!blob.size) throw new Error('下载文件为空，请重新生成 MP3。');
     href = URL.createObjectURL(blob);
     revoke = true;
+  } else if (typeof onProgress === 'function') {
+    onProgress({ received: 1, total: 1 });
   }
 
   const a = document.createElement('a');
@@ -219,6 +228,31 @@ async function triggerDownload(url, filename) {
     a.remove();
     if (revoke) URL.revokeObjectURL(href);
   }, 30000);
+}
+
+async function readBlobWithProgress(resp, onProgress) {
+  const total = Number(resp.headers.get('content-length') || 0);
+  const type = resp.headers.get('content-type') || 'audio/mpeg';
+
+  if (!resp.body || !resp.body.getReader) {
+    const blob = await resp.blob();
+    if (typeof onProgress === 'function') onProgress({ received: blob.size, total: blob.size || total });
+    return blob;
+  }
+
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    if (typeof onProgress === 'function') onProgress({ received, total });
+  }
+
+  return new Blob(chunks, { type });
 }
 
 function buildOutputName(refined) {
@@ -237,6 +271,13 @@ function setStatus(status, detail, progress) {
 
 function setProgress(progress) {
   els.progress.style.width = `${clamp(progress, 0, 100)}%`;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${value} B`;
 }
 
 function showError(message) {
