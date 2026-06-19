@@ -114,6 +114,10 @@ export function buildReviewPayload(sentences, {
   blocks = [],
   chapters,
   audioUrl,
+  storage,
+  objectKey,
+  bucket,
+  region,
   fileName,
   subtitlesWords,
 } = {}) {
@@ -131,7 +135,7 @@ export function buildReviewPayload(sentences, {
     })),
   }));
 
-  return {
+  const payload = {
     version: 'jinqian_m1',
     createdAt: new Date().toISOString(),
     audioUrl,
@@ -141,6 +145,11 @@ export function buildReviewPayload(sentences, {
     CHAPS: chapters || autoChapters(S),
     subtitlesWords,
   };
+  if (storage) payload.storage = storage;
+  if (objectKey) payload.objectKey = objectKey;
+  if (bucket) payload.bucket = bucket;
+  if (region) payload.region = region;
+  return payload;
 }
 
 function normalizeBlocks(blocks) {

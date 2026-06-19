@@ -31,6 +31,7 @@ function uploadAudioToServer(file, { onProgress } = {}) {
       }
       resolve({
         audioUrl: data.audioUrl,
+        storage: data.storage || 'local',
         objectKey: data.objectKey,
         bucket: data.bucket,
         region: data.region,

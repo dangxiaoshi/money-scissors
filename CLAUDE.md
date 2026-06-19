@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-06-17 晚
+> 更新：2026-06-18 夜
 
 ---
 
@@ -44,10 +44,10 @@
 
 | 优先级 | 事项 | 状态 |
 |---|---|---|
-| A0 | 🔴 下载卡住，无法交给助教 | 6/17 晚已升级为交付阻断。独立需求单：`需求讨论/2026-06-17_下载卡住交付阻断需求单.md`。查到不是单纯“原音频慢”，而是提交审核口径、生成 MP3 并发/排队、下载体验、原音频 ECS 带宽叠加。先止血和口径纠偏，再做生成队列/下载体验，最后做 OSS/CDN。 |
+| A0 | 🔴 下载卡住，无法交给助教 | 6/18 测试站 OSS 水管已验通，正式站未动。测试站现在可上传原音频到 OSS、转写时服务器现签、导出时 ECS 内网拉原音频、产物 MP3 写 OSS、下载 302 跳 OSS，绕开 ECS 下载带宽；前端最小 `storage/objectKey` 传递、旧项目重开重新签名、cut 队列错接防护也已补。接单任务后台上传 OSS 音频改为保存稳定材料入口，转写/生成 MP3 时再现签，不会 2 小时后过期。下一步：当当真人在 8090 跑单音频页面全流程；通过后再定正式站灰度切 OSS。 |
 | A | 🔴 H2 真短信 + 删除验证码后门 | 进行中。企业资质已过、短信 RAM 小钥匙已建、签名名定为 `成都当前文化`；等当当盖章授权书、提交签名/模板并审核通过后，先配测试站真机收码，再推正式站并删除 `devCode` 明文返回后门。本窗口先不要动 `server.cjs`、`.env`、验证码代码。 |
 | A | 测试站小改收口 | 后台两项已上 8090、正式站未动：①助教审核页「待审核/全部」筛选，待审按先交先排；②审核快照加序号+微信名。**6/17 晚重新判断：审核工作流还没讨论清楚，先不要把测试站小改推正式；正式站后台仍是当前真实标准。下一步先重新设计“作业审核 / 订单审核 / AI参考意见 / 助教分工”口径，再决定测试站代码是保留、调整还是废弃。** 服务器故障弹窗不要混在这批直接推：测试站有第一版，本地有误弹修正版，需先按 `2026-06-17_服务器故障弹窗当前进度与收口方案.md` 重新上测试站验收。 |
-| A | 原音频迁 OSS+CDN | 不再单独排在 H2 后面慢慢等，已纳入 A0 下载阻断需求单的长期解法；但不能一上来全量改 OSS，先确认交付卡点和止血。 |
+| A | 原音频迁 OSS+CDN | 测试站已完成 OSS 阶段一：后端+前端最小链路跑通，真桶前缀 `test/` 隔离，正式站仍 local。暂不做多音频 concat OSS 化；等单音频页面验收和正式站灰度后，再考虑 CDN/生命周期/多音频。 |
 | A | 审核口径和接单台闭环 | 业务口径未拍板：现在系统是提交一次审核快照即解锁接单台，直播口径是审核通过后进接单台。要先定“什么算学员完成、谁释放接单额度、打回是否重锁”，再写状态机。6/17 晚已先做“订单审核页”并上线正式站：`https://bokejianji.cn/orders-review-admin.html`，也已在后台 `admin.html` 顶部加「订单审核」入口。页面按订单排队，读取真实接单台订单、真实抢单记录和真实审核快照；已补绑历史 8 条订单提交作品。采用/打回按钮暂时仍是占位，最终审核状态机未做。 |
 | B | 公安备案结果盯防 | 金钱剪刀、传家宝、主体已提交锦江区网安大队待审核。风险：公安主体填个人，ICP 主体是公司，可能退回要求按单位主体重报。公安号下来后页脚再加川公网安备号。 |
 | B | GitHub 恢复点 | day5 已补推成功：`origin/day5` 对应提交 `1f4f44c`。后续 H2、后台小改推正式、故障弹窗收口、OSS 每个大收口继续留恢复点。 |
@@ -67,6 +67,7 @@
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-06-18 | OSS 下载阻断方案推测试站（正式站未动） | 接手另一窗口 token 中断后的 OSS 迁移，补齐前端最小 `storage/objectKey` 传递并修复 `/codex review` 指出的问题：不同 cut 任务不再错接、`money-scissors-private/` 和 `web/data/cut-jobs/` 已 gitignore、旧 OSS 项目重开会重新签播放链接、OSS 上传流边传边限 500MB、本地多音频不再被误判成 OSS、接单任务 OSS 素材改为稳定入口。测试站备份：`/root/nginx-backups/money-scissors-test-oss-frontend-20260618-203001`、`/root/nginx-backups/money-scissors-test-oss-fix-20260618-204812`、`/root/nginx-backups/money-scissors-test-oss-order-material-20260618-212324`。真接口回归通过：上传 objectKey=`test/uploads/...`，转写 `SUCCEEDED`，旧项目重开返回新 OSS 签名链接，重复 cut 续接同 job，不同 cut 返回 `cut_user_busy`，下载 302 到 `test/cut/...` 且 OSS HTTP 200；接单任务材料入口 `/api/orders/material/...` 可 302 到 OSS、DashScope 转写成功、备用 MP3 生成后下载 302 到 `test/cut/...`。测试/正式 health 均 200；正式 `.env` 无 `STORAGE_BACKEND/OSS_PREFIX`。 |
 | 2026-06-16 | H1 鉴权默认安全修复推正式站 | 已把 `server.cjs` 的鉴权开关从旧逻辑 `AUTH_DISABLED !== '0'` 改为安全默认 `AUTH_DISABLED === '1'` 并推正式站：漏配环境变量时默认锁上，只有显式写 `AUTH_DISABLED=1` 才关闭鉴权；同时加启动红字警告，避免无声裸奔。正式站 `.env` 本来就是 `AUTH_DISABLED=0`，所以线上行为不变。只动正式站 `server.cjs`，未碰接单台、未动数据库。备份：`/root/nginx-backups/money-scissors-prod-auth-default-fix-20260616/server.cjs.before-auth-default`。验证：正式站文件 hash=`3b582c7bd9a4c1e82ae0f50640cbb9aa3c7cfba13d2aec21aee3aed9bc56a16e`，内网/公网 health 200，未登录 `/api/admin/users` 和 `/api/projects` 均 401；错误日志无新增异常（旧 `ERR_INVALID_URL` 日志停在 08:28）。Codex 窄审 H1 diff：未发现安全/鉴权回归。 |
 | 2026-06-16 | 🔴 服务器卡死根治 + 「删了还播放」修复全部上线 | 今日两次服务器卡死(早上Day4集中导出、下午正式站旧代码又被拖死)。**根因**:ECS仅2核1.6G无swap;导出/精修用ffmpeg满核裸跑,无nice降优先级、无线程限制,且两套队列(CUT导出/REFINE精修)并发各默认2 → CPU100%被吃满,sshd/nginx全饿死=全员卡死只能硬重启。**根治(server.cjs)**:三处ffmpeg(2552单文件导出/2801拼接导出/**3017音频精修**)全部加 `nice -n 19 -threads 1`;`CUT_MAX_ACTIVE_JOBS`和`REFINE_MAX_ACTIVE_JOBS`默认值都从2改1(写进代码默认值随部署走);服务器加2G swap写进fstab。**实测**:50分钟开营直播导出全程ffmpeg NI=19吃94%CPU,网页health一路200/0.003s,满载不卡死。**「删了还播放」根因**:`mergeDeletionRanges`返回对象`{start,end}`,第一次合并后整句/半句删除成对象数组,第二次合并旧版只认数组下标→全丢只剩气口;修法是让merge兼容数组+对象两种格式(review.html约2864行)。**端到端验收**:真导出3008s→2957.436s,算法口径2957.5s,差0.06s。本地/测试/正式48文件全量对账完全一致。备份:server.cjs正式 `/root/nginx-backups/money-scissors-prod-ffmpeg-nice-20260616/`、review.html正式 `/root/nginx-backups/money-scissors-prod-deletefmt-fix-20260616/`。⚠️SSH必须带钥匙:`ssh -i ~/.ssh/money_scissors_ecs root@8.136.133.196`。阶段四(数据入口归一化两种格式的债+自动哨兵)留待以后。 |
 | 2026-06-16 | 剪辑台左侧剪后时长偏短修复上线 | 学员截图反馈左侧显示 `50:00 → 17:25`，但实际剪辑下来超过 25 分钟。查正式站真实项目 `开营直播(7).m4a`（`proj_bbd213d8b5934a12977d`）确认：服务器保存的真实粗剪时长是 `2047s / 34:07`，旧左侧显示算法按删除句/半句/气口简单累加会算成 `1046s / 17:26`，与截图吻合。根因是左侧预估仍用旧的简单累加口径，而导出/保存指标已用真正导出切段口径，两个算法分叉。已只改 `review.html`：左侧剪后时长、删减时长、粗剪试听总时长、试听进度条、播放跳过逻辑统一使用 `currentExportDeleteSegments()`；试听拖动时按粗剪时间映射回原音频位置；左侧摘要从“共删除”改为“删减内容主要包括”，避免粗略分类被误读成精确总时长。未跑整包同步、未重启服务、未动数据库。语法检查通过。验证：本地/测试服务器/正式服务器/测试公网/正式公网 `review.html` sha256 均为 `cb9bda69e6808a84e3bdecf6c38095df0f626cc54dc39c485e960cdd37e5c00b`，测试和正式 health 均 200。测试备份：`/root/nginx-backups/money-scissors-test-review-duration-sync-20260616-115821/review.html.before-duration-sync`；正式备份：`/root/nginx-backups/money-scissors-prod-review-duration-sync-20260616-115821/review.html.before-duration-sync`。 |

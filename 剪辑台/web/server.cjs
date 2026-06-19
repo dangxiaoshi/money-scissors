@@ -9,9 +9,10 @@ const Database = require('better-sqlite3');
 const OpenApi = require('@alicloud/openapi-client');
 const Dysmsapi = require('@alicloud/dysmsapi20170525');
 const Util = require('@alicloud/tea-util');
-const { Transform, PassThrough } = require('stream');
+const { Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const { spawn } = require('child_process');
+const oss = require('./lib/oss.cjs');
 
 loadEnv(path.join(__dirname, '.env'));
 loadEnv(path.join(process.cwd(), '.env'));
@@ -53,6 +54,7 @@ const LOCK_MINUTES = Number(process.env.VERIFY_LOCK_MINUTES || 30);
 const AUTH_DISABLED = process.env.AUTH_DISABLED === '1';
 const DEV_SEND_CODE_FALLBACK = process.env.ALLOW_DEV_SEND_CODE_FALLBACK === '1';
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/g, '');
+const AUTH_COOKIE_NAME = 'jinqian_token';
 const ADMIN_PHONES = new Set(
   String(process.env.ADMIN_PHONES || '')
     .split(',')
@@ -107,6 +109,14 @@ if (!API_KEY) {
 if (!AUTH_DISABLED && !JWT_SECRET) {
   console.error('Missing JWT_SECRET');
   process.exit(1);
+}
+if (oss.isOssEnabled()) {
+  try {
+    oss.validateConfig();
+  } catch (error) {
+    console.error(`OSS 配置自检失败：${error.message || error}`);
+    process.exit(1);
+  }
 }
 // 启动自检：鉴权一旦处于关闭状态，打一条非常醒目的告警，避免“悄无声息地裸奔”。
 if (AUTH_DISABLED) {
@@ -215,6 +225,15 @@ const statements = {
       last_active_at = @last_active_at
     WHERE id = @id
   `),
+  insertOssUpload: db.prepare(`
+    INSERT OR REPLACE INTO oss_uploads (object_key, user_id, created_at)
+    VALUES (@object_key, @user_id, @created_at)
+  `),
+  findOssUploadByUser: db.prepare(`
+    SELECT object_key
+    FROM oss_uploads
+    WHERE object_key = @object_key AND user_id = @user_id
+  `),
   insertProject: db.prepare(`
     INSERT INTO editing_projects (
       id, user_id, file_name, audio_url, status, original_duration, roughcut_duration,
@@ -228,6 +247,12 @@ const statements = {
   listProjectsByUser: db.prepare(`
     SELECT id, user_id, file_name, audio_url, status, original_duration, roughcut_duration,
       removed_duration, created_at, updated_at, exported_at
+    FROM editing_projects
+    WHERE user_id = @user_id
+    ORDER BY updated_at DESC, created_at DESC
+  `),
+  listProjectDataPathsByUser: db.prepare(`
+    SELECT id, data_path
     FROM editing_projects
     WHERE user_id = @user_id
     ORDER BY updated_at DESC, created_at DESC
@@ -291,13 +316,14 @@ const statements = {
   listPublishedDispatchTasks: db.prepare('SELECT * FROM dispatch_tasks WHERE published = 1 ORDER BY sort_order ASC, id DESC'),
   findDispatchTask: db.prepare('SELECT * FROM dispatch_tasks WHERE id = ?'),
   insertDispatchTask: db.prepare(`
-    INSERT INTO dispatch_tasks (title, client, budget, demand, delivery, difficulty, material_link, published, sort_order, created_at, updated_at)
-    VALUES (@title, @client, @budget, @demand, @delivery, @difficulty, @material_link, @published, @sort_order, @created_at, @updated_at)
+    INSERT INTO dispatch_tasks (title, client, budget, demand, delivery, difficulty, material_link, visibility, assignee_refs, published, sort_order, created_at, updated_at)
+    VALUES (@title, @client, @budget, @demand, @delivery, @difficulty, @material_link, @visibility, @assignee_refs, @published, @sort_order, @created_at, @updated_at)
   `),
   updateDispatchTask: db.prepare(`
     UPDATE dispatch_tasks
     SET title=@title, client=@client, budget=@budget, demand=@demand, delivery=@delivery,
-        difficulty=@difficulty, material_link=@material_link, published=@published, sort_order=@sort_order, updated_at=@updated_at
+        difficulty=@difficulty, material_link=@material_link, visibility=@visibility, assignee_refs=@assignee_refs,
+        published=@published, sort_order=@sort_order, updated_at=@updated_at
     WHERE id=@id
   `),
   deleteDispatchTask: db.prepare('DELETE FROM dispatch_tasks WHERE id = ?'),
@@ -328,7 +354,7 @@ const statements = {
   `),
   listDispatchClaimsByUser: db.prepare(`
     SELECT c.*, t.title, t.client, t.budget, t.demand, t.delivery, t.difficulty, t.material_link,
-      t.published, t.sort_order, t.created_at AS task_created_at, t.updated_at AS task_updated_at
+      t.visibility, t.assignee_refs, t.published, t.sort_order, t.created_at AS task_created_at, t.updated_at AS task_updated_at
     FROM dispatch_claims c
     JOIN dispatch_tasks t ON t.id = c.task_id
     WHERE c.user_id = ?
@@ -348,6 +374,19 @@ const statements = {
     LEFT JOIN review_snapshots s ON s.id = c.snapshot_id
     WHERE c.status != 'abandoned'
     ORDER BY c.task_id ASC, c.claimed_at ASC, c.id ASC
+  `),
+  findDispatchReviewClaimById: db.prepare(`
+    SELECT c.*, u.phone, u.nickname,
+      s.file_name AS snapshot_file_name,
+      s.original_duration AS snapshot_original_duration,
+      s.roughcut_duration AS snapshot_roughcut_duration,
+      s.removed_duration AS snapshot_removed_duration,
+      s.status AS snapshot_status,
+      s.created_at AS snapshot_created_at
+    FROM dispatch_claims c
+    LEFT JOIN users u ON u.id = c.user_id
+    LEFT JOIN review_snapshots s ON s.id = c.snapshot_id
+    WHERE c.id = ?
   `),
   insertDispatchClaim: db.prepare(`
     INSERT INTO dispatch_claims (task_id, user_id, status, claimed_at, updated_at)
@@ -377,6 +416,25 @@ const statements = {
         snapshot_id = @snapshot_id
     WHERE task_id = @task_id
       AND user_id = @user_id
+      AND status != 'abandoned'
+  `),
+  markDispatchClaimApproved: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'completed',
+        reviewed_at = @reviewed_at,
+        completed_at = @completed_at,
+        updated_at = @updated_at,
+        review_note = @review_note
+    WHERE id = @id
+      AND status != 'abandoned'
+  `),
+  markDispatchClaimReturned: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'returned',
+        reviewed_at = @reviewed_at,
+        updated_at = @updated_at,
+        review_note = @review_note
+    WHERE id = @id
       AND status != 'abandoned'
   `),
 };
@@ -570,7 +628,14 @@ async function handleAuth(req, res, url) {
     statements.clearVerificationCode.run(phone);
     const user = upsertUser(phone);
     const auth = buildAuthPayload(user);
+    setAuthCookie(res, auth.token, Math.floor(Date.parse(auth.expiresAt) / 1000));
     sendJson(res, 200, { ...auth, needsNickname: !user.nickname });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
+    clearAuthCookie(res);
+    sendJson(res, 200, { ok: true });
     return;
   }
 
@@ -694,6 +759,7 @@ function publicDispatchTask(row, viewer = null) {
   const maxClaims = Number(row.max_claims || 5);
   const claimCount = Number(statements.countClaimsByTask.get(row.id)?.count || 0);
   const reviewingCount = Number(statements.countReviewingClaimsByTask.get(row.id)?.count || 0);
+  const canClaim = viewer?.id ? canUserClaimDispatchTask(row, viewer) : true;
   const myClaim = viewer?.id
     ? statements.findDispatchClaimByTaskUser.get({ task_id: row.id, user_id: viewer.id })
     : null;
@@ -706,6 +772,11 @@ function publicDispatchTask(row, viewer = null) {
     delivery: row.delivery,
     difficulty: row.difficulty,
     materialLink: row.material_link,
+    visibility: dispatchTaskVisibility(row),
+    assigneeRefs: viewer?.id ? '' : row.assignee_refs || '',
+    assigneeLabel: dispatchAssigneeLabel(row),
+    canClaim,
+    claimBlockedReason: canClaim ? '' : '这是一条指定学员单，仅指定学员可接。',
     published: Boolean(row.published),
     sortOrder: row.sort_order,
     maxClaims,
@@ -741,6 +812,9 @@ function publicDispatchClaim(row, taskRow = null) {
       delivery: task.delivery || '',
       difficulty: task.difficulty || '',
       materialLink: task.material_link || '',
+      visibility: dispatchTaskVisibility(task),
+      assigneeRefs: '',
+      assigneeLabel: dispatchAssigneeLabel(task),
       published: Boolean(task.published),
       sortOrder: Number(task.sort_order || 0),
       createdAt: task.task_created_at || task.created_at || null,
@@ -798,6 +872,8 @@ function dispatchRowToBody(row) {
     delivery: row.delivery,
     difficulty: row.difficulty,
     materialLink: row.material_link,
+    visibility: dispatchTaskVisibility(row),
+    assigneeRefs: row.assignee_refs || '',
     published: row.published,
     sortOrder: row.sort_order,
   };
@@ -806,6 +882,15 @@ function dispatchRowToBody(row) {
 function readDispatchInput(body) {
   // 单行清洗，不注入默认值（空标题必须能被校验拦住）
   const clean = (v, n) => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
+  const visibility = ['assigned', 'private'].includes(String(body.visibility || '').trim()) ? 'assigned' : 'public';
+  const assigneeRefs = String(body.assigneeRefs ?? body.assignee_refs ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split(/[\n,，;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .join('\n')
+    .slice(0, 1000);
   return {
     title: clean(body.title, 120),
     client: clean(body.client, 120),
@@ -814,14 +899,115 @@ function readDispatchInput(body) {
     delivery: String(body.delivery == null ? '' : body.delivery).slice(0, 2000),
     difficulty: clean(body.difficulty, 40),
     material_link: clean(body.materialLink ?? body.material_link, 1000),
+    visibility,
+    assignee_refs: visibility === 'assigned' ? assigneeRefs : '',
     published: body.published ? 1 : 0,
     sort_order: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
   };
 }
 
+function dispatchTaskVisibility(row) {
+  const value = String(row?.visibility || 'public').trim();
+  return value === 'assigned' || value === 'private' ? 'assigned' : 'public';
+}
+
+function dispatchAssigneeLabel(row) {
+  return parseDispatchAssigneeRefs(row?.assignee_refs).join('、');
+}
+
+function parseDispatchAssigneeRefs(value) {
+  return String(value || '')
+    .split(/[\n,，;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeDispatchRef(value) {
+  return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+function canUserClaimDispatchTask(row, user) {
+  if (dispatchTaskVisibility(row) !== 'assigned') return true;
+  if (!user?.id) return false;
+  const refs = parseDispatchAssigneeRefs(row.assignee_refs).map(normalizeDispatchRef).filter(Boolean);
+  if (!refs.length) return false;
+  const candidates = [
+    String(user.id),
+    `#${user.id}`,
+    `id:${user.id}`,
+    user.phone,
+    user.nickname,
+  ].map(normalizeDispatchRef).filter(Boolean);
+  return refs.some((ref) => candidates.includes(ref));
+}
+
+function handleOrderMaterial(req, res, url) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return;
+  }
+  const user = requireAuth(req, res);
+  if (!user) return;
+  if (!hasDay2Access(user)) {
+    sendJson(res, 403, {
+      error: 'day2_required',
+      message: '请先完成第二天剪辑练习，并提交一次助教审核。',
+    });
+    return;
+  }
+  if (!oss.isOssEnabled()) {
+    sendJson(res, 404, { error: 'material_not_found' });
+    return;
+  }
+  try {
+    const objectKey = assertUserCanUseOssObjectKey(
+      readOrderMaterialObjectKeyFromPath(url.pathname),
+      user,
+      { allowDispatchMaterial: true },
+    );
+    const signed = oss.signPublicUrl(objectKey);
+    res.writeHead(302, {
+      Location: signed,
+      'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end();
+  } catch (error) {
+    console.error('[orders] 素材签名失败', error && error.message);
+    if (error.statusCode) {
+      sendJson(res, error.statusCode, { error: 'forbidden', message: error.message || '没有权限访问这段音频。' });
+      return;
+    }
+    sendJson(res, 404, { error: 'material_not_found', message: '音频素材暂时不可用。' });
+  }
+}
+
+function readOrderMaterialObjectKeyFromPath(pathname) {
+  const prefix = '/api/orders/material/';
+  if (!String(pathname || '').startsWith(prefix)) return '';
+  const raw = String(pathname).slice(prefix.length);
+  if (!raw) return '';
+  return oss.assertOwnedKey(decodeURIComponent(raw));
+}
+
+function objectKeyFromOrderMaterialUrl(value, req) {
+  if (!value || !oss.isOssEnabled()) return '';
+  try {
+    const parsed = new URL(String(value), `http://${req.headers.host}`);
+    return readOrderMaterialObjectKeyFromPath(parsed.pathname);
+  } catch {
+    return '';
+  }
+}
+
 async function handleDispatchTasks(req, res, url) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  if (url.pathname.startsWith('/api/orders/material/')) {
+    handleOrderMaterial(req, res, url);
+    return;
+  }
 
   // 学员端：只读已发布任务，需登录 + 完成 Day2
   if (url.pathname === '/api/orders/tasks') {
@@ -860,6 +1046,14 @@ async function handleDispatchTasks(req, res, url) {
     const task = statements.findDispatchTask.get(taskId);
     if (!task || !task.published) {
       sendJson(res, 404, { error: 'task_not_found', message: '这单暂时不可抢。' });
+      return;
+    }
+    if (!canUserClaimDispatchTask(task, user)) {
+      sendJson(res, 403, {
+        error: 'task_assigned_to_other',
+        message: '这是一条指定学员单，仅指定学员可接。',
+        task: publicDispatchTask(task, user),
+      });
       return;
     }
 
@@ -946,6 +1140,83 @@ async function handleDispatchTasks(req, res, url) {
     return;
   }
 
+  const reviewClaimMatch = url.pathname.match(/^\/api\/orders\/admin\/claims\/(\d+)\/review$/);
+  if (reviewClaimMatch && req.method === 'PATCH') {
+    const claimId = Number(reviewClaimMatch[1]);
+    const claim = statements.findDispatchReviewClaimById.get(claimId);
+    if (!claim || claim.status === 'abandoned') {
+      sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
+      return;
+    }
+    if (!claim.snapshot_id) {
+      sendJson(res, 400, { error: 'snapshot_required', message: '这条接单还没有提交审核作品。' });
+      return;
+    }
+    const snapshot = statements.findSnapshotById.get(claim.snapshot_id);
+    if (!snapshot) {
+      sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
+      return;
+    }
+    const body = await readJson(req);
+    const action = String(body.status || body.action || '').trim();
+    const approved = action === 'approved' || action === 'completed' || action === 'approve';
+    const returned = action === 'rejected' || action === 'returned' || action === 'reject';
+    if (!approved && !returned) {
+      sendJson(res, 400, { error: 'invalid_status', message: '订单审核状态只能是通过或打回。' });
+      return;
+    }
+    const now = new Date().toISOString();
+    const snapshotStatus = approved ? 'approved' : 'rejected';
+    const note = String(body.note || '').trim().slice(0, 1000);
+    statements.updateSnapshotStatus.run({
+      id: snapshot.id,
+      status: snapshotStatus,
+      reviewed_at: now,
+      reviewed_by: admin.id,
+    });
+    statements.updateProjectReviewStatus.run({
+      id: snapshot.project_id,
+      status: snapshotStatus,
+      updated_at: now,
+    });
+    if (approved) {
+      statements.markDispatchClaimApproved.run({
+        id: claimId,
+        reviewed_at: now,
+        completed_at: now,
+        updated_at: now,
+        review_note: note,
+      });
+    } else {
+      statements.markDispatchClaimReturned.run({
+        id: claimId,
+        reviewed_at: now,
+        updated_at: now,
+        review_note: note,
+      });
+    }
+    const data = readJsonFile(snapshot.data_path, {});
+    writeJsonFile(snapshot.data_path, {
+      ...data,
+      status: snapshotStatus,
+      reviewedAt: now,
+      reviewedBy: admin.id,
+      reviewNote: note,
+      dispatchReview: {
+        claimId,
+        status: approved ? 'completed' : 'returned',
+        reviewedAt: now,
+        reviewedBy: admin.id,
+        note,
+      },
+    });
+    sendJson(res, 200, {
+      claim: publicDispatchReviewClaim(statements.findDispatchReviewClaimById.get(claimId)),
+      snapshot: publicSnapshot(statements.findSnapshotById.get(snapshot.id)),
+    });
+    return;
+  }
+
   // 导出备份（误删兜底）
   if (req.method === 'GET' && url.pathname === '/api/orders/admin/tasks.json') {
     const tasks = statements.listDispatchTasks.all().map(publicDispatchTask);
@@ -969,6 +1240,10 @@ async function handleDispatchTasks(req, res, url) {
     const body = await readJson(req);
     const input = readDispatchInput(body);
     if (!input.title) { sendJson(res, 400, { error: 'missing_title', message: '请填写任务标题。' }); return; }
+    if (input.published && input.visibility === 'assigned' && !input.assignee_refs) {
+      sendJson(res, 400, { error: 'missing_assignee_refs', message: '指定学员单请先填写可接单学员。' });
+      return;
+    }
     const now = new Date().toISOString();
     const info = statements.insertDispatchTask.run({ ...input, created_at: now, updated_at: now });
     const row = statements.findDispatchTask.get(info.lastInsertRowid);
@@ -987,6 +1262,10 @@ async function handleDispatchTasks(req, res, url) {
       const body = await readJson(req);
       const input = readDispatchInput({ ...dispatchRowToBody(existing), ...body });
       if (!input.title) { sendJson(res, 400, { error: 'missing_title', message: '请填写任务标题。' }); return; }
+      if (input.published && input.visibility === 'assigned' && !input.assignee_refs) {
+        sendJson(res, 400, { error: 'missing_assignee_refs', message: '指定学员单请先填写可接单学员。' });
+        return;
+      }
       statements.updateDispatchTask.run({ ...input, id, updated_at: new Date().toISOString() });
       sendJson(res, 200, { task: publicDispatchTask(statements.findDispatchTask.get(id)) });
       return;
@@ -1096,6 +1375,7 @@ async function handleProjects(req, res, url) {
     }
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
     const payload = normalizeProjectPayload(body.payload);
+    validateProjectOssReferences(payload, user);
     const now = new Date().toISOString();
     const id = buildPublicId('proj');
     const dataPath = path.join(PROJECT_DATA_ROOT, `${id}.json`);
@@ -1134,7 +1414,10 @@ async function handleProjects(req, res, url) {
   if (projectMatch && req.method === 'GET') {
     const project = loadAuthorizedProject(projectMatch[1], user, res);
     if (!project) return;
-    sendJson(res, 200, { project: publicProject(project.row), payload: project.data.payload });
+    sendJson(res, 200, {
+      project: publicProject(project.row),
+      payload: projectPayloadForResponse(project.data.payload),
+    });
     return;
   }
 
@@ -1147,6 +1430,7 @@ async function handleProjects(req, res, url) {
     if (!project) return;
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
     const payload = normalizeProjectPayload(body.payload);
+    validateProjectOssReferences(payload, user);
     const now = new Date().toISOString();
     const metrics = readProjectMetrics(payload, body.metrics);
     const fileName = cleanTitle(body.fileName || payload.fileName || project.row.file_name || '未命名音频', 180);
@@ -1189,6 +1473,7 @@ async function handleProjects(req, res, url) {
     if (!project) return;
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
     const payload = normalizeProjectPayload(body.payload || project.data.payload);
+    validateProjectOssReferences(payload, user);
     const now = new Date().toISOString();
     const metrics = readProjectMetrics(payload, body.metrics);
     const fileName = cleanTitle(body.fileName || payload.fileName || project.row.file_name || '未命名音频', 180);
@@ -1298,7 +1583,11 @@ async function handleAdmin(req, res, url) {
       return;
     }
     const data = readJsonFile(row.data_path, {});
-    sendJson(res, 200, { snapshot: publicSnapshot(row), payload: data.payload, cutPayload: data.cutPayload || null });
+    sendJson(res, 200, {
+      snapshot: publicSnapshot(row),
+      payload: projectPayloadForResponse(data.payload),
+      cutPayload: projectPayloadForResponse(data.cutPayload || null),
+    });
     return;
   }
 
@@ -1431,9 +1720,39 @@ async function handleDashScope(req, res, url) {
 
   if (req.method === 'POST' && url.pathname === '/dashscope/transcription') {
     const body = await readJson(req);
-    const audioUrl = body.audioUrl;
     const speakerCount = Number(body.speakerCount || 2);
-    if (!audioUrl) {
+    let fileUrl = body.audioUrl;
+    // OSS：前端只存 objectKey，转写时服务器现签公网链接（DashScope 必须公网可达，TTL 默认 2h）
+    const objectKey = String(body.objectKey || '').trim();
+    const materialObjectKey = objectKeyFromOrderMaterialUrl(fileUrl, req);
+    if (materialObjectKey && !hasDay2Access(user)) {
+      sendJson(res, 403, {
+        error: 'day2_required',
+        message: '请先完成第二天剪辑练习，并提交一次助教审核。',
+      });
+      return;
+    }
+    const signedObjectKey = objectKey || materialObjectKey;
+    if (body.storage === 'oss' || isOwnedOssObjectKey(objectKey) || materialObjectKey) {
+      if (!signedObjectKey) {
+        sendJson(res, 400, { error: 'missing_objectKey' });
+        return;
+      }
+      try {
+        const allowedObjectKey = assertUserCanUseOssObjectKey(signedObjectKey, user, {
+          allowDispatchMaterial: Boolean(materialObjectKey),
+        });
+        fileUrl = oss.signPublicUrl(allowedObjectKey);
+      } catch (error) {
+        console.error('[transcription] OSS 签名失败', error && error.message);
+        sendJson(res, error.statusCode || 400, {
+          error: error.statusCode === 403 ? 'forbidden_oss_object' : 'sign_failed',
+          message: error.message || '音频地址签名失败。',
+        });
+        return;
+      }
+    }
+    if (!fileUrl) {
       sendJson(res, 400, { error: 'missing_audioUrl' });
       return;
     }
@@ -1448,7 +1767,7 @@ async function handleDashScope(req, res, url) {
       },
       body: JSON.stringify({
         model: 'fun-asr',
-        input: { file_urls: [audioUrl] },
+        input: { file_urls: [fileUrl] },
         parameters: {
           diarization_enabled: speakerCount > 1,
           speaker_count: speakerCount,
@@ -1512,11 +1831,41 @@ async function handleUpload(req, res, url) {
   }
   const ext = getAudioExt(filename, req.headers['content-type']);
   const date = isoDay();
-  const uploadDir = path.join(UPLOAD_ROOT, date);
-  ensureDir(uploadDir);
-
   const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
   const basename = `${Date.now()}-${id}${ext}`;
+
+  if (oss.isOssEnabled()) {
+    // OSS：浏览器→服务器→OSS（内网流式写），原音频不再落 ECS 本地盘
+    const objectKey = oss.withPrefix(`uploads/${date}/${basename}`);
+    try {
+      const putOpts = { mime: req.headers['content-type'] };
+      if (declaredLength > 0) putOpts.contentLength = declaredLength;
+      const limitedBody = streamRequestBodyWithLimit(req, MAX_UPLOAD_BYTES);
+      await oss.putStream(objectKey, limitedBody.stream, putOpts);
+      recordOssUpload(objectKey, user);
+      recordUsage(user.id, 'upload');
+      sendJson(res, 201, {
+        storage: 'oss',
+        objectKey,
+        // 即时播放用的公网签名链接；前端只持久化 objectKey+storage，签名链接用时再要
+        audioUrl: oss.signPublicUrl(objectKey),
+        bucket: process.env.OSS_BUCKET,
+        region: process.env.OSS_REGION,
+        size: declaredLength || limitedBody.getBytes(),
+      });
+    } catch (error) {
+      console.error('[upload] OSS 写入失败', error && error.message);
+      sendJson(res, error.statusCode || 500, {
+        error: 'upload_failed',
+        message: 'OSS 上传失败，请重试。',
+      });
+    }
+    return;
+  }
+
+  // 本地盘（默认 STORAGE_BACKEND!=oss）
+  const uploadDir = path.join(UPLOAD_ROOT, date);
+  ensureDir(uploadDir);
   const filePath = path.join(uploadDir, basename);
   const publicPath = `/uploads/${date}/${basename}`;
 
@@ -1525,6 +1874,7 @@ async function handleUpload(req, res, url) {
     const baseUrl = PUBLIC_BASE_URL || `http://${req.headers.host}`;
     recordUsage(user.id, 'upload');
     sendJson(res, 201, {
+      storage: 'local',
       audioUrl: `${baseUrl}${publicPath}`,
       objectKey: publicPath.slice(1),
       bucket: 'ecs-local',
@@ -1692,8 +2042,24 @@ function sendJson(res, status, data) {
 }
 
 async function writeRequestBody(req, filePath, maxBytes) {
+  const limitedBody = createByteLimitTransform(maxBytes);
+  await pipeline(req, limitedBody.stream, fs.createWriteStream(filePath));
+  return limitedBody.getBytes();
+}
+
+function streamRequestBodyWithLimit(req, maxBytes) {
+  const limitedBody = createByteLimitTransform(maxBytes);
+  req.on('error', (error) => limitedBody.stream.destroy(error));
+  limitedBody.stream.on('error', () => {
+    try { req.destroy(); } catch {}
+  });
+  req.pipe(limitedBody.stream);
+  return limitedBody;
+}
+
+function createByteLimitTransform(maxBytes) {
   let bytes = 0;
-  const limiter = new Transform({
+  const stream = new Transform({
     transform(chunk, encoding, callback) {
       bytes += chunk.length;
       if (bytes > maxBytes) {
@@ -1705,9 +2071,7 @@ async function writeRequestBody(req, filePath, maxBytes) {
       callback(null, chunk);
     },
   });
-
-  await pipeline(req, limiter, fs.createWriteStream(filePath));
-  return bytes;
+  return { stream, getBytes: () => bytes };
 }
 
 function getAudioExt(filename, type = '') {
@@ -1881,6 +2245,14 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_review_snapshots_created
       ON review_snapshots(created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS oss_uploads (
+      object_key TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_oss_uploads_user
+      ON oss_uploads(user_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS dispatch_tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL DEFAULT '',
@@ -1890,6 +2262,8 @@ function initializeDatabase(database) {
       delivery TEXT NOT NULL DEFAULT '',
       difficulty TEXT NOT NULL DEFAULT '',
       material_link TEXT NOT NULL DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'public',
+      assignee_refs TEXT NOT NULL DEFAULT '',
       published INTEGER NOT NULL DEFAULT 0,
       max_claims INTEGER NOT NULL DEFAULT 5,
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -1928,6 +2302,8 @@ function initializeDatabase(database) {
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_by INTEGER`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN max_claims INTEGER NOT NULL DEFAULT 5`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN assignee_refs TEXT NOT NULL DEFAULT ''`); } catch {}
   database.exec(`
     UPDATE users
     SET day1_complete = 1,
@@ -1951,7 +2327,8 @@ function initializeDatabase(database) {
 
 function requireAuth(req, res) {
   const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const headerToken = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const token = headerToken || readCookie(req.headers.cookie, AUTH_COOKIE_NAME);
   if (AUTH_DISABLED && !token) {
     return guestUser();
   }
@@ -1963,6 +2340,7 @@ function requireAuth(req, res) {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = statements.findUserById.get(payload.userId);
     if (!user) throw new Error('user_not_found');
+    if (headerToken) setAuthCookie(res, headerToken, payload.exp);
     if (ADMIN_PHONES.has(user.phone) && !user.is_admin) {
       statements.updateUserActivity.run({
         id: user.id,
@@ -1976,6 +2354,35 @@ function requireAuth(req, res) {
     sendJson(res, 401, { error: 'unauthorized', message: '登录已失效，请重新登录。' });
     return null;
   }
+}
+
+function readCookie(header, name) {
+  const target = `${name}=`;
+  const parts = String(header || '').split(';');
+  for (const part of parts) {
+    const item = part.trim();
+    if (!item.startsWith(target)) continue;
+    try {
+      return decodeURIComponent(item.slice(target.length));
+    } catch {
+      return item.slice(target.length);
+    }
+  }
+  return '';
+}
+
+function setAuthCookie(res, token, expiresAtSeconds) {
+  if (!res || res.headersSent || !token) return;
+  const maxAge = Math.max(0, Number(expiresAtSeconds || 0) - Math.floor(Date.now() / 1000));
+  if (!maxAge) return;
+  const secure = /^https:\/\//i.test(PUBLIC_BASE_URL) ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${secure}`);
+}
+
+function clearAuthCookie(res) {
+  if (!res || res.headersSent) return;
+  const secure = /^https:\/\//i.test(PUBLIC_BASE_URL) ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secure}`);
 }
 
 function requireAdmin(req, res) {
@@ -2142,6 +2549,121 @@ function publicSnapshot(row) {
     reviewedAt: row.reviewed_at || null,
     reviewedBy: row.reviewed_by ? Number(row.reviewed_by) : null,
   };
+}
+
+function projectPayloadForResponse(payload) {
+  if (!payload || typeof payload !== 'object') return payload || null;
+  const copy = JSON.parse(JSON.stringify(payload));
+  refreshOssAudioUrl(copy);
+  return copy;
+}
+
+function refreshOssAudioUrl(payload) {
+  if (!payload || typeof payload !== 'object' || !oss.isOssEnabled()) return payload;
+  const objectKey = String(payload.objectKey || '').trim();
+  const storage = String(payload.storage || '').trim();
+  if (!objectKey || (storage && storage !== 'oss') || !isOwnedOssObjectKey(objectKey)) return payload;
+  try {
+    const ownedKey = oss.assertOwnedKey(objectKey);
+    payload.storage = 'oss';
+    payload.objectKey = ownedKey;
+    payload.audioUrl = oss.signPublicUrl(ownedKey);
+    payload.bucket = process.env.OSS_BUCKET || payload.bucket || '';
+    payload.region = process.env.OSS_REGION || payload.region || '';
+  } catch (error) {
+    console.warn('[oss] 项目音频签名刷新失败', error && error.message);
+  }
+  return payload;
+}
+
+function isOwnedOssObjectKey(objectKey) {
+  if (!objectKey || !oss.isOssEnabled()) return false;
+  try {
+    oss.assertOwnedKey(objectKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function recordOssUpload(objectKey, user) {
+  if (!objectKey || !user?.id) return;
+  try {
+    statements.insertOssUpload.run({
+      object_key: oss.assertOwnedKey(objectKey),
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[oss] 上传归属记录失败', error && error.message);
+  }
+}
+
+function assertUserCanUseOssObjectKey(objectKey, user, options = {}) {
+  const ownedKey = oss.assertOwnedKey(objectKey);
+  if (user?.is_admin) return ownedKey;
+  if (user?.id && statements.findOssUploadByUser.get({ object_key: ownedKey, user_id: user.id })) return ownedKey;
+  if (user?.id && userProjectReferencesObjectKey(user.id, ownedKey)) return ownedKey;
+  if (options.allowDispatchMaterial && hasDay2Access(user) && dispatchMaterialReferencesObjectKey(ownedKey, user)) return ownedKey;
+  const error = new Error('这段音频不属于当前账号。');
+  error.statusCode = 403;
+  throw error;
+}
+
+function dispatchMaterialReferencesObjectKey(objectKey, user = null) {
+  if (!objectKey || !oss.isOssEnabled()) return false;
+  return statements.listPublishedDispatchTasks.all().some((row) => {
+    try {
+      return objectKeyFromMaterialLink(row.material_link) === objectKey && canUserClaimDispatchTask(row, user);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function objectKeyFromMaterialLink(value) {
+  if (!value) return '';
+  const parsed = new URL(String(value), 'http://local.invalid');
+  return readOrderMaterialObjectKeyFromPath(parsed.pathname);
+}
+
+function userProjectReferencesObjectKey(userId, objectKey) {
+  if (!userId || !objectKey) return false;
+  const rows = statements.listProjectDataPathsByUser.all({ user_id: userId });
+  return rows.some((row) => {
+    const data = readJsonFile(row.data_path, null);
+    return payloadReferencesObjectKey(data?.payload, objectKey) || payloadReferencesObjectKey(data, objectKey);
+  });
+}
+
+function payloadReferencesObjectKey(value, objectKey, depth = 0) {
+  if (!value || depth > 8) return false;
+  if (Array.isArray(value)) {
+    return value.some((item) => payloadReferencesObjectKey(item, objectKey, depth + 1));
+  }
+  if (typeof value !== 'object') return false;
+  if (String(value.objectKey || '').trim() === objectKey) return true;
+  return Object.values(value).some((item) => payloadReferencesObjectKey(item, objectKey, depth + 1));
+}
+
+function validateProjectOssReferences(payload, user) {
+  if (!payload || !oss.isOssEnabled()) return;
+  for (const objectKey of collectPayloadOssObjectKeys(payload)) {
+    assertUserCanUseOssObjectKey(objectKey, user);
+  }
+}
+
+function collectPayloadOssObjectKeys(value, out = new Set(), depth = 0) {
+  if (!value || depth > 8) return out;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectPayloadOssObjectKeys(item, out, depth + 1));
+    return out;
+  }
+  if (typeof value !== 'object') return out;
+  const objectKey = String(value.objectKey || '').trim();
+  if (isOwnedOssObjectKey(objectKey)) out.add(oss.assertOwnedKey(objectKey));
+  Object.values(value).forEach((item) => collectPayloadOssObjectKeys(item, out, depth + 1));
+  return out;
 }
 
 // 把审核快照整理成 AI 批改的 prompt。只喂 AI 看得到的：逐字稿删/留、时长、文件名。
@@ -2402,8 +2924,18 @@ const cutJobs = new Map();
 const CUT_JOB_TTL = 2 * 60 * 60 * 1000;
 const CUT_MAX_ACTIVE_JOBS = Number(process.env.CUT_MAX_ACTIVE_JOBS || 2);
 const CUT_MAX_ACTIVE_JOBS_PER_USER = Number(process.env.CUT_MAX_ACTIVE_JOBS_PER_USER || 1);
+const CUT_MAX_QUEUED_JOBS = Number(process.env.CUT_MAX_QUEUED_JOBS || 20);
+const CUT_JOB_STATE_DIR = path.join(DATA_ROOT, 'cut-jobs', 'state');
+const CUT_PROGRESS_SAVE_MS = Number(process.env.CUT_PROGRESS_SAVE_MS || 5000);
+const CUT_PENDING_TTL = Number(process.env.CUT_PENDING_TTL || 6 * 60 * 60 * 1000);
+const CUT_RUNNING_STALE_MS = Number(process.env.CUT_RUNNING_STALE_MS || 90 * 60 * 1000);
 
-setInterval(() => cleanupAudioJobs(cutJobs, CUT_JOB_TTL), 20 * 60 * 1000);
+loadCutJobsFromDisk();
+setImmediate(scheduleCutJobs);
+setInterval(() => {
+  cleanupCutJobs();
+  scheduleCutJobs();
+}, 20 * 60 * 1000);
 
 async function handleCut(req, res, url) {
   setCors(req, res);
@@ -2412,34 +2944,63 @@ async function handleCut(req, res, url) {
   const user = requireAuth(req, res);
   if (!user) return;
 
+  if (req.method === 'GET' && url.pathname === '/api/cut/current') {
+    const job = findPendingCutJob(user.id);
+    if (!job) {
+      sendJson(res, 404, { error: 'no_pending_cut', message: '当前没有排队或生成中的备用 MP3。' });
+      return;
+    }
+    sendJson(res, 200, cutJobStatusPayload(job));
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/cut/start') {
     if (!hasDay1Access(user)) {
       sendDay1Required(res);
       return;
     }
-    if (countActiveCutJobs() >= CUT_MAX_ACTIVE_JOBS) {
-      sendJson(res, 429, {
-        error: 'cut_busy',
-        message: '现在生成备用 MP3 的人比较多，先不用反复点。已经剪完请先点“提交审核”交给助教；备用 MP3 稍后再生成。',
-        retryAfterSeconds: 60,
-        activeJobs: countActiveCutJobs(),
-        maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
-      });
+    const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
+    const payloadSignature = buildCutPayloadSignature(body);
+    const existingUserJob = findPendingCutJob(user.id);
+    const activeUserJobCount = countPendingCutJobs(user.id);
+    if (existingUserJob?.payloadSignature && existingUserJob.payloadSignature === payloadSignature) {
+      sendJson(res, 202, cutJobStatusPayload(existingUserJob));
       return;
     }
-    if (countActiveCutJobs(user.id) >= CUT_MAX_ACTIVE_JOBS_PER_USER) {
+    if (activeUserJobCount >= CUT_MAX_ACTIVE_JOBS_PER_USER) {
       sendJson(res, 429, {
         error: 'cut_user_busy',
-        message: '你已有备用 MP3 正在生成中，请保持页面打开等待完成，不用重复提交。',
+        message: '你已有另一份备用 MP3 正在排队或生成中，请等它完成后再生成新的。',
         retryAfterSeconds: 30,
       });
       return;
     }
-
-    const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
+    if (countPendingCutJobs() >= CUT_MAX_ACTIVE_JOBS + CUT_MAX_QUEUED_JOBS) {
+      sendJson(res, 429, {
+        error: 'cut_queue_full',
+        message: '现在生成备用 MP3 的队列已经满了，请先提交审核，稍后再回来下载备用 MP3。',
+        retryAfterSeconds: 120,
+        activeJobs: countRunningCutJobs(),
+        queuedJobs: countQueuedCutJobs(),
+        maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
+        maxQueuedJobs: CUT_MAX_QUEUED_JOBS,
+      });
+      return;
+    }
     const audioUrl = String(body.audioUrl || '').trim();
+    const objectKey = String(body.objectKey || '').trim();
+    const materialObjectKey = objectKeyFromOrderMaterialUrl(audioUrl, req);
+    if (materialObjectKey && !hasDay2Access(user)) {
+      sendJson(res, 403, {
+        error: 'day2_required',
+        message: '请先完成第二天剪辑练习，并提交一次助教审核。',
+      });
+      return;
+    }
+    const signedObjectKey = objectKey || materialObjectKey;
+    const useOss = String(body.storage || '') === 'oss' || isOwnedOssObjectKey(objectKey) || Boolean(materialObjectKey);
     const segments = Array.isArray(body.segments) ? body.segments : [];
-    if (!audioUrl) {
+    if (!useOss && !audioUrl) {
       sendJson(res, 400, { error: 'missing_audio_url', message: '缺少原始音频 URL，请从审查页重新导出。' });
       return;
     }
@@ -2453,9 +3014,22 @@ async function handleCut(req, res, url) {
     const musicPath = resolveIntroMusicPath(body.introMusic);
     let audioSource;
     try {
-      audioSource = resolveTrustedAudioInput(audioUrl, req);
+      if (useOss) {
+        // OSS：前端只传 objectKey，导出时服务器从 OSS 内网拉原音频，不走 URL 白名单校验
+        audioSource = {
+          type: 'oss',
+          objectKey: assertUserCanUseOssObjectKey(signedObjectKey, user, {
+            allowDispatchMaterial: Boolean(materialObjectKey),
+          }),
+        };
+      } else {
+        audioSource = resolveTrustedAudioInput(audioUrl, req);
+      }
     } catch (error) {
-      sendJson(res, 400, { error: 'invalid_audio_url', message: error.message || '原始音频地址无效。' });
+      sendJson(res, error.statusCode || 400, {
+        error: error.statusCode === 403 ? 'forbidden_oss_object' : 'invalid_audio_url',
+        message: error.message || '原始音频地址无效。',
+      });
       return;
     }
 
@@ -2474,28 +3048,24 @@ async function handleCut(req, res, url) {
       filename: cleanTitle(body.fileName || 'podcast.mp3', 180),
       audioUrl,
       audioSource,
+      nonResumable: audioSource?.type === 'data',
+      payloadSignature,
       segments,
       goldenSegments,
       musicPath,
       originalDuration: Number(body.originalDuration || body.original_duration || 0),
       createdAt: Date.now(),
+      queuedAt: Date.now(),
+      startedAt: null,
+      completedAt: null,
+      updatedAt: Date.now(),
       error: null,
     };
     cutJobs.set(jobId, job);
+    persistCutJob(job, { force: true });
+    scheduleCutJobs();
 
-    (async () => {
-      try {
-        await cutDownloadInput(job);
-        await cutProcess(job);
-        try { fs.unlinkSync(job.inputPath); } catch {}
-      } catch (error) {
-        job.stage = 'error';
-        job.error = error.message || String(error);
-        console.error('[cut]', jobId, job.error);
-      }
-    })();
-
-    sendJson(res, 202, { jobId });
+    sendJson(res, 202, cutJobStatusPayload(job));
     return;
   }
 
@@ -2504,13 +3074,7 @@ async function handleCut(req, res, url) {
     const job = cutJobs.get(jobId);
     if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
-    sendJson(res, 200, {
-      jobId,
-      status: job.stage === 'error' ? 'failed' : job.stage,
-      stage: job.stage,
-      progress: job.progress,
-      error: job.error || null,
-    });
+    sendJson(res, 200, cutJobStatusPayload(job));
     return;
   }
 
@@ -2520,10 +3084,24 @@ async function handleCut(req, res, url) {
     if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
     if (job.stage !== 'done') { sendJson(res, 409, { error: '文件尚未就绪' }); return; }
-    if (!fs.existsSync(job.outputPath)) { sendJson(res, 410, { error: '文件已过期' }); return; }
 
     const basename = path.basename(job.filename, path.extname(job.filename));
     const dlName = encodeURIComponent(`${basename}_精剪版.mp3`);
+
+    if (oss.isOssEnabled() && job.outputObjectKey) {
+      // 产物在 OSS：302 重定向到公网签名下载链接，下载流量绕开 ECS
+      try {
+        const signed = oss.signPublicUrl(job.outputObjectKey, 600, { filename: `${basename}_精剪版.mp3` });
+        res.writeHead(302, { Location: signed, 'Access-Control-Allow-Origin': '*' });
+        res.end();
+      } catch (error) {
+        console.error('[cut] OSS 下载签名失败', error && error.message);
+        sendJson(res, 500, { error: '下载链接生成失败' });
+      }
+      return;
+    }
+
+    if (!fs.existsSync(job.outputPath)) { sendJson(res, 410, { error: '文件已过期' }); return; }
     const stat = fs.statSync(job.outputPath);
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
@@ -2541,7 +3119,7 @@ async function handleCut(req, res, url) {
   sendJson(res, 404, { error: 'not_found' });
 }
 
-function countActiveCutJobs(userId) {
+function countPendingCutJobs(userId) {
   let count = 0;
   for (const job of cutJobs.values()) {
     if (userId && job.userId !== userId) continue;
@@ -2550,27 +3128,315 @@ function countActiveCutJobs(userId) {
   return count;
 }
 
+function countRunningCutJobs() {
+  let count = 0;
+  for (const job of cutJobs.values()) {
+    if (['downloading', 'processing'].includes(job.stage) || job.running) count += 1;
+  }
+  return count;
+}
+
+function countQueuedCutJobs() {
+  let count = 0;
+  for (const job of cutJobs.values()) {
+    if (job.stage === 'queued' && !job.running) count += 1;
+  }
+  return count;
+}
+
+function getQueuedCutJobs() {
+  return [...cutJobs.values()]
+    .filter((job) => job.stage === 'queued' && !job.running)
+    .sort((a, b) => (Number(a.queuedAt || a.createdAt) - Number(b.queuedAt || b.createdAt)) || String(a.id).localeCompare(String(b.id)));
+}
+
+function findPendingCutJob(userId) {
+  return [...cutJobs.values()]
+    .filter((job) => job.userId === userId && ['queued', 'downloading', 'processing'].includes(job.stage))
+    .sort((a, b) => (Number(a.queuedAt || a.createdAt) - Number(b.queuedAt || b.createdAt)) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+
+function buildCutPayloadSignature(data = {}) {
+  const storage = String(data.storage || '').trim();
+  const objectKey = String(data.objectKey || '').trim();
+  const audioUrl = String(data.audioUrl || '').trim();
+  const audioRef = (storage === 'oss' || isOwnedOssObjectKey(objectKey)) && objectKey
+    ? `oss:${objectKey}`
+    : `url:${audioUrl}`;
+  const signatureBody = {
+    audioRef,
+    storage,
+    objectKey,
+    fileName: String(data.fileName || '').trim(),
+    segments: Array.isArray(data.segments) ? data.segments : [],
+    goldenSegments: Array.isArray(data.goldenSegments) ? data.goldenSegments : [],
+    introMusic: data.introMusic || null,
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(signatureBody)).digest('hex');
+}
+
+function getCutQueueAhead(jobId) {
+  const job = cutJobs.get(jobId);
+  if (!job || job.stage !== 'queued') return 0;
+  const running = countRunningCutJobs();
+  const queued = getQueuedCutJobs();
+  const index = queued.findIndex((item) => item.id === jobId);
+  return running + Math.max(0, index);
+}
+
+function cutJobStatusPayload(job) {
+  const queueAhead = getCutQueueAhead(job.id);
+  return {
+    jobId: job.id,
+    status: job.stage === 'error' ? 'failed' : job.stage,
+    stage: job.stage,
+    progress: Number(job.progress || 0),
+    queueAhead,
+    queuePosition: job.stage === 'queued' ? queueAhead + 1 : 0,
+    activeJobs: countRunningCutJobs(),
+    queuedJobs: countQueuedCutJobs(),
+    maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
+    maxQueuedJobs: CUT_MAX_QUEUED_JOBS,
+    error: job.error || null,
+  };
+}
+
+function scheduleCutJobs() {
+  while (countRunningCutJobs() < CUT_MAX_ACTIVE_JOBS) {
+    const job = getQueuedCutJobs()[0];
+    if (!job) return;
+    startCutJob(job);
+  }
+}
+
+function startCutJob(job) {
+  if (!job || job.running || job.stage !== 'queued') return;
+  job.running = true;
+  job.startedAt = Date.now();
+  job.updatedAt = Date.now();
+  persistCutJob(job, { force: true });
+
+  (async () => {
+    try {
+      cleanupCutJobTempFiles(job, { keepOutput: false });
+      await cutDownloadInput(job);
+      await cutProcess(job);
+      try { fs.unlinkSync(job.inputPath); } catch {}
+      if (oss.isOssEnabled()) {
+        // 产物 MP3 传到 OSS（cut/ 前缀，7 天生命周期自动清），本地产物删掉，下载走 OSS 签名链接
+        await cutUploadOutput(job);
+        try { fs.unlinkSync(job.outputPath); } catch {}
+      }
+      job.completedAt = Date.now();
+      persistCutJob(job, { force: true });
+    } catch (error) {
+      failCutJob(job, error.message || String(error));
+      console.error('[cut]', job.id, job.error);
+    } finally {
+      job.running = false;
+      persistCutJob(job, { force: true });
+      scheduleCutJobs();
+    }
+  })();
+}
+
+function cutJobStatePath(jobId) {
+  return path.join(CUT_JOB_STATE_DIR, `${jobId}.json`);
+}
+
+function serializeCutJob(job) {
+  const dataAudio = isDataAudioUrl(job.audioUrl);
+  return {
+    id: job.id,
+    userId: job.userId,
+    stage: job.stage,
+    progress: Number(job.progress || 0),
+    inputPath: job.inputPath,
+    outputPath: job.outputPath,
+    filename: job.filename,
+    audioUrl: dataAudio ? '' : job.audioUrl,
+    audioSource: job.audioSource || null,
+    nonResumable: Boolean(job.nonResumable || dataAudio),
+    payloadSignature: job.payloadSignature || null,
+    outputObjectKey: job.outputObjectKey || null,
+    segments: Array.isArray(job.segments) ? job.segments : [],
+    goldenSegments: Array.isArray(job.goldenSegments) ? job.goldenSegments : [],
+    musicPath: job.musicPath || null,
+    originalDuration: Number(job.originalDuration || 0),
+    createdAt: Number(job.createdAt || Date.now()),
+    queuedAt: Number(job.queuedAt || job.createdAt || Date.now()),
+    startedAt: job.startedAt || null,
+    completedAt: job.completedAt || null,
+    updatedAt: Number(job.updatedAt || Date.now()),
+    error: job.error || null,
+  };
+}
+
+function persistCutJob(job, options = {}) {
+  if (!job?.id) return;
+  const now = Date.now();
+  if (!options.force && job.lastPersistedAt && now - job.lastPersistedAt < CUT_PROGRESS_SAVE_MS) return;
+  job.updatedAt = now;
+  job.lastPersistedAt = now;
+  try {
+    ensureDir(CUT_JOB_STATE_DIR);
+    const target = cutJobStatePath(job.id);
+    const temp = `${target}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(serializeCutJob(job)));
+    fs.renameSync(temp, target);
+  } catch (error) {
+    console.error('[cut] 任务状态保存失败', job.id, error.message || error);
+  }
+}
+
+function loadCutJobsFromDisk() {
+  try {
+    ensureDir(CUT_JOB_STATE_DIR);
+  } catch (error) {
+    console.error('[cut] 任务状态目录不可用', error.message || error);
+    return;
+  }
+
+  const now = Date.now();
+  for (const file of fs.readdirSync(CUT_JOB_STATE_DIR)) {
+    if (!file.endsWith('.json')) continue;
+    const filePath = path.join(CUT_JOB_STATE_DIR, file);
+    try {
+      const job = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (!job?.id) {
+        try { fs.unlinkSync(filePath); } catch {}
+        continue;
+      }
+      job.running = false;
+      if (job.nonResumable && ['queued', 'downloading', 'processing'].includes(job.stage)) {
+        cleanupCutJobTempFiles(job, { keepOutput: false });
+        failCutJob(job, '这个临时音频任务无法在服务器重启后继续，请重新生成备用 MP3。');
+        cutJobs.set(job.id, job);
+        continue;
+      }
+      if (['queued', 'downloading', 'processing'].includes(job.stage)) {
+        const queuedAt = Number(job.queuedAt || job.createdAt || now);
+        const updatedAt = Number(job.updatedAt || job.startedAt || queuedAt);
+        const isStale = job.stage === 'queued'
+          ? now - queuedAt > CUT_PENDING_TTL
+          : now - updatedAt > CUT_RUNNING_STALE_MS;
+        if (isStale) {
+          cleanupCutJobTempFiles(job, { keepOutput: false });
+          failCutJob(job, '任务等待或处理时间过长，已自动取消。请重新生成备用 MP3。');
+        } else {
+          cleanupCutJobTempFiles(job, { keepOutput: false });
+          job.stage = 'queued';
+          job.progress = 0;
+          job.error = null;
+          job.queuedAt = queuedAt;
+          job.startedAt = null;
+          persistCutJob(job, { force: true });
+        }
+      } else {
+        const finishedAt = Number(job.completedAt || job.updatedAt || job.createdAt || now);
+        if (now - finishedAt > CUT_JOB_TTL) {
+          cleanupCutJobTempFiles(job, { keepOutput: false });
+          try { fs.unlinkSync(filePath); } catch {}
+          continue;
+        }
+      }
+      cutJobs.set(job.id, job);
+    } catch (error) {
+      console.error('[cut] 任务状态读取失败', file, error.message || error);
+    }
+  }
+}
+
+function cleanupCutJobTempFiles(job, options = {}) {
+  try { if (job.inputPath && fs.existsSync(job.inputPath)) fs.unlinkSync(job.inputPath); } catch {}
+  if (!options.keepOutput) {
+    try { if (job.outputPath && fs.existsSync(job.outputPath)) fs.unlinkSync(job.outputPath); } catch {}
+  }
+}
+
+function cleanupCutJobs() {
+  const now = Date.now();
+  for (const [id, job] of cutJobs) {
+    if (job.stage === 'queued') {
+      const queuedAt = Number(job.queuedAt || job.createdAt || now);
+      if (now - queuedAt > CUT_PENDING_TTL) {
+        failCutJob(job, '排队等待时间过长，已自动取消。请重新生成备用 MP3。');
+      }
+      continue;
+    }
+
+    if (['downloading', 'processing'].includes(job.stage) || job.running) {
+      const touchedAt = Number(job.updatedAt || job.startedAt || job.createdAt || now);
+      if (now - touchedAt > CUT_RUNNING_STALE_MS) {
+        try { if (job.childProcess) job.childProcess.kill('SIGTERM'); } catch {}
+        failCutJob(job, '处理时间过长，已自动取消。请重新生成备用 MP3。');
+      }
+      continue;
+    }
+
+    const finishedAt = Number(job.completedAt || job.updatedAt || job.createdAt || now);
+    if (now - finishedAt <= CUT_JOB_TTL) continue;
+    cleanupCutJobTempFiles(job, { keepOutput: false });
+    try { fs.unlinkSync(cutJobStatePath(id)); } catch {}
+    cutJobs.delete(id);
+  }
+  scheduleCutJobs();
+}
+
+function setCutJobStage(job, stage, progress) {
+  job.stage = stage;
+  if (Number.isFinite(progress)) job.progress = progress;
+  persistCutJob(job, { force: true });
+}
+
+function setCutJobProgress(job, progress) {
+  job.progress = progress;
+  persistCutJob(job);
+}
+
+function failCutJob(job, message) {
+  job.stage = 'error';
+  job.running = false;
+  job.error = message || '任务处理失败';
+  job.completedAt = Date.now();
+  persistCutJob(job, { force: true });
+}
+
 async function cutDownloadInput(job) {
-  job.stage = 'downloading';
-  job.progress = 5;
+  setCutJobStage(job, 'downloading', 5);
+  if (job.audioSource?.type === 'oss') {
+    // OSS：从内网把原音频直接拉到 ffmpeg 输入文件
+    await oss.pullToFile(job.audioSource.objectKey, job.inputPath);
+    setCutJobStage(job, 'downloading', 20);
+    return;
+  }
   if (job.audioSource?.type === 'file') {
     if (!fs.existsSync(job.audioSource.filePath)) throw new Error('原始音频文件不存在，请重新上传。');
     fs.copyFileSync(job.audioSource.filePath, job.inputPath);
-    job.progress = 20;
+    setCutJobStage(job, 'downloading', 20);
     return;
   }
-  if (job.audioUrl.startsWith('data:audio/')) {
+  if (isDataAudioUrl(job.audioUrl)) {
     const match = job.audioUrl.match(/^data:audio\/[^;]+;base64,(.+)$/);
     if (!match) throw new Error('音频数据格式不正确。');
     fs.writeFileSync(job.inputPath, Buffer.from(match[1], 'base64'));
-    job.progress = 20;
+    setCutJobStage(job, 'downloading', 20);
     return;
   }
   throw new Error('请使用剪辑台上传生成的音频地址。');
 }
 
+// 把生成好的产物 MP3 传到 OSS（cut/ 前缀），记录 outputObjectKey 供下载签名
+async function cutUploadOutput(job) {
+  const date = isoDay();
+  const outKey = oss.withPrefix(`cut/${date}/${job.id}.mp3`);
+  await oss.putFile(outKey, job.outputPath, { mime: 'audio/mpeg' });
+  job.outputObjectKey = outKey;
+  persistCutJob(job, { force: true });
+}
+
 function resolveTrustedAudioInput(audioUrl, req) {
-  if (audioUrl.startsWith('data:audio/')) return { type: 'data' };
+  if (isDataAudioUrl(audioUrl)) return { type: 'data' };
   let parsed;
   try {
     parsed = new URL(audioUrl, `http://${req.headers.host}`);
@@ -2598,6 +3464,10 @@ function resolveTrustedAudioInput(audioUrl, req) {
     throw new Error('原始音频地址无效。');
   }
   return { type: 'file', filePath };
+}
+
+function isDataAudioUrl(value) {
+  return /^data:audio\/[^;]+;base64,/i.test(String(value || ''));
 }
 
 async function writeFetchBody(response, filePath, maxBytes) {
@@ -2632,8 +3502,7 @@ async function writeFetchBody(response, filePath, maxBytes) {
 }
 
 async function cutProcess(job) {
-  job.stage = 'processing';
-  job.progress = 25;
+  setCutJobStage(job, 'processing', 25);
   const duration = job.originalDuration > 0 ? job.originalDuration : await refineProbe(job.inputPath);
   const keepSegments = invertCutSegments(job.segments, duration);
   if (!keepSegments.length) throw new Error('所有音频都被标记删除了，无法生成成品。');
@@ -2654,21 +3523,25 @@ async function cutProcess(job) {
 
   await new Promise((resolve, reject) => {
     const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...inputs, ...args, '-y', job.outputPath]);
+    job.childProcess = pass;
     pass.stderr.on('data', (chunk) => {
       const line = chunk.toString();
       const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
       if (t && duration > 0) {
         const elapsed = Number(t[1]) * 3600 + Number(t[2]) * 60 + parseFloat(t[3]);
-        job.progress = Math.min(95, 25 + Math.round((elapsed / duration) * 70));
+        setCutJobProgress(job, Math.min(95, 25 + Math.round((elapsed / duration) * 70)));
       }
     });
     pass.on('close', (code) => {
+      job.childProcess = null;
       if (code !== 0) return reject(new Error('ffmpeg 剪辑失败'));
-      job.stage = 'done';
-      job.progress = 100;
+      setCutJobStage(job, 'done', 100);
       resolve();
     });
-    pass.on('error', reject);
+    pass.on('error', (error) => {
+      job.childProcess = null;
+      reject(error);
+    });
   });
 }
 

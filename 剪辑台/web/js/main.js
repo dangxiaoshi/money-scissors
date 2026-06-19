@@ -1,5 +1,5 @@
-import { uploadAudioToOSS } from './upload.js?v=20260610-reviewflow-1';
-import { transcribeWithFunASR } from './transcribe.js?v=20260610-fix2';
+import { uploadAudioToOSS } from './upload.js?v=20260618-oss-1';
+import { transcribeWithFunASR } from './transcribe.js?v=20260618-oss-1';
 import { analyzeEditing, applyAnalysisToReviewPayload } from './analyze.js?v=20260609-1';
 import { apiJson, ensureLoggedIn, postUsage, setupSessionChrome } from './api.js?v=20260610-reviewflow-1';
 import {
@@ -7,7 +7,7 @@ import {
   buildSpeakerGroups,
   generateSentences,
   generateSubtitlesWords,
-} from './transcript.js?v=20260606-1';
+} from './transcript.js?v=20260618-oss-1';
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const MAX_FILES = 10;
@@ -315,11 +315,13 @@ async function runPipeline() {
     let total = state.files.length;
     let sources = [];
     let workingAudioUrl = '';
+    let workingAudioSource = null;
     let projectName = '';
 
     if (usingRemoteTask) {
       updateProcess('已载入接单任务音频，准备转录…');
-      sources = [{ name: state.remoteTask.title, url: state.remoteTask.audioUrl, order: 0 }];
+      sources = [{ name: state.remoteTask.title, url: state.remoteTask.audioUrl, audioUrl: state.remoteTask.audioUrl, storage: 'local', order: 0 }];
+      workingAudioSource = sources[0];
       workingAudioUrl = state.remoteTask.audioUrl;
       projectName = state.remoteTask.title;
       total = 1;
@@ -341,14 +343,29 @@ async function runPipeline() {
         } catch (error) {
           throw new Error(`第 ${i + 1} 个音频「${item.file.name}」上传失败：${formatErrorMessage(error)}`);
         }
-        sources.push({ name: item.file.name, url: uploaded.audioUrl, order: i });
+        if (total > 1 && uploaded.storage === 'oss') {
+          throw new Error('测试站 OSS 模式下暂时只支持单个音频。多个音频拼接会在下一步接上，请先用单个音频测试。');
+        }
+        sources.push(buildAudioSource({
+          name: item.file.name,
+          order: i,
+          audioUrl: uploaded.audioUrl,
+          storage: uploaded.storage,
+          objectKey: uploaded.objectKey,
+          bucket: uploaded.bucket,
+          region: uploaded.region,
+        }));
       }
       setProgress(20);
 
       // 多个音频先按顺序拼成一个 MP3，再走原有单音频流程
+      workingAudioSource = sources[0];
       workingAudioUrl = sources[0].url;
       projectName = sources[0].name;
       if (total > 1) {
+        if (sources.some(isOssAudioSource)) {
+          throw new Error('测试站 OSS 模式下暂时只支持单个音频。多个音频拼接会在下一步接上，请先用单个音频测试。');
+        }
         projectName = `多音频项目（${total} 个）`;
         updateProcess('正在按顺序拼接音频…');
         workingAudioUrl = await concatAudios(sources, {
@@ -357,12 +374,13 @@ async function runPipeline() {
             if (typeof progress === 'number') setProgress(20 + (progress / 100) * 5);
           },
         });
+        workingAudioSource = buildAudioSource({ name: projectName, audioUrl: workingAudioUrl, storage: 'local', order: 0 });
       }
     }
     setProgress(25);
 
     updateProcess('正在转录中…');
-    const transcription = await transcribeWithFunASR(workingAudioUrl, speakerCount, {
+    const transcription = await transcribeWithFunASR(workingAudioSource || workingAudioUrl, speakerCount, {
       onStatus: (detail) => updateProcess(detail || '正在转录中…'),
     });
     setProgress(65);
@@ -388,6 +406,10 @@ async function runPipeline() {
     updateProcess('正在准备逐字稿剪辑页…');
     let payload = buildReviewPayload(sentences, {
       audioUrl: workingAudioUrl,
+      storage: workingAudioSource?.storage,
+      objectKey: workingAudioSource?.objectKey,
+      bucket: workingAudioSource?.bucket,
+      region: workingAudioSource?.region,
       fileName: projectName,
       subtitlesWords,
     });
@@ -401,7 +423,7 @@ async function runPipeline() {
     }
     // 记录多音频来源与排序，刷新/重开项目后顺序不丢
     if (total > 1) {
-      payload.sources = sources.map((s) => ({ name: s.name, order: s.order }));
+      payload.sources = sources.map(({ name, order, storage, objectKey, bucket, region }) => ({ name, order, storage, objectKey, bucket, region }));
     }
     persistJson('jinqian_data', payload);
 
@@ -535,6 +557,24 @@ async function saveProjectPayload({ projectId, fileName, audioUrl, payload }) {
       metrics: buildProjectMetrics(payload),
     }),
   });
+}
+
+function buildAudioSource(source) {
+  const audioUrl = source.audioUrl || source.url || '';
+  return {
+    name: source.name || '',
+    order: source.order || 0,
+    url: audioUrl,
+    audioUrl,
+    storage: source.storage || 'local',
+    objectKey: source.objectKey || '',
+    bucket: source.bucket || '',
+    region: source.region || '',
+  };
+}
+
+function isOssAudioSource(source) {
+  return source?.storage === 'oss';
 }
 
 function sleep(ms) {

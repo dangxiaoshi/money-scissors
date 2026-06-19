@@ -36,6 +36,13 @@ export function saveAuth(auth) {
 
 export function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
+  try {
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 export function isExpired(auth) {

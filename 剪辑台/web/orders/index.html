@@ -699,9 +699,13 @@
           <span class="task-emoji">${escapeHtml(inferEmoji(claim.task.title, claim.task.demand))}</span>
           <span class="task-title">${escapeHtml(claim.task.title || '未命名任务')}</span>
           <span class="task-goal">${escapeHtml(claim.task.budget || '待定')} · ${escapeHtml(formatClaimTime(claim.updatedAt || claim.claimedAt))}</span>
-          <span class="claim-status">${escapeHtml(claimStatusHint(claim.status))}</span>
+          <span class="claim-status">${escapeHtml(claimStatusHint(claim))}</span>
           <div class="task-actions">
-            <a class="path-btn primary" href="/edit?task=${encodeURIComponent(claim.taskId)}&claim=${encodeURIComponent(claim.id)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>
+            ${isAutoAudioMaterial(claim.task.materialLink)
+              ? `<a class="path-btn primary" href="/edit?task=${encodeURIComponent(claim.taskId)}&claim=${encodeURIComponent(claim.id)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`
+              : claim.task.materialLink
+                ? `<a class="path-btn primary" href="${escapeAttr(claim.task.materialLink)}" target="_blank" rel="noopener">打开素材下载</a><a class="path-btn secondary" href="/edit">去剪辑台上传</a>`
+              : `<button class="path-btn primary" type="button" disabled>等待音频素材</button>`}
             <button class="path-btn secondary" type="button" data-abandon-claim="${escapeAttr(claim.id)}" ${canAbandonClaim(claim.status) ? '' : 'hidden'}>放弃此单</button>
           </div>
         </article>`).join('');
@@ -755,7 +759,12 @@
           dispatchTasks = dispatchTasks.map((item) => String(item.id) === String(nextTask.id) ? nextTask : item);
         }
         renderMyClaims();
-        location.href = `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(data.claim?.id || task.myClaim?.id || '')}`;
+        if (isAutoAudioMaterial(task.materialLink)) {
+          location.href = `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(data.claim?.id || task.myClaim?.id || '')}`;
+        } else {
+          closeTaskDialog();
+          await loadDispatchTasks();
+        }
       } catch (error) {
         document.getElementById('detail-warning').innerHTML = `<div class="detail-warning">${escapeHtml(error?.message || '抢单失败，请刷新后重试。')}</div>`;
         start.textContent = detailStartText(task);
@@ -788,7 +797,11 @@
         maxClaims: Number(task.maxClaims || task.max_claims || 5),
         emoji: inferEmoji(title, demand),
         type: task.difficulty || inferType(title, demand),
-        warning: '',
+        visibility: task.visibility || 'public',
+        assigneeLabel: task.assigneeLabel || task.assigneeRefs || '',
+        canClaim: task.canClaim !== false,
+        claimBlockedReason: task.claimBlockedReason || '',
+        warning: task.visibility === 'assigned' ? `私密单，仅限 ${task.assigneeLabel || '指定学员'} 接单。其他学员可看需求，但不能抢单。` : '',
         target: [sections.intro, sections.target].filter(Boolean).join('\n\n') || demand || '后台还没有填写任务需求。',
         keep: sections.keep || '按任务需求保留核心信息。',
         remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
@@ -813,6 +826,8 @@
           budget: task.budget || '',
           demand: task.demand || '',
           materialLink: task.materialLink || task.material_link || '',
+          visibility: task.visibility || 'public',
+          assigneeLabel: task.assigneeLabel || task.assignee_refs || '',
         },
       };
     }
@@ -825,6 +840,7 @@
     function buildQuotaLabel(task) {
       const maxClaims = Number(task.maxClaims || task.max_claims || 5);
       const claimCount = Number(task.claimCount || task.claim_count || 0);
+      if (task.visibility === 'assigned') return '私密单';
       if (claimCount >= maxClaims) return `已满 · ${claimCount}/${maxClaims}`;
       return `可抢 · ${claimCount}/${maxClaims}`;
     }
@@ -834,19 +850,24 @@
       const claimCount = Number(task.claimCount || task.claim_count || 0);
       const reviewingCount = Number(task.reviewingCount || task.reviewing_count || 0);
       const adopted = Boolean(task.adoptedSubmissionId || task.adopted_submission_id);
+      if (task.visibility === 'assigned') return `仅 ${task.assigneeLabel || '指定学员'} 可接`;
       if (adopted) return '已采用，任务结束';
       if (reviewingCount > 0) return `${reviewingCount} 人待审核`;
       return `还可抢 ${Math.max(maxClaims - claimCount, 0)} 人`;
     }
 
     function canStartTask(task) {
-      if (!task?.materialLink) return false;
+      if (task?.canClaim === false) return false;
       if (task.myClaim) return true;
       return Number(task.claimCount || 0) < Number(task.maxClaims || 5);
     }
 
     function detailStartText(task) {
-      if (!task.materialLink) return '等待音频';
+      if (task.canClaim === false) return task.claimBlockedReason || '仅指定学员可接';
+      if (!task.materialLink && task.myClaim) return '已抢单，等待音频';
+      if (!task.materialLink) return '抢单，等待音频';
+      if (!isAutoAudioMaterial(task.materialLink) && task.myClaim) return '已抢单，先下载素材';
+      if (!isAutoAudioMaterial(task.materialLink)) return '抢单，先下载素材';
       if (task.myClaim) return '继续剪辑';
       if (Number(task.claimCount || 0) >= Number(task.maxClaims || 5)) return '名额已满';
       return '抢单并开始剪';
@@ -855,6 +876,13 @@
     function detailStartHref(task) {
       if (!task.materialLink || !task.myClaim) return '#';
       return `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(task.myClaim.id)}`;
+    }
+
+    function isAutoAudioMaterial(value) {
+      const link = String(value || '').trim();
+      if (!link) return false;
+      if (/^\/api\/orders\/material\//.test(link)) return true;
+      return /\.(mp3|m4a|wav|aac|flac)(?:[?#].*)?$/i.test(link);
     }
 
     function claimStatusLabel(status) {
@@ -867,7 +895,11 @@
       return labels[status] || '制作中';
     }
 
-    function claimStatusHint(status) {
+    function claimStatusHint(claimOrStatus) {
+      const claim = typeof claimOrStatus === 'object' ? claimOrStatus : null;
+      const status = claim ? claim.status : claimOrStatus;
+      if (claim && !claim.task.materialLink) return '已抢单，等待后台补音频素材。';
+      if (claim && claim.task.materialLink && !isAutoAudioMaterial(claim.task.materialLink)) return '已抢单，请先打开素材链接下载音频，再去剪辑台上传。';
       const hints = {
         in_progress: '已抢单，可以继续剪辑。',
         returned: '按助教意见修改后重新提交。',

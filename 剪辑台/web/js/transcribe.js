@@ -1,13 +1,14 @@
 import { DASHSCOPE_PROXY_URL } from './config.js?v=20260606-2';
 import { getAuthHeaders } from './api.js?v=20260610-reviewflow-1';
 
-export async function transcribeWithFunASR(audioUrl, speakerCount, { onStatus } = {}) {
+export async function transcribeWithFunASR(audioSource, speakerCount, { onStatus } = {}) {
   if (!DASHSCOPE_PROXY_URL) {
     throw new Error('DashScope 代理未配置，请联系管理员。');
   }
 
+  const source = normalizeAudioSource(audioSource);
   onStatus?.('正在提交转录任务');
-  const submitData = await submitTask(audioUrl, speakerCount);
+  const submitData = await submitTask(source, speakerCount);
   const taskId = submitData.output?.task_id;
   if (!taskId) {
     throw new Error(`阿里云未返回 task_id：${JSON.stringify(submitData)}`);
@@ -36,12 +37,29 @@ export async function transcribeWithFunASR(audioUrl, speakerCount, { onStatus } 
   throw new Error('阿里云转录超时：已等待 25 分钟。你可以重新开始；如果这段音频很长，建议先拆短一点再上传。');
 }
 
-async function submitTask(audioUrl, speakerCount) {
+function normalizeAudioSource(source) {
+  if (source && typeof source === 'object') {
+    return {
+      audioUrl: source.audioUrl || source.url || '',
+      storage: source.storage || '',
+      objectKey: source.objectKey || '',
+    };
+  }
+  return { audioUrl: String(source || ''), storage: '', objectKey: '' };
+}
+
+async function submitTask(source, speakerCount) {
   if (DASHSCOPE_PROXY_URL) {
+    const body = {
+      audioUrl: source.audioUrl,
+      speakerCount,
+    };
+    if (source.storage) body.storage = source.storage;
+    if (source.objectKey) body.objectKey = source.objectKey;
     const resp = await fetchProxy(`${DASHSCOPE_PROXY_URL.replace(/\/+$/g, '')}/transcription`, {
       method: 'POST',
       headers: getAuthHeaders({ 'Content-Type': 'application/json', 'x-proxy-check': 'money-scissors' }),
-      body: JSON.stringify({ audioUrl, speakerCount }),
+      body: JSON.stringify(body),
     }, '提交阿里云转录');
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {

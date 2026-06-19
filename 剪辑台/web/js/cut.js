@@ -3,6 +3,8 @@ import { apiFetch, ensureLoggedIn, postUsage, setupSessionChrome } from './api.j
 const els = {};
 let outputUrl = '';
 let outputName = '';
+const CUT_POLL_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+const PENDING_CUT_KEY = 'jinqian_pending_cut_job';
 
 document.addEventListener('DOMContentLoaded', () => {
   const auth = ensureLoggedIn();
@@ -53,10 +55,25 @@ async function runCut() {
   if (!data.audioUrl) throw new Error('缺少原始音频 URL，请从审查页重新导出。');
   if (!Array.isArray(data.segments)) throw new Error('缺少删除段数据，请从审查页重新导出。');
 
-  setStatus('提交剪辑任务', '这是备用 MP3，不影响提交给助教；请保持页面打开。', 5);
-  const cutJob = await startServerCut(data);
-  const cutResult = await pollServerCut(cutJob.jobId);
+  let cutJob = readPendingCutJob(data);
+  if (cutJob) {
+    setStatus('继续等待备用 MP3', '已找回刚才排队的任务，继续等待生成。', 5);
+  } else {
+    setStatus('提交剪辑任务', '这是备用 MP3，不影响提交给助教；请保持页面打开。', 5);
+    cutJob = await startServerCut(data);
+    savePendingCutJob(data, cutJob.jobId);
+  }
+  if (cutJob.stage === 'queued') showCutQueueStatus(cutJob);
+
+  let cutResult;
+  try {
+    cutResult = await pollServerCut(cutJob.jobId);
+  } catch (error) {
+    if (isTerminalCutError(error)) clearPendingCutJob(cutJob.jobId);
+    throw error;
+  }
   if (!cutResult) throw new Error('剪辑任务未完成');
+  clearPendingCutJob(cutJob.jobId);
 
   setStatus('生成下载链接', '正在准备备用 MP3 下载。', 92);
   const roughcutUrl = `/api/cut/download/${encodeURIComponent(cutJob.jobId)}`;
@@ -87,6 +104,10 @@ async function startServerCut(data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       audioUrl: data.audioUrl,
+      storage: data.storage || '',
+      objectKey: data.objectKey || '',
+      bucket: data.bucket || '',
+      region: data.region || '',
       segments: data.segments,
       originalDuration: data.original_duration || data.originalDuration || 0,
       fileName: data.fileName || 'podcast.mp3',
@@ -95,14 +116,16 @@ async function startServerCut(data) {
     }),
   });
   const payload = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(payload.message || payload.error || `剪辑提交失败：HTTP ${resp.status}`);
+  if (!resp.ok) {
+    throw new Error(payload.message || payload.error || `剪辑提交失败：HTTP ${resp.status}`);
+  }
   if (!payload.jobId) throw new Error('剪辑任务缺少 jobId');
   return payload;
 }
 
 async function pollServerCut(jobId) {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 30 * 60 * 1000) {
+  while (Date.now() - startedAt < CUT_POLL_TIMEOUT_MS) {
     await wait(1800);
     const resp = await apiFetch(`/api/cut/status/${encodeURIComponent(jobId)}`);
     const data = await resp.json().catch(() => ({}));
@@ -112,10 +135,72 @@ async function pollServerCut(jobId) {
     if (Number.isFinite(progress)) setProgress(Math.max(5, Math.min(99, progress)));
     if (data.status === 'done' || data.stage === 'done') return true;
     if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || '剪辑处理失败');
-    if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频；这是备用 MP3，不用重复提交。', Math.max(10, Math.min(30, progress || 10)));
+    if (data.stage === 'queued') showCutQueueStatus(data);
+    else if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频；这是备用 MP3，不用重复提交。', Math.max(10, Math.min(30, progress || 10)));
     else setStatus('正在生成粗剪 MP3', '服务器正在剪辑并编码 MP3；请保持页面打开。', Math.max(30, Math.min(95, progress || 30)));
   }
-  throw new Error('剪辑等待超时，请稍后重试。');
+  throw new Error('备用 MP3 排队等待超时，请稍后重新生成。');
+}
+
+function showCutQueueStatus(data) {
+  const ahead = Number(data.queueAhead || 0);
+  const detail = ahead > 0
+    ? `已进入队列，前面还有 ${ahead} 个任务；这只是备用 MP3，不影响提交审核。`
+    : '已进入队列，马上轮到你；请保持页面打开。';
+  setStatus('正在排队生成备用 MP3', detail, 5);
+}
+
+function readPendingCutJob(data) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PENDING_CUT_KEY) || '{}');
+    if (!saved.jobId || saved.signature !== buildPendingCutSignature(data)) return null;
+    if (Date.now() - Number(saved.createdAt || 0) > CUT_POLL_TIMEOUT_MS) {
+      localStorage.removeItem(PENDING_CUT_KEY);
+      return null;
+    }
+    return { jobId: saved.jobId, stage: 'queued' };
+  } catch {
+    return null;
+  }
+}
+
+function savePendingCutJob(data, jobId) {
+  try {
+    localStorage.setItem(PENDING_CUT_KEY, JSON.stringify({
+      jobId,
+      signature: buildPendingCutSignature(data),
+      createdAt: Date.now(),
+    }));
+  } catch {}
+}
+
+function clearPendingCutJob(jobId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PENDING_CUT_KEY) || '{}');
+    if (!jobId || saved.jobId === jobId) localStorage.removeItem(PENDING_CUT_KEY);
+  } catch {
+    localStorage.removeItem(PENDING_CUT_KEY);
+  }
+}
+
+function buildPendingCutSignature(data) {
+  const storage = data.storage || '';
+  const objectKey = data.objectKey || '';
+  const audioRef = storage === 'oss' && objectKey ? `oss:${objectKey}` : `url:${data.audioUrl || ''}`;
+  return JSON.stringify({
+    audioRef,
+    storage,
+    objectKey,
+    fileName: data.fileName || '',
+    segments: Array.isArray(data.segments) ? data.segments : [],
+    goldenSegments: Array.isArray(data.goldenSegments) ? data.goldenSegments : [],
+    introMusic: data.introMusic || null,
+  });
+}
+
+function isTerminalCutError(error) {
+  const message = error?.message || String(error || '');
+  return /任务不存在|已过期|已自动取消|处理失败|等待超时|剪辑处理失败/.test(message);
 }
 
 async function runRefine(blob, filename, refineSettings) {
@@ -205,19 +290,19 @@ async function triggerDownload(url, filename, onProgress) {
   let href = url;
   let revoke = false;
   if (!url.startsWith('blob:')) {
-    const resp = await apiFetch(url);
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.message || data.error || `下载失败：HTTP ${resp.status}`);
-    }
-    const blob = await readBlobWithProgress(resp, onProgress);
-    if (!blob.size) throw new Error('下载文件为空，请重新生成 MP3。');
-    href = URL.createObjectURL(blob);
-    revoke = true;
+    // 这里必须让浏览器直接导航到同源下载接口：OSS 产物会 302 到签名链接。
+    // 如果用 fetch 读 blob，浏览器会把重定向后的 OSS 当跨域请求，可能被 CORS 拦住。
+    if (typeof onProgress === 'function') onProgress({ received: 1, total: 1 });
+    clickDownloadLink(href, filename, false);
+    return;
   } else if (typeof onProgress === 'function') {
     onProgress({ received: 1, total: 1 });
   }
 
+  clickDownloadLink(href, filename, revoke);
+}
+
+function clickDownloadLink(href, filename, revoke) {
   const a = document.createElement('a');
   a.href = href;
   a.download = filename;

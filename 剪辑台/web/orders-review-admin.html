@@ -576,6 +576,12 @@
       metricReviewing: document.getElementById('metric-reviewing'),
     };
 
+    els.submissionStack.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-review-claim]');
+      if (!btn || btn.disabled) return;
+      reviewClaim(btn.dataset.reviewClaim, btn.dataset.reviewStatus);
+    });
+
     load();
 
     async function load() {
@@ -749,8 +755,8 @@
             <div class="submission-actions">
               <button class="btn secondary" type="button">试听成品</button>
               ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : '<button class="btn secondary" type="button" disabled>未提交</button>'}
-              <button class="btn good" type="button">采用这个</button>
-              <button class="btn bad" type="button">打回修改</button>
+              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${hasSnapshot ? '' : 'disabled'}>采用这个</button>
+              <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${hasSnapshot ? '' : 'disabled'}>打回修改</button>
               <button class="btn secondary" type="button">标记未采用</button>
             </div>
           </article>
@@ -760,6 +766,26 @@
         <div class="empty">${claims.length + index + 1}号位置还没有学员抢单或提交。</div>
       `);
       return [...realItems, ...emptyItems].join('') || '<div class="empty">这条订单还没有真实抢单记录。</div>';
+    }
+
+    async function reviewClaim(claimId, status) {
+      if (!claimId || !status) return;
+      const isReject = status === 'rejected';
+      const note = isReject ? window.prompt('打回原因（可选，学员会看到这条状态）', '') : '';
+      if (note === null) return;
+      const buttons = els.submissionStack.querySelectorAll(`[data-review-claim="${CSS.escape(claimId)}"]`);
+      buttons.forEach((button) => { button.disabled = true; });
+      try {
+        await apiJson(`/api/orders/admin/claims/${encodeURIComponent(claimId)}/review`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status, note: note || '' }),
+        });
+        await load();
+      } catch (error) {
+        alert(error?.message || '审核操作失败，请刷新后重试。');
+      } finally {
+        buttons.forEach((button) => { button.disabled = false; });
+      }
     }
 
     function claimStatusLabel(status) {

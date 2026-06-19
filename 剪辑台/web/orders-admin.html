@@ -12,7 +12,7 @@
     @media (max-width: 860px) { .admin-grid { grid-template-columns: 1fr; } }
     .field { margin-bottom: 14px; }
     .field label { color: var(--ink); display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-    .field input, .field textarea {
+    .field input, .field textarea, .field select {
       background: #fff; border: 1px solid var(--hairline); border-radius: 10px;
       box-sizing: border-box; font: inherit; padding: 10px 12px; width: 100%;
     }
@@ -121,6 +121,19 @@
             <input id="f-difficulty" type="text" placeholder="例如：普通访谈">
           </div>
         </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="f-visibility">接单范围</label>
+            <select id="f-visibility">
+              <option value="public">公开抢单</option>
+              <option value="assigned">指定学员可抢</option>
+            </select>
+          </div>
+          <div class="field" id="assignee-field" hidden>
+            <label for="f-assignees">指定学员</label>
+            <textarea id="f-assignees" placeholder="一行一个微信名、手机号或用户ID，例如：墨十三" style="min-height:86px"></textarea>
+          </div>
+        </div>
         <div class="field">
           <label>上传音频素材（可选）</label>
           <div class="upload-box" id="upload-box" tabindex="0" role="button" aria-label="上传音频素材">
@@ -159,7 +172,7 @@
   <script type="module">
     import { ensureLoggedIn, apiJson, getToken, setupSessionChrome } from '/js/api.js?v=20260610-reviewflow-1';
     import { initStationNav } from '/js/station-nav.js?v=20260612-unlock';
-    import { uploadAudioToOSS } from '/js/upload.js?v=20260610-reviewflow-1';
+    import { uploadAudioToOSS } from '/js/upload.js?v=20260618-oss-1';
 
     const navAuth = await initStationNav({ active: 'orders' });
     const auth = navAuth || ensureLoggedIn();
@@ -187,6 +200,9 @@
       uploadFill: document.getElementById('upload-fill'),
       material: document.getElementById('f-material'),
       materialLink: document.getElementById('material-link'),
+      visibility: document.getElementById('f-visibility'),
+      assignees: document.getElementById('f-assignees'),
+      assigneeField: document.getElementById('assignee-field'),
     };
 
     function showError(msg) { els.error.textContent = msg || ''; els.error.classList.toggle('visible', !!msg); }
@@ -237,6 +253,7 @@
         if (!file) return;
         await handleAudioFile(file);
       });
+      els.visibility.addEventListener('change', updateAssigneeVisibility);
       // 让导出带上鉴权：点击时改用 fetch + token 触发下载
       els.exportBtn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -259,6 +276,8 @@
         demand: els.demand.value.trim(),
         delivery: '',
         difficulty: els.difficulty.value.trim(),
+        visibility: els.visibility.value === 'assigned' ? 'assigned' : 'public',
+        assigneeRefs: els.assignees.value.trim(),
         sortOrder: 0,
         materialLink: uploadedAudioUrl || els.material.value.trim(),
         published: true,
@@ -272,6 +291,9 @@
       uploadPromise = null;
       els.formTitle.textContent = '新增接单任务';
       els.title.value = els.budget.value = els.difficulty.value = els.demand.value = els.material.value = '';
+      els.visibility.value = 'public';
+      els.assignees.value = '';
+      updateAssigneeVisibility();
       els.audio.value = '';
       els.uploadStatus.textContent = '选择或拖入音频后会立刻上传；微信群内接单可先不传音频。';
       els.uploadFill.style.width = '0%';
@@ -284,6 +306,7 @@
       const body = readForm();
       body.published = Boolean(published);
       if (!body.demand) { showError('请先写任务需求。'); return; }
+      if (body.visibility === 'assigned' && !body.assigneeRefs) { showError('指定学员单请先填写可接单学员。'); return; }
       els.publishBtn.disabled = els.draftBtn.disabled = true;
       try {
         body.materialLink = await ensureMaterialUploaded();
@@ -351,9 +374,14 @@
     }
 
     function normalizeUploadedAudioUrl(uploaded) {
+      const storage = String(uploaded?.storage || 'local');
+      const rawUrl = String(uploaded?.audioUrl || '');
+      if (storage === 'oss') {
+        const ossKey = String(uploaded?.objectKey || '').replace(/^\/+/, '');
+        return ossKey ? `/api/orders/material/${encodeURIComponent(ossKey)}` : rawUrl;
+      }
       const key = String(uploaded?.objectKey || '').replace(/^\/+/, '');
       if (key) return `${location.origin}/${key}`;
-      const rawUrl = String(uploaded?.audioUrl || '');
       if (!rawUrl) return '';
       try {
         const value = new URL(rawUrl);
@@ -370,6 +398,9 @@
       els.difficulty.value = task.difficulty || '';
       els.demand.value = task.demand || '';
       els.material.value = task.materialLink || '';
+      els.visibility.value = task.visibility === 'assigned' ? 'assigned' : 'public';
+      els.assignees.value = task.assigneeRefs || '';
+      updateAssigneeVisibility();
       selectedAudioFile = null;
       uploadedAudioUrl = '';
       els.audio.value = '';
@@ -386,6 +417,10 @@
         await apiJson(`/api/orders/admin/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify({ published: !task.published }) });
         await load();
       } catch (err) { showError(err?.message || '操作失败'); }
+    }
+
+    function updateAssigneeVisibility() {
+      els.assigneeField.hidden = els.visibility.value !== 'assigned';
     }
 
     async function removeTask(task) {
@@ -505,6 +540,7 @@
         const meta = [
           `价格：${editableHtml(task, 'budget', task.budget, '点这里填价格')}`,
           `类型：${editableHtml(task, 'difficulty', task.difficulty, '点这里填类型')}`,
+          task.visibility === 'assigned' ? `指定：${esc(task.assigneeLabel || task.assigneeRefs || '未填写')}` : '公开抢单',
         ].join(' · ');
         const material = task.materialLink
           ? `<div class="task-meta">音频素材：<a href="${esc(task.materialLink)}" target="_blank" rel="noopener">打开音频</a></div>`

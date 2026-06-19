@@ -1364,6 +1364,10 @@ if (__INJECTED_RAW) {
     window.__BLK_OVERRIDE = __INJECTED.BLK;
     window.__CHAPS_OVERRIDE = __INJECTED.CHAPS;
     window.__AUDIO_OVERRIDE = __INJECTED.audioUrl;
+    window.__STORAGE = __INJECTED.storage || '';
+    window.__OBJECT_KEY = __INJECTED.objectKey || '';
+    window.__BUCKET = __INJECTED.bucket || '';
+    window.__REGION = __INJECTED.region || '';
     window.__FILE_NAME = __INJECTED.fileName;
     window.__DECISION_REPORT = __INJECTED.decisionReport;
     window.__DECISION_ERROR = __INJECTED.decisionError || __INJECTED.decisionSaveError || '';
@@ -3245,6 +3249,10 @@ async function doExport(options = {}){
   const cutPayload = {
     ...data,
     audioUrl: window.__AUDIO_OVERRIDE || document.getElementById('au').src,
+    storage: injected.storage || window.__STORAGE || '',
+    objectKey: injected.objectKey || window.__OBJECT_KEY || '',
+    bucket: injected.bucket || window.__BUCKET || '',
+    region: injected.region || window.__REGION || '',
     fileName: injected.fileName || window.__FILE_NAME || 'podcast.mp3',
     refineSettings: {...refineSettings},
     goldenSegments,

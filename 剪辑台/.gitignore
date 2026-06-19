@@ -18,7 +18,9 @@ build/
 out/
 
 # Local data backups
+money-scissors-private/
 web/data/backups/
+web/data/cut-jobs/
 web/uploads/
 web/public/uploads/
 
