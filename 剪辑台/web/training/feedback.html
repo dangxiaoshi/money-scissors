@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 问题反馈</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-1: #f4ecce;
+      --bg-2: #e9d9a4;
+      --card: #fdf7e6;
+      --line: #efcd8e;
+      --gold: #e8902f;
+      --gold-dark: #c77b2a;
+      --text: #352f20;
+      --soft: #8a7a55;
+      --muted: #a3926a;
+    }
+    body {
+      background: linear-gradient(165deg, var(--bg-1), var(--bg-2));
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+    }
+    .path-tabs {
+      align-items: flex-end;
+      background: rgba(255, 255, 255, 0.44);
+      backdrop-filter: blur(7px);
+      border-bottom: 1px solid rgba(180, 150, 80, 0.16);
+      display: flex;
+      gap: 24px;
+      min-height: 42px;
+      padding: 8px 30px 0;
+      position: sticky;
+      top: 56px;
+      z-index: 20;
+    }
+    .path-tab {
+      color: #9a895c;
+      font-size: 14px;
+      font-weight: 800;
+      padding: 0 0 9px;
+      position: relative;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .path-tab.active { color: var(--gold-dark); }
+    .path-tab.active::after {
+      background: var(--gold);
+      border-radius: 3px;
+      bottom: 0;
+      content: "";
+      height: 3px;
+      left: 0;
+      position: absolute;
+      right: 0;
+    }
+    .wrap {
+      margin: 0 auto;
+      max-width: 760px;
+      padding: 24px 22px 56px;
+    }
+    .panel {
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 22px rgba(140, 110, 40, 0.14);
+      padding: 24px;
+    }
+    h1 {
+      color: var(--text);
+      font-size: 25px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    .sub {
+      color: var(--soft);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 22px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    label {
+      color: #7a5b23;
+      display: grid;
+      font-size: 13px;
+      font-weight: 900;
+      gap: 7px;
+    }
+    input,
+    select,
+    textarea {
+      background: #fffdf8;
+      border: 1px solid #dec78b;
+      border-radius: 10px;
+      color: var(--text);
+      font: inherit;
+      font-size: 15px;
+      padding: 11px 12px;
+      width: 100%;
+    }
+    textarea {
+      line-height: 1.7;
+      min-height: 130px;
+      resize: vertical;
+    }
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      padding: 11px 18px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .primary {
+      background: var(--gold);
+      box-shadow: 0 4px 10px rgba(239, 138, 44, 0.28);
+      color: #fff;
+    }
+    .secondary {
+      background: #fff1df;
+      color: #d27824;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .result {
+      border-radius: 11px;
+      display: none;
+      font-size: 14px;
+      line-height: 1.7;
+      margin-top: 18px;
+      padding: 13px 14px;
+    }
+    .result.show { display: block; }
+    .result.ok {
+      background: #eef8ed;
+      border: 1px solid #b8d8ad;
+      color: #326022;
+    }
+    .result.err {
+      background: #fff0e8;
+      border: 1px solid #efbd9a;
+      color: #994516;
+    }
+    @media (max-width: 640px) {
+      .path-tabs { gap: 16px; overflow-x: auto; padding-left: 18px; padding-right: 18px; top: 48px; }
+      .wrap { padding: 18px 14px 42px; }
+      .panel { padding: 18px; }
+      .row { grid-template-columns: 1fr; }
+      .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="path-tabs" aria-label="训练台子导航">
+    <a class="path-tab" href="/training/path.html" data-scoped-link>21天路径</a>
+    <a class="path-tab" href="/training/sop.html" data-scoped-link>剪辑课件</a>
+    <a class="path-tab" href="/training/content-pack.html" data-scoped-link>训练素材</a>
+    <a class="path-tab active" href="/training/feedback.html" data-scoped-link>问题反馈</a>
+  </nav>
+
+  <main class="wrap">
+    <section class="panel">
+      <h1>问题反馈</h1>
+      <p class="sub">训练台、剪辑台、接单台遇到的问题都从这里提交。系统会带上你的账号，助教和代码窗口会按记录排查。</p>
+      <form class="grid" id="feedback-form">
+        <label>
+          问题发生在哪一台
+          <select id="station" name="station">
+            <option value="training">训练台</option>
+            <option value="editor">剪辑台</option>
+            <option value="orders">接单台</option>
+            <option value="login">登录</option>
+            <option value="other">其他</option>
+          </select>
+        </label>
+
+        <div class="row">
+          <label>
+            页面或步骤
+            <input id="page" name="page" placeholder="例如：21天路径 / 上传音频 / 抢单">
+          </label>
+          <label>
+            严重程度
+            <select id="severity" name="severity">
+              <option value="normal">普通问题</option>
+              <option value="blocking">卡住了，继续不了</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          一句话说问题
+          <input id="title" name="title" maxlength="120" placeholder="例如：导出 MP3 一直转圈">
+        </label>
+
+        <label>
+          具体描述
+          <textarea id="description" name="description" maxlength="2000" placeholder="刚才你点了什么、页面出现了什么、希望助教重点看哪里。"></textarea>
+        </label>
+
+        <div class="row">
+          <label>
+            项目 ID（可选）
+            <input id="project-id" name="projectId" placeholder="剪辑台问题可从网址里复制 proj_...">
+          </label>
+          <label>
+            订单号 / 接单记录（可选）
+            <input id="dispatch-task-id" name="dispatchTaskId" inputmode="numeric" placeholder="接单台问题可填订单号">
+          </label>
+        </div>
+
+        <label>
+          截图或录屏链接（可选）
+          <input id="attachment" name="attachment" placeholder="先贴网盘/图片链接；第一版不上传大文件">
+        </label>
+
+        <div class="actions">
+          <button class="btn primary" id="submit-btn" type="submit">提交反馈</button>
+          <a class="btn secondary" href="/training/path.html" data-scoped-link>返回训练台</a>
+          <span class="hint">提交后不用重复点。助教看到的是同一条记录。</span>
+        </div>
+      </form>
+      <div class="result" id="result"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initStationNav } from '../js/station-nav.js?v=20260612-path21';
+    import { apiJson, scopedPath } from '../js/api.js?v=20260610-reviewflow-1';
+
+    const form = document.getElementById('feedback-form');
+    const result = document.getElementById('result');
+    const submitBtn = document.getElementById('submit-btn');
+
+    init();
+
+    async function init() {
+      const auth = await initStationNav({ active: 'training' });
+      if (!auth) return;
+      scopeStaticLinks();
+      prefillFromQuery();
+      form.addEventListener('submit', submitFeedback);
+    }
+
+    function scopeStaticLinks() {
+      document.querySelectorAll('[data-scoped-link]').forEach((link) => {
+        link.href = scopedPath(link.getAttribute('href'));
+      });
+    }
+
+    function prefillFromQuery() {
+      const query = new URLSearchParams(location.search);
+      setValue('station', query.get('station'));
+      setValue('page', query.get('page'));
+      setValue('project-id', query.get('projectId') || query.get('project'));
+      setValue('dispatch-task-id', query.get('taskId') || query.get('task'));
+    }
+
+    function setValue(id, value) {
+      const el = document.getElementById(id);
+      if (el && value) el.value = value;
+    }
+
+    async function submitFeedback(event) {
+      event.preventDefault();
+      const attachment = document.getElementById('attachment').value.trim();
+      const pageUrl = location.pathname + location.search;
+      const body = {
+        station: document.getElementById('station').value,
+        page: document.getElementById('page').value.trim(),
+        pageUrl,
+        title: document.getElementById('title').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        severity: document.getElementById('severity').value,
+        projectId: document.getElementById('project-id').value.trim(),
+        dispatchTaskId: document.getElementById('dispatch-task-id').value.trim(),
+        context: {
+          currentUrl: pageUrl,
+          userAgent: navigator.userAgent,
+          screen: `${window.innerWidth}x${window.innerHeight}`,
+        },
+        attachments: attachment ? [attachment] : [],
+      };
+      try {
+        submitBtn.disabled = true;
+        result.className = 'result';
+        result.textContent = '';
+        const data = await apiJson('/api/feedback/reports', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+        result.className = 'result ok show';
+        result.textContent = `已提交。反馈编号：${data.report?.id || '已记录'}`;
+        form.reset();
+      } catch (error) {
+        result.className = 'result err show';
+        result.textContent = error.message || String(error);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

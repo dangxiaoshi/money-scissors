@@ -3,6 +3,7 @@
 // Same-origin: works both when served from file:// (dev) and from the Node server
 const API_BASE = location.protocol === 'file:' ? 'http://localhost:3002' : '';
 const POLL_INTERVAL = 1500;
+const MAX_POLL_FAILURES = 40;
 const STORAGE_KEY = 'jinqian_token';
 
 const dropZone    = document.getElementById('drop-zone');
@@ -21,6 +22,7 @@ const btnAgain    = document.getElementById('btn-again');
 
 let selectedFile = null;
 let pollTimer    = null;
+let pollFailures = 0;
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
@@ -48,6 +50,7 @@ async function startProcessing() {
   if (!selectedFile) return;
   hideError();
   btnStart.disabled = true;
+  pollFailures = 0;
   uploadCard.style.display = 'none';
   progressCard.classList.add('visible');
   resultCard.classList.remove('visible');
@@ -63,7 +66,7 @@ async function startProcessing() {
   try {
     const res = await authFetch(`${API_BASE}/api/refine/start`, { method: 'POST', body: form });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `上传失败 (${res.status})`);
+    if (!res.ok) throw new Error(data.message || data.error || `上传失败 (${res.status})`);
     jobId = data.jobId;
   } catch (e) { showUploadError(e.message); return; }
 
@@ -76,10 +79,17 @@ async function startProcessing() {
 async function pollStatus(jobId) {
   try {
     const res = await authFetch(`${API_BASE}/api/refine/status/${jobId}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      clearInterval(pollTimer);
+      showUploadError(data.message || data.error || `精修状态读取失败 (${res.status})`);
+      return;
+    }
+    pollFailures = 0;
     if (data.log && data.log.length > 0) setLog(data.log[data.log.length - 1]);
     setProgress(data.progress || 0);
-    switch (data.stage) {
+    const status = data.status || data.stage;
+    switch (status) {
       case 'measuring':   setStepState('measure', 'active'); break;
       case 'normalizing': setStepState('measure', 'done'); setStepState('normalize', 'active'); break;
       case 'done':
@@ -88,10 +98,17 @@ async function pollStatus(jobId) {
         setProgress(100);
         showResult(jobId); break;
       case 'error':
+      case 'failed':
         clearInterval(pollTimer);
         showUploadError(data.error || '处理出错，请重试'); break;
     }
-  } catch { /* 网络抖动，继续轮询 */ }
+  } catch {
+    pollFailures += 1;
+    if (pollFailures >= MAX_POLL_FAILURES) {
+      clearInterval(pollTimer);
+      showUploadError('精修状态暂时连不上，请稍后重新上传处理。');
+    }
+  }
 }
 
 function showResult(jobId) {
@@ -154,6 +171,7 @@ function readToken() {
 
 function showUploadError(msg) {
   clearInterval(pollTimer);
+  pollFailures = 0;
   progressCard.classList.remove('visible');
   uploadCard.style.display = '';
   btnStart.disabled = false;

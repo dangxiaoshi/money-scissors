@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>金钱剪刀 · 生成备用 MP3</title>
+  <title>金钱剪刀 · 导出 MP3</title>
   <link rel="stylesheet" href="css/shared.css?v=20260529b">
   <style>
     .cut-status {
@@ -37,7 +37,7 @@
     <header class="top-chrome">
       <div>
         <div class="top-title">金钱剪刀</div>
-        <div class="top-sub">备用下载入口，不是交作业必经步骤。交作业请点“提交审核”。</div>
+        <div class="top-sub">把站内粗剪结果导出成 MP3，下载后去剪映 / AU / Logic / Audacity 等外部软件继续精修。</div>
       </div>
       <div class="top-actions">
         <a class="secondary-btn inline-btn" href="/training/path.html">训练台</a>
@@ -51,30 +51,31 @@
 
     <header class="brand">
       <h1>金钱剪刀 💰✂️</h1>
-      <p>这一步只是生成自己试听和留底的 MP3；已经提交审核的作品，助教后台可以看到。</p>
+      <p>这一步会重新生成一份可下载的 MP3。下载后可以去其他软件继续精修；如果只是提交给助教审核，请回审稿页点“提交审核”。</p>
     </header>
 
     <section class="card">
-      <div class="label">剪辑执行</div>
-      <div class="cut-status" id="status">准备剪辑</div>
-      <div class="cut-detail" id="detail">正在读取审查页导出的删除段。</div>
+      <div class="label">MP3 导出</div>
+      <div class="cut-status" id="status">准备导出</div>
+      <div class="cut-detail" id="detail">正在读取审稿页的删减方案。</div>
       <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
       <div class="error" id="error"></div>
       <div class="download-row">
-        <button class="primary-btn" id="download-btn" disabled>下载成品 MP3</button>
+        <button class="primary-btn" id="download-btn" disabled>生成完成后可下载 MP3</button>
       </div>
     </section>
 
     <section class="card next-card">
-      <div class="label">下一步</div>
-      <p>下载卡住不影响审核记录。已点“提交审核”的同学不用重新剪；如果需要留底，等备用 MP3 生成后再下载。</p>
+      <div class="label">怎么用这一步</div>
+      <p>如果你要去外部软件继续剪/精修/交付，就等 MP3 生成后下载；如果只是交给助教审核，请回审稿页点“提交审核”。</p>
       <ul>
-        <li>Adobe Audition / Logic：降噪、响度、精修</li>
-        <li>剪映 / Audacity：免费剪辑和片头片尾</li>
+        <li>下载用途：剪映 / Adobe Audition / Logic / Audacity 等外部软件继续处理</li>
+        <li>长音频需要服务器重新剪一遍，通常几分钟到二十多分钟；不要反复点生成</li>
+        <li>超过 30 分钟还没完成，请截图给助教，带上项目名和手机号后四位</li>
       </ul>
     </section>
   </main>
 
-  <script type="module" src="js/cut.js?v=20260618-oss-2"></script>
+  <script type="module" src="js/cut.js?v=20260619-external-1"></script>
 </body>
 </html>

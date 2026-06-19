@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 训练素材包</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f5f0e8;
+      --card: #fffcf0;
+      --line: #e8d8b0;
+      --gold: #c8952a;
+      --gold-soft: #f5e8c0;
+      --text: #1f160b;
+      --body: #5a4a2a;
+      --muted: #9a8a6a;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+    }
+    .top {
+      align-items: center;
+      background: rgba(245, 240, 232, 0.96);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 10px;
+      padding: 12px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .top a {
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .wrap {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 260px minmax(0, 1fr);
+      margin: 0 auto;
+      max-width: 1160px;
+      padding: 34px 26px 70px;
+    }
+    .side {
+      align-self: start;
+      background: rgba(255, 252, 240, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      max-height: calc(100vh - 92px);
+      overflow: auto;
+      padding: 14px;
+      position: sticky;
+      top: 70px;
+    }
+    .side-title {
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 900;
+      margin: 2px 6px 10px;
+    }
+    .side a {
+      border-radius: 8px;
+      color: var(--body);
+      display: block;
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 8px 9px;
+      text-decoration: none;
+    }
+    .side a:hover {
+      background: #fff7df;
+      color: var(--gold);
+    }
+    .hero {
+      margin-bottom: 18px;
+    }
+    .badge {
+      background: var(--gold-soft);
+      border: 1px solid var(--gold);
+      border-radius: 999px;
+      color: var(--gold);
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 12px;
+      padding: 5px 12px;
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+      line-height: 1.16;
+      margin-bottom: 10px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.8;
+      max-width: 720px;
+    }
+    .content {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(122, 64, 8, 0.06);
+      padding: 28px;
+    }
+    .content h1,
+    .content h2,
+    .content h3,
+    .content h4 {
+      color: var(--text);
+      line-height: 1.35;
+      scroll-margin-top: 86px;
+    }
+    .content h1 { border-bottom: 2px solid var(--gold-soft); font-size: 28px; margin: 24px 0 16px; padding-bottom: 12px; }
+    .content h2 { font-size: 23px; margin: 26px 0 13px; }
+    .content h3 { font-size: 18px; margin: 22px 0 10px; }
+    .content h4 { font-size: 16px; margin: 18px 0 8px; }
+    .content p,
+    .content li {
+      color: var(--body);
+      font-size: 15px;
+      line-height: 1.85;
+    }
+    .content p { margin: 10px 0; }
+    .content ul,
+    .content ol { margin: 10px 0 10px 24px; }
+    .content blockquote {
+      background: #fff7df;
+      border-left: 4px solid var(--gold);
+      border-radius: 0 10px 10px 0;
+      color: var(--body);
+      margin: 14px 0;
+      padding: 12px 14px;
+    }
+    .content pre {
+      background: #2f2718;
+      border-radius: 12px;
+      color: #fff7df;
+      line-height: 1.75;
+      margin: 14px 0;
+      overflow: auto;
+      padding: 15px;
+      white-space: pre-wrap;
+    }
+    .content code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    .content :not(pre) > code {
+      background: #fff7df;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: #8a6030;
+      padding: 1px 5px;
+    }
+    .content table {
+      border-collapse: collapse;
+      display: block;
+      margin: 16px 0;
+      overflow-x: auto;
+      width: 100%;
+    }
+    .content th,
+    .content td {
+      border: 1px solid var(--line);
+      color: var(--body);
+      font-size: 14px;
+      line-height: 1.7;
+      min-width: 120px;
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .content th {
+      background: #fff7df;
+      color: var(--text);
+      font-weight: 900;
+    }
+    .content hr {
+      border: 0;
+      border-top: 1px solid var(--line);
+      margin: 24px 0;
+    }
+    .loading {
+      color: var(--muted);
+      font-size: 15px;
+      padding: 20px;
+    }
+    @media (max-width: 860px) {
+      .wrap { grid-template-columns: 1fr; padding: 24px 16px 58px; }
+      .side { max-height: none; position: static; }
+      .content { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import { initStationNav } from '../js/station-nav.js?v=20260612-unlock';
+    initStationNav({ active: 'training' });
+  </script>
+  <nav class="top">
+    <a href="/training/path.html">← 返回 21 天路径</a>
+    <a href="/training/sop.html">剪辑课件</a>
+  </nav>
+  <main class="wrap">
+    <aside class="side">
+      <div class="side-title">训练素材包</div>
+      <div id="toc"></div>
+    </aside>
+    <section>
+      <div class="hero">
+        <span class="badge">下一周可用</span>
+        <h1>训练台内容包</h1>
+        <p class="sub">PDCA 复盘作业卡、剪辑师简历模板、训练台 FAQ、视频转 MP3 外部工具课件。学员可以直接复制，助教可以直接答疑。</p>
+      </div>
+      <article class="content" id="content">
+        <div class="loading">正在打开训练素材包...</div>
+      </article>
+    </section>
+  </main>
+  <script type="module">
+    import { scopedPath } from '../js/api.js?v=20260610-reviewflow-1';
+
+    const contentEl = document.getElementById('content');
+    const tocEl = document.getElementById('toc');
+
+    fetch(scopedPath('/training/content-pack.md?v=20260619'))
+      .then((res) => {
+        if (!res.ok) throw new Error('content_load_failed');
+        return res.text();
+      })
+      .then((raw) => {
+        const markdown = raw.replace(/^---[\s\S]*?---\s*/, '');
+        contentEl.innerHTML = renderMarkdown(markdown);
+        buildToc();
+      })
+      .catch(() => {
+        contentEl.innerHTML = '<p>训练素材包暂时没有打开，请刷新页面再试。</p>';
+      });
+
+    function buildToc() {
+      const headings = Array.from(contentEl.querySelectorAll('h1, h2')).filter((h) => h.textContent.trim());
+      tocEl.innerHTML = headings.map((heading, index) => {
+        const text = heading.textContent.trim();
+        const known = [
+          ['PDCA', 'pdca'],
+          ['剪辑师简历', 'resume'],
+          ['训练台 FAQ', 'faq'],
+          ['视频转 MP3', 'video-mp3'],
+          ['上线判断表', 'launch-table'],
+        ].find(([label]) => text.includes(label));
+        const id = known ? known[1] : 'sec-' + index;
+        heading.id = id;
+        return `<a href="#${id}">${escapeHtml(text)}</a>`;
+      }).join('');
+    }
+
+    function renderMarkdown(raw) {
+      const lines = raw.split(/\r?\n/);
+      const html = [];
+      let inCode = false;
+      let code = [];
+      let para = [];
+      let list = null;
+      let table = [];
+
+      function flushPara() {
+        if (para.length) {
+          html.push('<p>' + inline(para.join(' ')) + '</p>');
+          para = [];
+        }
+      }
+      function flushList() {
+        if (list) {
+          html.push(`<${list.type}>${list.items.join('')}</${list.type}>`);
+          list = null;
+        }
+      }
+      function flushTable() {
+        if (table.length) {
+          html.push(renderTable(table));
+          table = [];
+        }
+      }
+
+      lines.forEach((line) => {
+        if (line.startsWith('```')) {
+          flushPara(); flushList(); flushTable();
+          if (inCode) {
+            html.push('<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>');
+            code = [];
+            inCode = false;
+          } else {
+            inCode = true;
+          }
+          return;
+        }
+        if (inCode) {
+          code.push(line);
+          return;
+        }
+        if (!line.trim()) {
+          flushPara(); flushList(); flushTable();
+          return;
+        }
+        if (/^\|.+\|$/.test(line.trim())) {
+          flushPara(); flushList();
+          table.push(line.trim());
+          return;
+        }
+        flushTable();
+        const heading = line.match(/^(#{1,4})\s+(.+)$/);
+        if (heading) {
+          flushPara(); flushList();
+          html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+          return;
+        }
+        if (/^---+$/.test(line.trim())) {
+          flushPara(); flushList();
+          html.push('<hr>');
+          return;
+        }
+        if (/^>\s?/.test(line)) {
+          flushPara(); flushList();
+          html.push('<blockquote>' + inline(line.replace(/^>\s?/, '')) + '</blockquote>');
+          return;
+        }
+        const bullet = line.match(/^- (.+)$/);
+        if (bullet) {
+          flushPara();
+          if (!list || list.type !== 'ul') { flushList(); list = { type: 'ul', items: [] }; }
+          list.items.push('<li>' + inline(bullet[1]) + '</li>');
+          return;
+        }
+        const numbered = line.match(/^\d+\. (.+)$/);
+        if (numbered) {
+          flushPara();
+          if (!list || list.type !== 'ol') { flushList(); list = { type: 'ol', items: [] }; }
+          list.items.push('<li>' + inline(numbered[1]) + '</li>');
+          return;
+        }
+        para.push(line.trim());
+      });
+      flushPara(); flushList(); flushTable();
+      return html.join('\n');
+    }
+
+    function renderTable(rows) {
+      const usefulRows = rows.filter((row) => !/^\|\s*-+/.test(row));
+      const cells = usefulRows.map((row) => row.split('|').slice(1, -1).map((cell) => inline(cell.trim())));
+      if (!cells.length) return '';
+      const head = '<thead><tr>' + cells[0].map((cell) => '<th>' + cell + '</th>').join('') + '</tr></thead>';
+      const body = '<tbody>' + cells.slice(1).map((row) => '<tr>' + row.map((cell) => '<td>' + cell + '</td>').join('') + '</tr>').join('') + '</tbody>';
+      return '<table>' + head + body + '</table>';
+    }
+
+    function inline(text) {
+      return escapeHtml(text)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.+?)`/g, '<code>$1</code>');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

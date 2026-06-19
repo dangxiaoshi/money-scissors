@@ -153,6 +153,22 @@ body {
   background: var(--surface);
   border-color: var(--accent);
 }
+.topbar .orderbtn {
+  background: #f0f7ff;
+  border: 1px solid #c9def7;
+  color: #24527a;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.topbar .orderbtn:hover {
+  background: #fff;
+  border-color: #7fb3e6;
+}
 body.readonly .expbtn,
 body.readonly .backupbtn,
 body.readonly .goldbtn,
@@ -1035,6 +1051,60 @@ body.readonly .star { display: none; }
   font-family: inherit;
 }
 .info-close:hover { background: var(--accent-hover); }
+.order-popup {
+  position: fixed;
+  right: 118px;
+  top: 64px;
+  z-index: 1200;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 104px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 18px;
+  display: none;
+}
+.order-popup.vis { display: block; }
+.order-popup-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.order-popup-meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.order-req-block {
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.order-req-block:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.order-req-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+}
+.order-req-text {
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.order-popup-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
 
 /* Export success modal */
 .export-modal {
@@ -1151,6 +1221,7 @@ body.readonly .star { display: none; }
   <span class="proj">测试剪辑审查稿 (3人对话)</span>
   <span class="fill"></span>
   <button class="goldbtn" id="gold-ai-btn" onclick="recommendGold()" title="让 AI 推荐适合放到开头的金句">AI推荐金句</button>
+  <button class="orderbtn" id="order-req-btn" onclick="toggleOrderRequirements()" hidden>本单需求</button>
   <button class="iconbtn" id="undo-btn" onclick="kpUndo()" title="撤销">↩️</button>
   <button class="iconbtn" id="redo-btn" onclick="kpRedo()" title="前进">↪️</button>
   <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="工具">⚙️</button>
@@ -1163,8 +1234,8 @@ body.readonly .star { display: none; }
   <div class="gear-menu">
     <button class="gear-action primary" id="intro-btn" onclick="openIntroMaker()">片头金句 <span id="intro-count">0</span></button>
     <button class="gear-action" id="manual-save-btn" onclick="manualSaveNow()">保存</button>
-    <button class="gear-action" onclick="doExport({next:'cut'})">生成 MP3</button>
-    <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交说明</button>
+    <button class="gear-action" onclick="doExport({next:'cut'})">导出 MP3（去外部软件）</button>
+    <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交/导出说明</button>
   </div>
   <div class="gear-popup-title">音频精修</div>
   <label class="refine-option">
@@ -1183,11 +1254,21 @@ body.readonly .star { display: none; }
 
 <!-- Info tooltip -->
 <div class="info-popup" id="info-tip">
-  <div class="info-popup-title">提交说明</div>
-  <p>提交会保存当前删减状态，生成一份只读审核快照，助教可以在后台查看。</p>
-  <p>如果已经提交过，也可以继续修改后重新提交。系统会保留旧记录，助教以最新提交为准。</p>
-  <p>如果你想自己先听成品，可以点旁边的生成 MP3 作为备用入口。</p>
-  <button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
+  <div class="info-popup-title">提交/导出说明</div>
+  <p>「提交审核」会保存当前删减状态，生成一份只读审核快照，助教可以在后台查看。</p>
+  <p>「导出 MP3」是把站内粗剪结果下载到电脑，方便去剪映、AU、Logic、Audacity 等外部软件继续精修/交付。</p>
+  <p>两条流程不互相替代：要交给助教看，点「提交审核」；要拿到音频文件去外部软件，点「导出 MP3」。</p>
+<button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
+</div>
+
+<!-- Dispatch task requirements -->
+<div class="order-popup" id="order-req-popup">
+  <div class="order-popup-title" id="order-req-title">本单需求</div>
+  <div class="order-popup-meta" id="order-req-meta"></div>
+  <div id="order-req-content"></div>
+  <div class="order-popup-foot">
+    <button class="info-close" onclick="document.getElementById('order-req-popup').classList.remove('vis')">收起</button>
+  </div>
 </div>
 
 <!-- Export success modal -->
@@ -1431,6 +1512,7 @@ const CHAPS = [{"startIdx":0,"time":"0:00","title":"不敢用这个。","desc":"
 if (Array.isArray(window.__S_OVERRIDE)) S.splice(0, S.length, ...window.__S_OVERRIDE);
 if (Array.isArray(window.__BLK_OVERRIDE)) BLK.splice(0, BLK.length, ...window.__BLK_OVERRIDE);
 if (Array.isArray(window.__CHAPS_OVERRIDE)) CHAPS.splice(0, CHAPS.length, ...window.__CHAPS_OVERRIDE);
+const sentenceByIdx = new Map(S.map(x => [Number(x.idx), x]));
 if (window.__FILE_NAME) document.querySelector('.topbar .proj').textContent = window.__FILE_NAME;
 if (window.__AUDIO_OVERRIDE) document.getElementById('au').src = window.__AUDIO_OVERRIDE;
 
@@ -1744,6 +1826,7 @@ function breathCutMap(){
   return map;
 }
 function breathRawGaps(){
+  if(cachedBreathRawGaps) return cachedBreathRawGaps;
   const out=[];
   const kept=currentKeptWordTimeline(pdelRanges());
   for(let i=0;i<kept.length-1;i++){
@@ -1760,6 +1843,7 @@ function breathRawGaps(){
       nextSentenceIdx:next.idx
     });
   }
+  cachedBreathRawGaps=out;
   return out;
 }
 function breathCandidates(){
@@ -1929,6 +2013,15 @@ document.addEventListener('keydown', e=>{
 // ===== STATS =====
 let cachedStats=null;
 let cachedPreviewDeletionRanges=null;
+let cachedPdelRanges=null;
+let cachedBreathRawGaps=null;
+
+function resetDerivedCaches(){
+  cachedStats=null;
+  cachedPreviewDeletionRanges=null;
+  cachedPdelRanges=null;
+  cachedBreathRawGaps=null;
+}
 
 function currentStats(){
   if(!cachedStats) cachedStats=computeStats();
@@ -1944,7 +2037,7 @@ function computeStats(deleteSegments=currentExportDeleteSegments()) {
   const td=S.length?S[S.length-1].e:0; let categoryRemoved=0; const rbt={}, sd={};
   S.forEach(x=>{const d=x.e-x.s;if(del.has(x.idx)){categoryRemoved+=d;rbt[x.dt||'other']=(rbt[x.dt||'other']||0)+d}else if(x.sp){sd[x.sp]=(sd[x.sp]||0)+d}});
   // 半句删除（仅对未整句删除的句子生效）
-  for(const k in pdel){ const idx=+k; if(del.has(idx))continue; const x=S.find(s=>s.idx===idx); pdel[k].forEach(r=>{const d=r.e-r.s; categoryRemoved+=d; rbt.partial=(rbt.partial||0)+d; if(x&&x.sp&&sd[x.sp])sd[x.sp]=Math.max(0,sd[x.sp]-d);}); }
+  for(const k in pdel){ const idx=+k; if(del.has(idx))continue; const x=sentenceByIdx.get(idx); pdel[k].forEach(r=>{const d=r.e-r.s; categoryRemoved+=d; rbt.partial=(rbt.partial||0)+d; if(x&&x.sp&&sd[x.sp])sd[x.sp]=Math.max(0,sd[x.sp]-d);}); }
   breathRanges().forEach(r=>{const d=r[1]-r[0]; categoryRemoved+=d; rbt.breath=(rbt.breath||0)+d;});
   const rd=sumSegmentDuration(deleteSegments);
   return {td, rd, rc:Math.max(0,td-rd), rbt, sd, categoryRemoved};
@@ -2226,6 +2319,120 @@ function loadDecisionError() {
   }
 }
 
+let orderRequirementTask = null;
+
+function readReviewPayload(){
+  try {
+    const raw = sessionStorage.getItem('jinqian_data') || localStorage.getItem('jinqian_data') || '{}';
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function dispatchTaskFromPayload(){
+  const task = readReviewPayload()?.dispatchTask;
+  if(!task || !task.id) return null;
+  return {
+    id: String(task.id),
+    title: task.title || `接单任务 ${task.id}`,
+    demand: task.demand || '',
+    budget: task.budget || '',
+    delivery: task.delivery || '',
+  };
+}
+
+function normalizeOrderTask(task){
+  if(!task) return null;
+  const demand = String(task.demand || '').trim();
+  const sections = parseOrderDemand(demand);
+  const targetText = [sections.intro, sections.target].filter(Boolean).join('\n\n') || demand || '后台还没有填写任务需求。';
+  return {
+    id: String(task.id || ''),
+    title: task.title || `接单任务 ${task.id || ''}`,
+    price: task.budget || extractOrderPrice(demand) || '',
+    duration: extractTargetDuration(targetText) || '按任务需求判断',
+    target: targetText,
+    keep: sections.keep || '按任务需求保留核心信息。',
+    remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
+    opening: sections.opening || sections.ad || '按任务需求处理片头片尾；没有特别说明时，不额外加包装。',
+    delivery: task.delivery || sections.delivery || sections.submit || sections.ad || '提交前先完整试听，确认符合本单需求。',
+  };
+}
+
+function parseOrderDemand(text){
+  const result = {};
+  const source = String(text || '');
+  const firstHeading = source.match(/(^|\n)\s*(成品目标|目标时长|必须保留|必须删除|开头结尾|片头片尾|交付格式|广告\/引流口径|广告|提交重点)[:：]/);
+  if(firstHeading && firstHeading.index > 0) result.intro = source.slice(0, firstHeading.index).trim();
+  const pairs = [
+    ['target', /(成品目标|目标时长)[:：]([\s\S]*?)(?=\n\s*(?:必须保留|必须删除|开头结尾|片头片尾|交付格式|广告\/引流口径|广告|提交重点)[:：]|$)/, 2],
+    ['keep', /必须保留[:：]([\s\S]*?)(?=\n\s*(?:必须删除|开头结尾|片头片尾|交付格式|广告\/引流口径|广告|提交重点)[:：]|$)/, 1],
+    ['remove', /必须删除[:：]([\s\S]*?)(?=\n\s*(?:开头结尾|片头片尾|交付格式|广告\/引流口径|广告|提交重点)[:：]|$)/, 1],
+    ['opening', /(开头结尾|片头片尾)[:：]([\s\S]*?)(?=\n\s*(?:交付格式|广告\/引流口径|广告|提交重点)[:：]|$)/, 2],
+    ['delivery', /交付格式[:：]([\s\S]*?)(?=\n\s*(?:广告\/引流口径|广告|提交重点)[:：]|$)/, 1],
+    ['ad', /广告\/引流口径[:：]([\s\S]*?)(?=\n\s*提交重点[:：]|$)/, 1],
+    ['submit', /提交重点[:：]([\s\S]*?)$/, 1],
+  ];
+  pairs.forEach(([key, pattern, contentIndex]) => {
+    const match = source.match(pattern);
+    if(match?.[contentIndex]) result[key] = match[contentIndex].trim();
+  });
+  return result;
+}
+
+function extractOrderPrice(text){
+  const match = String(text || '').match(/(\d+\s*元)/);
+  return match ? match[1].replace(/\s+/g, '') : '';
+}
+
+function extractTargetDuration(text){
+  const match = String(text || '').match(/(\d+\s*(?:-|到|~|－|—)\s*\d+\s*分钟|\d+\s*分钟(?:以内|左右|上下)?)/);
+  return match ? match[1].replace(/\s+/g, '') : '';
+}
+
+function renderOrderRequirements(task){
+  const btn = document.getElementById('order-req-btn');
+  if(!btn || !task) return;
+  const normalized = normalizeOrderTask(task);
+  orderRequirementTask = normalized;
+  btn.hidden = false;
+  btn.textContent = `本单需求${normalized.id ? ` #${normalized.id}` : ''}`;
+  document.getElementById('order-req-title').textContent = normalized.title || '本单需求';
+  document.getElementById('order-req-meta').textContent = [normalized.id ? `#${normalized.id}` : '', normalized.price].filter(Boolean).join(' · ');
+  document.getElementById('order-req-content').innerHTML = [
+    ['目标时长', normalized.duration],
+    ['成品目标', normalized.target],
+    ['必须保留', normalized.keep],
+    ['必须删除', normalized.remove],
+    ['开头结尾', normalized.opening],
+    ['交付格式', normalized.delivery],
+  ].map(([label, value]) => `<div class="order-req-block"><div class="order-req-label">${esc(label)}</div><div class="order-req-text">${esc(value || '未填写')}</div></div>`).join('');
+}
+
+async function initOrderRequirements(){
+  const fallback = dispatchTaskFromPayload();
+  if(!fallback) return;
+  renderOrderRequirements(fallback);
+  try {
+    const resp = await fetch('/api/orders/tasks', { headers: buildJsonHeaders() });
+    if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const fresh = (Array.isArray(data.tasks) ? data.tasks : []).find(task => String(task.id) === String(fallback.id));
+    if(fresh) renderOrderRequirements(fresh);
+  } catch(error) {
+    console.warn('本单需求刷新失败，使用项目缓存', error);
+  }
+}
+
+function toggleOrderRequirements(){
+  if(!orderRequirementTask) {
+    toast('这不是从接单任务进入的项目');
+    return;
+  }
+  document.getElementById('order-req-popup')?.classList.toggle('vis');
+}
+
 function inferDecisionAction(section) {
   const text = `${section.title}\n${section.lines.join('\n')}`;
   if (/删除|删掉|砍掉|不要/.test(text)) return '删除';
@@ -2353,6 +2560,11 @@ document.addEventListener('click', e => {
   if (popup && popup.classList.contains('vis') && !popup.contains(e.target) && e.target !== btn) {
     popup.classList.remove('vis');
   }
+  const orderPopup = document.getElementById('order-req-popup');
+  const orderBtn = document.getElementById('order-req-btn');
+  if (orderPopup && orderPopup.classList.contains('vis') && !orderPopup.contains(e.target) && e.target !== orderBtn) {
+    orderPopup.classList.remove('vis');
+  }
 });
 
 async function manualSaveNow(){
@@ -2372,7 +2584,7 @@ async function manualSaveNow(){
 function renderDurInfo() {
   const bar = document.getElementById('dur-info-bar');
   if (!bar) return;
-  const { rc, sd } = computeStats();
+  const { rc, sd } = currentStats();
   let html = '';
   spList.filter(sp => sd[sp] > 0).forEach(sp => {
     const pct = Math.round(sd[sp] / rc * 100);
@@ -2531,7 +2743,9 @@ function renderTx(options = {}) {
 
 function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
 function renderAll(){
+  resetDerivedCaches();
   pruneInvalidBreathCuts();
+  resetDerivedCaches();
   const breaths=breathCandidates();
   renderSidebar();renderTx({breathCandidates:breaths});kpUpdateCount();breathUpdate(breaths);updateIntroCount();updateTopbarHistoryButtons()
 }
@@ -2756,8 +2970,10 @@ function addIntroFromSelection(){
 
 // 收集所有半句删除时间段（跳过整句已删的句子，避免重复）
 function pdelRanges(){
+  if(cachedPdelRanges) return cachedPdelRanges;
   const out=[];
   for(const k in pdel){ const idx=+k; if(del.has(idx)) continue; pdel[k].forEach(r=>out.push([r.s,r.e])); }
+  cachedPdelRanges=out;
   return out;
 }
 
@@ -2882,8 +3098,10 @@ function mergeDeletionRanges(ranges, extendFirstToZero=true){
 }
 
 function currentExportDeleteSegments(){
+  if(cachedPreviewDeletionRanges) return cachedPreviewDeletionRanges;
   const textCuts=mergeDeletionRanges(snapDeletionRanges(rawDeletionRanges(false)), true);
-  return mergeDeletionRanges(textCuts.concat(breathRanges()), false);
+  cachedPreviewDeletionRanges=mergeDeletionRanges(textCuts.concat(breathRanges()), false);
+  return cachedPreviewDeletionRanges;
 }
 
 function r3(value){
@@ -3279,7 +3497,7 @@ async function doExport(options = {}){
 function downloadSnapshotCut(){
   const cutPayload = window.__CUT_PAYLOAD;
   if (!cutPayload?.audioUrl || !Array.isArray(cutPayload.segments)) {
-    toast('这份审核记录里没有可生成 MP3 的音频数据');
+    toast('这份审核记录里没有可导出 MP3 的音频数据');
     return;
   }
   const serializedCutPayload = JSON.stringify(cutPayload);
@@ -3447,7 +3665,7 @@ window.addEventListener('pagehide', () => {
 });
 function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
 
-rs();renderAll();initRefineBar();initSidebarResize();kpRenderLib();
+rs();renderAll();initRefineBar();initSidebarResize();kpRenderLib();initOrderRequirements();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
 
 </script>

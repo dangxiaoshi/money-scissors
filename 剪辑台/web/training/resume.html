@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 剪辑师简历作业</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background:#f5f0e8; color:#1a1209; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; min-height:100vh; }
+    .top { align-items:center; background:rgba(245,240,232,.96); border-bottom:1px solid #e8d8b0; display:flex; gap:12px; padding:12px 20px; position:sticky; top:0; z-index:10; }
+    .top a { color:#c8952a; font-size:13px; font-weight:800; text-decoration:none; }
+    .wrap { margin:0 auto; max-width:960px; padding:42px 22px 70px; }
+    .badge { background:#f5e8c0; border:1px solid #c8952a; border-radius:999px; color:#c8952a; display:inline-block; font-size:12px; font-weight:900; margin-bottom:12px; padding:5px 13px; }
+    h1 { font-size:34px; line-height:1.2; margin-bottom:10px; }
+    .sub { color:#8a7a55; font-size:15px; line-height:1.8; margin-bottom:22px; max-width:720px; }
+    .versions { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+    .version { background:#fff7df; border:1px solid #e8d8b0; border-radius:999px; color:#8a6030; cursor:pointer; font:inherit; font-size:14px; font-weight:900; padding:9px 13px; }
+    .version.active { background:#c8952a; border-color:#c8952a; color:#fff; }
+    .grid { display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .card { background:#fffcf0; border:1px solid #e8d8b0; border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(122,64,8,.05); }
+    .label { color:#1a1209; font-size:16px; font-weight:900; margin-bottom:7px; }
+    .hint { color:#9a8a6a; font-size:13px; line-height:1.65; margin-bottom:10px; }
+    textarea { background:#fffdf7; border:1px solid #e8d8b0; border-radius:12px; color:#1a1209; font:inherit; font-size:15px; line-height:1.75; min-height:190px; outline:none; padding:12px; resize:vertical; width:100%; }
+    textarea:focus { border-color:#c8952a; box-shadow:0 0 0 3px rgba(200,149,42,.12); }
+    .actions { align-items:center; display:flex; gap:12px; margin-top:18px; }
+    button { border:0; border-radius:12px; cursor:pointer; font:inherit; font-weight:900; padding:13px 18px; }
+    .primary { background:linear-gradient(135deg,#b8821e,#c8952a,#e8b84b); color:#fff; box-shadow:0 4px 16px rgba(200,149,42,.32); }
+    .secondary { background:#fff7df; color:#a4640c; }
+    .status { color:#8a7a55; font-size:14px; min-height:22px; }
+    .preview { background:#fff7df; border:1px solid #edd493; border-radius:14px; color:#5a4a2a; display:none; font-size:14px; line-height:1.8; margin-top:18px; padding:16px; white-space:pre-wrap; }
+    .preview.open { display:block; }
+    @media (max-width:760px) { .wrap { padding:30px 16px 58px; } .grid { grid-template-columns:1fr; } h1 { font-size:28px; } .actions { align-items:stretch; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import { apiJson, saveAuth } from '../js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from '../js/station-nav.js?v=20260612-unlock';
+
+    const versionLabels = { newbie: '新手版', practice: '练习作品版', real: '真实接单版' };
+    let version = 'newbie';
+    const auth = await initStationNav({ active: 'training' });
+    const homework = auth?.user?.resumeHomework || null;
+    if (homework) {
+      version = homework.version || 'newbie';
+      document.getElementById('who').value = homework.who || '';
+      document.getElementById('canEdit').value = homework.canEdit || '';
+      document.getElementById('fitOrders').value = homework.fitOrders || '';
+      document.getElementById('delivery').value = homework.delivery || '';
+      document.getElementById('status').textContent = '已载入你上次保存的简历，可以继续修改。';
+    }
+    renderVersion();
+
+    document.querySelectorAll('[data-version]').forEach((button) => {
+      button.addEventListener('click', () => {
+        version = button.dataset.version || 'newbie';
+        renderVersion();
+      });
+    });
+
+    document.getElementById('save').addEventListener('click', async () => {
+      const status = document.getElementById('status');
+      const body = {
+        version,
+        who: val('who'),
+        canEdit: val('canEdit'),
+        fitOrders: val('fitOrders'),
+        delivery: val('delivery'),
+      };
+      if (!body.who && !body.canEdit && !body.fitOrders && !body.delivery) {
+        status.textContent = '请至少填写一栏再提交。';
+        return;
+      }
+      try {
+        status.textContent = '正在提交...';
+        const data = await apiJson('/api/training/resume', { method: 'POST', body: JSON.stringify(body) });
+        if (data.user && auth?.token) saveAuth({ ...auth, user: data.user });
+        status.textContent = '已提交。助教后台可以看到这份剪辑师简历。';
+      } catch (error) {
+        status.textContent = error.message || String(error);
+      }
+    });
+
+    document.getElementById('preview-btn').addEventListener('click', () => {
+      const text = [
+        `版本：${versionLabels[version]}`,
+        '',
+        val('who'),
+        '',
+        val('canEdit'),
+        '',
+        val('fitOrders'),
+        '',
+        val('delivery'),
+      ].filter((line, index) => line || index < 2).join('\n');
+      const preview = document.getElementById('preview');
+      preview.textContent = text.trim() || '先填写内容，再预览。';
+      preview.classList.add('open');
+    });
+
+    function renderVersion() {
+      document.querySelectorAll('[data-version]').forEach((button) => button.classList.toggle('active', button.dataset.version === version));
+    }
+    function val(id) {
+      return (document.getElementById(id)?.value || '').trim();
+    }
+  </script>
+  <nav class="top">
+    <a href="/training/path.html">← 返回 21 天路径</a>
+    <a href="/training/content-pack.html#resume">查看 3 个模板</a>
+  </nav>
+  <main class="wrap">
+    <span class="badge">D8 / D10 作业</span>
+    <h1>剪辑师简历作业</h1>
+    <p class="sub">这不是求职简历。你要让别人快速知道：你是谁、能剪什么、适合接什么单、怎么交付。写得像一个靠谱的人在自我介绍就可以。</p>
+    <div class="versions">
+      <button class="version" data-version="newbie" type="button">新手版</button>
+      <button class="version" data-version="practice" type="button">有练习作品版</button>
+      <button class="version" data-version="real" type="button">已接真实单版</button>
+    </div>
+    <section class="grid">
+      <div class="card">
+        <div class="label">1. 我是谁</div>
+        <div class="hint">写你的名字/微信名、现在状态、为什么开始做播客剪辑。</div>
+        <textarea id="who" placeholder="例：大家好，我是某某。我正在系统学习播客剪辑，想把直播、访谈、咨询录音整理成更顺畅的播客内容。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">2. 我能剪什么</div>
+        <div class="hint">写你能处理的内容类型，不要夸大。</div>
+        <textarea id="canEdit" placeholder="例：我可以做直播回放转播客、访谈音频初剪、口癖和重复删减、按需求控制成片时长。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">3. 我适合接什么单</div>
+        <div class="hint">写你现阶段适合的单子，不需要装成熟手。</div>
+        <textarea id="fitOrders" placeholder="例：我适合接练习型播客剪辑、直播回放整理、对剪辑要求不极致但需要认真整理的音频。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">4. 我的交付方式</div>
+        <div class="hint">写你怎么确认需求、怎么交初版、怎么修改。</div>
+        <textarea id="delivery" placeholder="例：开始前我会先确认目标时长、必须保留和必须删除；剪完后自己先听一遍，再按反馈集中修改。"></textarea>
+      </div>
+    </section>
+    <div class="actions">
+      <button class="primary" id="save" type="button">提交剪辑师简历</button>
+      <button class="secondary" id="preview-btn" type="button">预览复制版</button>
+      <span class="status" id="status"></span>
+    </div>
+    <div class="preview" id="preview"></div>
+  </main>
+</body>
+</html>

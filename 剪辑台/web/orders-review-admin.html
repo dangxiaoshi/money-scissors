@@ -598,7 +598,8 @@
           .filter((task) => task.published)
           .sort((a, b) => Number(a.sortOrder || a.id || 0) - Number(b.sortOrder || b.id || 0))
           .map((task) => normalizeTask(task, claims));
-        selectedId = tasks[0]?.id || '';
+        const prevSelected = selectedId;
+        selectedId = tasks.some((task) => task.id === prevSelected) ? prevSelected : (tasks[0]?.id || '');
         render();
       } catch (error) {
         els.notice.innerHTML = `读取订单失败：${escapeHtml(error?.message || '未知错误')}。请确认当前登录的是管理员账号。`;
@@ -646,6 +647,25 @@
         projectId: claim.projectId || claim.project_id || '',
         snapshotId: claim.snapshotId || claim.snapshot_id || '',
         snapshot: claim.snapshot || null,
+        externalSubmission: normalizeExternalSubmission(claim.externalSubmission || claim.external_submission),
+      };
+    }
+
+    function normalizeExternalSubmission(value) {
+      if (!value || typeof value !== 'object') return null;
+      const url = safeExternalUrl(value.url || value.link || '');
+      const description = String(value.description || value.note || '').trim();
+      const tool = String(value.tool || '').trim();
+      if (!url && !description && !tool) return null;
+      return {
+        url,
+        tool,
+        toolLabel: value.toolLabel || value.tool_label || tool,
+        description,
+        durationText: value.durationText || value.duration_text || '',
+        fileName: value.fileName || value.file_name || '',
+        notes: value.notes || '',
+        submittedAt: value.submittedAt || value.submitted_at || '',
       };
     }
 
@@ -666,7 +686,7 @@
       }
       els.orderList.innerHTML = tasks.map((task, index) => `
         <button class="order-row ${task.id === selectedId ? 'active' : ''}" type="button" data-id="${escapeAttr(task.id)}">
-          <div class="order-no">${String(index + 1).padStart(3, '0')}</div>
+          <div class="order-no">${String(task.id).padStart(3, '0')}</div>
           <div>
             <div class="order-title">${escapeHtml(task.title)}</div>
             <div class="chips">
@@ -728,6 +748,9 @@
         const status = claimStatusLabel(claim.status);
         const isReviewing = claim.status === 'submitted';
         const hasSnapshot = Boolean(claim.snapshotId);
+        const hasExternal = Boolean(claim.externalSubmission?.url);
+        const hasSubmission = hasSnapshot || hasExternal;
+        const external = claim.externalSubmission || {};
         return `
           <article class="submission">
             <div class="submission-head">
@@ -740,8 +763,10 @@
             <div class="submission-body">
               <div class="note">
                 <h4>学员剪辑说明</h4>
-                <p>${hasSnapshot ? `已提交审核：${escapeHtml(formatTime(claim.submittedAt || claim.snapshot?.createdAt || claim.updatedAt))}` : `已抢单：${escapeHtml(formatTime(claim.claimedAt))}。还没有提交审核作品。`}</p>
+                <p>${hasSubmission ? `已提交审核：${escapeHtml(formatTime(claim.submittedAt || claim.snapshot?.createdAt || external.submittedAt || claim.updatedAt))}` : `已抢单：${escapeHtml(formatTime(claim.claimedAt))}。还没有提交审核作品。`}</p>
                 ${claim.snapshot ? `<p>项目：${escapeHtml(claim.snapshot.fileName || '未命名音频')}；粗剪约 ${formatDuration(claim.snapshot.roughcutDuration)}。</p>` : ''}
+                ${hasExternal ? `<p>外部工具：${escapeHtml(external.toolLabel || external.tool || '未填写工具')}；成品链接已提交。</p>` : ''}
+                ${hasExternal && external.description ? `<p>${escapeHtml(external.description)}</p>` : ''}
               </div>
               <div class="note">
                 <h4>AI参考意见</h4>
@@ -753,10 +778,10 @@
               </div>
             </div>
             <div class="submission-actions">
-              <button class="btn secondary" type="button">试听成品</button>
-              ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : '<button class="btn secondary" type="button" disabled>未提交</button>'}
-              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${hasSnapshot ? '' : 'disabled'}>采用这个</button>
-              <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${hasSnapshot ? '' : 'disabled'}>打回修改</button>
+              ${hasExternal ? `<a class="btn secondary" href="${escapeAttr(external.url)}" target="_blank" rel="noopener">打开成品</a>` : '<button class="btn secondary" type="button" disabled>试听成品</button>'}
+              ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : (!hasExternal ? '<button class="btn secondary" type="button" disabled>未提交</button>' : '')}
+              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${hasSubmission ? '' : 'disabled'}>采用这个</button>
+              <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${hasSubmission ? '' : 'disabled'}>打回修改</button>
               <button class="btn secondary" type="button">标记未采用</button>
             </div>
           </article>
@@ -871,6 +896,17 @@
       if (/直播|课/.test(text)) return '直播课';
       if (/访谈/.test(text)) return '访谈播客';
       return '真实任务';
+    }
+
+    function safeExternalUrl(value) {
+      const link = String(value || '').trim();
+      if (!/^https?:\/\/\S+$/i.test(link)) return '';
+      try {
+        const parsed = new URL(link);
+        return parsed.href;
+      } catch {
+        return '';
+      }
     }
 
     function escapeHtml(value) {

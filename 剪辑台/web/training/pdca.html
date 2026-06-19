@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · PDCA 复盘作业</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background:#f5f0e8; color:#1a1209; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; min-height:100vh; }
+    .top { align-items:center; background:rgba(245,240,232,.96); border-bottom:1px solid #e8d8b0; display:flex; gap:12px; padding:12px 20px; position:sticky; top:0; z-index:10; }
+    .top a { color:#c8952a; font-size:13px; font-weight:800; text-decoration:none; }
+    .wrap { margin:0 auto; max-width:900px; padding:42px 22px 70px; }
+    .badge { background:#f5e8c0; border:1px solid #c8952a; border-radius:999px; color:#c8952a; display:inline-block; font-size:12px; font-weight:900; margin-bottom:12px; padding:5px 13px; }
+    h1 { font-size:34px; line-height:1.2; margin-bottom:10px; }
+    .sub { color:#8a7a55; font-size:15px; line-height:1.8; margin-bottom:24px; max-width:680px; }
+    .grid { display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .card { background:#fffcf0; border:1px solid #e8d8b0; border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(122,64,8,.05); }
+    .label { color:#1a1209; font-size:16px; font-weight:900; margin-bottom:7px; }
+    .hint { color:#9a8a6a; font-size:13px; line-height:1.65; margin-bottom:10px; }
+    textarea { background:#fffdf7; border:1px solid #e8d8b0; border-radius:12px; color:#1a1209; font:inherit; font-size:15px; line-height:1.75; min-height:210px; outline:none; padding:12px; resize:vertical; width:100%; }
+    textarea:focus { border-color:#c8952a; box-shadow:0 0 0 3px rgba(200,149,42,.12); }
+    .actions { align-items:center; display:flex; gap:12px; margin-top:18px; }
+    button { border:0; border-radius:12px; cursor:pointer; font:inherit; font-weight:900; padding:13px 18px; }
+    .primary { background:linear-gradient(135deg,#b8821e,#c8952a,#e8b84b); color:#fff; box-shadow:0 4px 16px rgba(200,149,42,.32); }
+    .secondary { background:#fff7df; color:#a4640c; }
+    .status { color:#8a7a55; font-size:14px; min-height:22px; }
+    .example { background:#fff7df; border:1px solid #edd493; border-radius:14px; color:#5a4a2a; display:none; font-size:14px; line-height:1.8; margin-top:18px; padding:16px; white-space:pre-wrap; }
+    .example.open { display:block; }
+    @media (max-width:760px) { .wrap { padding:30px 16px 58px; } .grid { grid-template-columns:1fr; } h1 { font-size:28px; } .actions { align-items:stretch; flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import { apiJson, saveAuth } from '../js/api.js?v=20260610-reviewflow-1';
+    import { initStationNav } from '../js/station-nav.js?v=20260612-unlock';
+
+    const auth = await initStationNav({ active: 'training' });
+    const homework = auth?.user?.pdcaHomework || null;
+    if (homework) {
+      document.getElementById('plan').value = homework.plan || '';
+      document.getElementById('do').value = homework.do || '';
+      document.getElementById('check').value = homework.check || '';
+      document.getElementById('act').value = homework.act || '';
+      document.getElementById('status').textContent = '已载入你上次保存的复盘，可以继续修改。';
+    }
+
+    document.getElementById('save').addEventListener('click', async () => {
+      const status = document.getElementById('status');
+      const body = {
+        plan: val('plan'),
+        do: val('do'),
+        check: val('check'),
+        act: val('act'),
+      };
+      if (!body.plan && !body.do && !body.check && !body.act) {
+        status.textContent = '请至少填写一栏再提交。';
+        return;
+      }
+      try {
+        status.textContent = '正在提交...';
+        const data = await apiJson('/api/training/pdca', { method: 'POST', body: JSON.stringify(body) });
+        if (data.user && auth?.token) saveAuth({ ...auth, user: data.user });
+        status.textContent = '已提交。助教后台可以看到这份复盘。';
+      } catch (error) {
+        status.textContent = error.message || String(error);
+      }
+    });
+
+    document.getElementById('toggle-example').addEventListener('click', () => {
+      document.getElementById('example').classList.toggle('open');
+    });
+
+    function val(id) {
+      return (document.getElementById(id)?.value || '').trim();
+    }
+  </script>
+  <nav class="top">
+    <a href="/training/path.html">← 返回 21 天路径</a>
+    <a href="/training/content-pack.html#pdca">查看作业卡说明</a>
+  </nav>
+  <main class="wrap">
+    <span class="badge">D7 复盘作业</span>
+    <h1>PDCA 复盘作业</h1>
+    <p class="sub">不用写得像公司周报。按“计划 / 执行 / 检查 / 下一步”四栏，把这一周真实做了什么、卡在哪里、下一步怎么改写清楚。</p>
+    <section class="grid">
+      <div class="card">
+        <div class="label">1. 计划</div>
+        <div class="hint">你原本想完成什么？想练什么？小目标是什么？</div>
+        <textarea id="plan" placeholder="例：我这一周想完成 D1 自我介绍，解锁剪辑台，并完整剪完一条练习音频。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">2. 执行</div>
+        <div class="hint">你实际做了什么？用了哪些页面、课件或工具？</div>
+        <textarea id="do" placeholder="例：我完成了 D1 作业，打开了 D2 练习项目，看了 AI 剪辑决策，并删了一些口癖和重复内容。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">3. 检查</div>
+        <div class="hint">现在结果如何？哪里做得好？哪里最卡？</div>
+        <textarea id="check" placeholder="例：我跑通了流程，但容易只删口癖，没有判断内容主线；有些连接处没有重新听。"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">4. 下一步</div>
+        <div class="hint">接下来 1-3 天先做什么？卡住时找谁确认？</div>
+        <textarea id="act" placeholder="例：下一条音频先看派单需求，再开始剪；卡住时把项目名、时间点和截图发给助教。"></textarea>
+      </div>
+    </section>
+    <div class="actions">
+      <button class="primary" id="save" type="button">提交 PDCA 作业</button>
+      <button class="secondary" id="toggle-example" type="button">看一份示例</button>
+      <span class="status" id="status"></span>
+    </div>
+    <div class="example" id="example">计划：我这一周想完成 D1 自我介绍，解锁剪辑台，并完整剪完一条练习音频。
+
+执行：我完成了 D1 作业，打开 D2 练习项目，生成了剪辑决策，也删了一些口癖和重复内容。
+
+检查：我做得比较好的是没有一直停在教程里，而是真的跑了一遍流程。最卡的是我容易只看文字删口癖，没有听每个接缝。
+
+下一步：下一条音频先看清楚派单需求，再开始剪。剪完以后至少完整听一遍，重点检查有没有误删核心信息。</div>
+  </main>
+</body>
+</html>

@@ -255,6 +255,32 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+    .day1-feedback {
+      background: #fff8e8;
+      border: 1px solid #eacb82;
+      border-radius: 13px;
+      box-shadow: 0 3px 10px rgba(140, 110, 40, 0.10);
+      color: var(--text);
+      margin: -8px 0 18px;
+      padding: 16px 18px;
+    }
+    .day1-feedback h2 {
+      color: #8a5a12;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    .day1-feedback p {
+      color: #51442c;
+      font-size: 14px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+    }
+    .day1-feedback-meta {
+      color: var(--text-faint);
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 10px;
+    }
     @media (max-width: 840px) {
       .path-tabs { padding-left: 18px; padding-right: 18px; top: 48px; }
       .wrap { padding: 18px 16px 40px; }
@@ -278,10 +304,13 @@
   <nav class="path-tabs" aria-label="训练台子导航">
     <a class="path-tab active" href="/training/path.html" data-scoped-link>21天路径</a>
     <a class="path-tab" href="/training/sop.html" data-scoped-link>剪辑课件</a>
+    <a class="path-tab" href="/training/content-pack.html" data-scoped-link>训练素材</a>
+    <a class="path-tab" href="/training/feedback.html" data-scoped-link>问题反馈</a>
   </nav>
 
   <main class="wrap">
     <section class="hero" id="hero" aria-live="polite"></section>
+    <section class="day1-feedback" id="day1-feedback" hidden></section>
     <section id="grid" aria-label="21天学习路径"></section>
   </main>
 
@@ -289,7 +318,7 @@
 
   <script type="module">
     import { initStationNav } from '../js/station-nav.js?v=20260612-path21';
-    import { scopedPath } from '../js/api.js?v=20260610-reviewflow-1';
+    import { apiJson, scopedPath } from '../js/api.js?v=20260610-reviewflow-1';
 
     const CURRENT_FALLBACK = 'D1';
     const DAY1 = {
@@ -355,7 +384,10 @@
         goal: '说说做了什么、卡在哪，老师逐人给建议',
         tag: '直播',
         startsAt: '2026-06-18T19:00:00+08:00',
-        actions: [{ type: 'live', label: '▶ 进入直播', href: 'https://meeting.tencent.com/dm/UqtNoHph15rW', style: 'primary' }],
+        actions: [
+          { type: 'courseware', label: '📝 填写 PDCA 作业', href: '/training/pdca.html', style: 'secondary' },
+          { type: 'live', label: '▶ 看直播回放', href: 'https://www.bilibili.com/video/BV1wMjA6pEDg/?spm_id_from=333.1007.top_right_bar_window_dynamic.content.click', style: 'primary' },
+        ],
       },
       {
         id: 'D8',
@@ -365,7 +397,7 @@
         emoji: '💼',
         title: '报价+简历',
         goal: '把报价想清楚，开始整理剪辑简历',
-        actions: [{ type: 'placeholder', label: '📄 领取模版', message: '领取模版功能还没做，先在群里同步。', style: 'muted' }],
+        actions: [{ type: 'courseware', label: '📄 填写剪辑师简历', href: '/training/resume.html', style: 'primary' }],
       },
       {
         id: 'D9',
@@ -387,7 +419,7 @@
         emoji: '📣',
         title: '简历推广',
         goal: '优化简历，发出去让外面的人知道你',
-        actions: [{ type: 'placeholder', label: '📄 领取模版', message: '领取模版功能还没做，先在群里同步。', style: 'muted' }],
+        actions: [{ type: 'courseware', label: '📄 填写剪辑师简历', href: '/training/resume.html', style: 'primary' }],
       },
       {
         id: 'D14',
@@ -472,6 +504,7 @@
       scopeStaticLinks();
       renderHero(getDay(viewingId));
       renderGrid();
+      loadDay1Feedback();
     }
 
     function scopeStaticLinks() {
@@ -586,6 +619,27 @@
       if (action.type === 'placeholder') toast(action.message);
     }
 
+    async function loadDay1Feedback() {
+      const box = document.getElementById('day1-feedback');
+      if (!box) return;
+      try {
+        const data = await apiJson('/api/training/day1-feedback');
+        const feedback = data.feedback || null;
+        if (!feedback || !feedback.text) {
+          box.hidden = true;
+          return;
+        }
+        box.innerHTML = `
+          <h2>Day1 助教反馈</h2>
+          <p>${escapeHtml(feedback.text)}</p>
+          ${feedback.confirmedAt ? `<div class="day1-feedback-meta">确认时间：${escapeHtml(formatTime(feedback.confirmedAt))}</div>` : ''}
+        `;
+        box.hidden = false;
+      } catch (error) {
+        box.hidden = true;
+      }
+    }
+
     let toastTimer;
     function toast(message) {
       const el = document.getElementById('toast');
@@ -602,6 +656,12 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    function formatTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value || '';
+      return `${date.getMonth() + 1}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     }
   </script>
 </body>

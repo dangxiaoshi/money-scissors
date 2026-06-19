@@ -113,6 +113,8 @@ function renderRows() {
       <td>${user.usageCount || 0}</td>
       <td>${day1Cell(user)}</td>
       <td>${day2Cell(user)}</td>
+      <td>${pdcaCell(user)}</td>
+      <td>${resumeCell(user)}</td>
       <td>${pendingCell(user)}</td>
       <td>
         <input class="table-input" data-note value="${escapeAttr(user.note || '')}" placeholder="备注">
@@ -132,6 +134,12 @@ function renderRows() {
   els.tbody.querySelectorAll('[data-snaps]').forEach((button) => {
     button.addEventListener('click', () => openSnapshotsModal(Number(button.dataset.snaps)));
   });
+  els.tbody.querySelectorAll('[data-pdca]').forEach((button) => {
+    button.addEventListener('click', () => openPdcaModal(Number(button.dataset.pdca)));
+  });
+  els.tbody.querySelectorAll('[data-resume]').forEach((button) => {
+    button.addEventListener('click', () => openResumeModal(Number(button.dataset.resume)));
+  });
 }
 
 function day1Cell(user) {
@@ -143,6 +151,16 @@ function day2Cell(user) {
   const has = user.day2Complete || Number(user.snapshotCount || 0) > 0;
   if (!has) return '<span class="cell-muted">未完成</span>';
   return `<button class="cell-link" data-snaps="${user.id}" type="button">已完成</button>`;
+}
+
+function pdcaCell(user) {
+  if (!user.pdcaHomework) return '<span class="cell-muted">未交</span>';
+  return `<button class="cell-link" data-pdca="${user.id}" type="button">已提交</button>`;
+}
+
+function resumeCell(user) {
+  if (!user.resumeHomework) return '<span class="cell-muted">未交</span>';
+  return `<button class="cell-link" data-resume="${user.id}" type="button">已提交</button>`;
 }
 
 function pendingCell(user) {
@@ -369,6 +387,155 @@ function openIntroModal(userId) {
       const a = (fields[i] || '').trim();
       return `<div class="intro-q">${i + 1}. ${q}</div><div class="intro-a">${a ? escapeHtml(a) : '—'}</div>`;
     }),
+    `<div class="intro-q">AI 反馈</div><div id="day1-feedback-panel" data-user-id="${escapeAttr(userId)}"><div class="intro-empty">正在读取反馈状态...</div></div>`,
+  ].join('');
+  openModal(title, body);
+  loadDay1Feedback(userId);
+}
+
+async function loadDay1Feedback(userId) {
+  const panel = document.getElementById('day1-feedback-panel');
+  if (!panel) return;
+  try {
+    const data = await apiJson(`/api/admin/users/${encodeURIComponent(userId)}/day1-feedback`);
+    renderDay1FeedbackPanel(userId, data.feedback || null);
+  } catch (error) {
+    panel.innerHTML = `<div class="intro-empty">反馈状态读取失败：${escapeHtml(error.message || String(error))}</div>`;
+  }
+}
+
+function renderDay1FeedbackPanel(userId, feedback) {
+  const panel = document.getElementById('day1-feedback-panel');
+  if (!panel) return;
+  if (!feedback) {
+    panel.innerHTML = `
+      <div class="ai-human">还没有为这份 Day1 自我介绍生成 AI 反馈草稿。</div>
+      <div class="ai-actions">
+        <button class="primary-btn mini-btn" type="button" data-day1-generate="${escapeAttr(userId)}">生成 AI 反馈草稿</button>
+        <span class="ai-muted">草稿只给助教看，确认后才会给学员看。</span>
+      </div>
+    `;
+    bindDay1FeedbackActions(panel, userId, null);
+    return;
+  }
+  const statusLabel = {
+    draft: '草稿，待助教确认',
+    confirmed: '已确认，学员可见',
+    needs_manual: '需人工处理',
+  }[feedback.status] || '草稿，待助教确认';
+  const text = feedback.confirmedText || feedback.aiDraft || '';
+  panel.innerHTML = `
+    <div class="ai-review" data-day1-feedback-id="${escapeAttr(feedback.id)}">
+      <div class="ai-pill ${feedback.status === 'confirmed' ? 'ok' : 'warn'}">${escapeHtml(statusLabel)}</div>
+      <label class="ai-label" for="day1-feedback-text">给学员看的反馈（助教可修改）</label>
+      <textarea class="ai-textarea" id="day1-feedback-text" rows="10">${escapeHtml(text)}</textarea>
+      <div class="ai-actions">
+        <button class="primary-btn mini-btn" type="button" data-day1-confirm="${escapeAttr(userId)}">确认反馈</button>
+        <button class="secondary-btn mini-btn" type="button" data-day1-save="${escapeAttr(userId)}">保存草稿</button>
+        <button class="secondary-btn mini-btn" type="button" data-day1-refresh="${escapeAttr(userId)}">重新生成</button>
+        <span class="ai-muted" id="day1-feedback-hint"></span>
+      </div>
+      <p class="ai-muted">AI 草稿不会自动发给学员。只有点“确认反馈”后，学员才会在训练台看到。</p>
+    </div>
+  `;
+  bindDay1FeedbackActions(panel, userId, feedback);
+}
+
+function bindDay1FeedbackActions(panel, userId, feedback) {
+  panel.querySelector('[data-day1-generate]')?.addEventListener('click', () => generateDay1Feedback(userId, false));
+  panel.querySelector('[data-day1-refresh]')?.addEventListener('click', () => generateDay1Feedback(userId, true));
+  panel.querySelector('[data-day1-save]')?.addEventListener('click', () => saveDay1Feedback(userId, feedback?.id, 'draft'));
+  panel.querySelector('[data-day1-confirm]')?.addEventListener('click', () => saveDay1Feedback(userId, feedback?.id, 'confirmed'));
+}
+
+async function generateDay1Feedback(userId, refresh) {
+  const panel = document.getElementById('day1-feedback-panel');
+  if (!panel) return;
+  panel.innerHTML = '<div class="intro-empty">AI 正在生成 Day1 反馈草稿，请稍候...</div>';
+  try {
+    const data = await apiJson(`/api/admin/users/${encodeURIComponent(userId)}/day1-feedback/ai-draft`, {
+      method: 'POST',
+      body: JSON.stringify({ refresh }),
+    });
+    renderDay1FeedbackPanel(userId, data.feedback || null);
+  } catch (error) {
+    panel.innerHTML = `<div class="intro-empty">AI 反馈生成失败：${escapeHtml(error.message || String(error))}</div>
+      <div class="ai-actions"><button class="secondary-btn mini-btn" type="button" data-day1-generate="${escapeAttr(userId)}">重试</button></div>`;
+    bindDay1FeedbackActions(panel, userId, null);
+  }
+}
+
+async function saveDay1Feedback(userId, feedbackId, status) {
+  if (!feedbackId) return;
+  const button = document.querySelector(`[data-day1-${status === 'confirmed' ? 'confirm' : 'save'}="${CSS.escape(String(userId))}"]`);
+  const hint = document.getElementById('day1-feedback-hint');
+  const text = (document.getElementById('day1-feedback-text')?.value || '').trim();
+  try {
+    if (button) button.disabled = true;
+    const data = await apiJson(`/api/admin/users/${encodeURIComponent(userId)}/day1-feedback/${encodeURIComponent(feedbackId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status,
+        aiDraft: text,
+        confirmedText: text,
+      }),
+    });
+    renderDay1FeedbackPanel(userId, data.feedback || null);
+    const nextHint = document.getElementById('day1-feedback-hint');
+    if (nextHint) nextHint.textContent = status === 'confirmed' ? '已确认，学员可见。' : '草稿已保存。';
+  } catch (error) {
+    if (hint) hint.textContent = error.message || String(error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function openPdcaModal(userId) {
+  const user = users.find((item) => item.id === userId);
+  if (!user) return;
+  const title = `${escapeHtml(user.nickname || user.maskedPhone)} · PDCA 复盘`;
+  const homework = user.pdcaHomework;
+  if (!homework) {
+    openModal(title, '<div class="intro-empty">这位学员还没有提交 PDCA 复盘作业。</div>');
+    return;
+  }
+  const fields = [
+    ['计划', homework.plan],
+    ['执行', homework.do],
+    ['检查', homework.check],
+    ['下一步', homework.act],
+  ];
+  const body = [
+    homework.savedAt ? `<div class="intro-q">提交时间</div><div class="intro-a">${formatDate(homework.savedAt)}</div>` : '',
+    ...fields.map(([q, a], i) => `<div class="intro-q">${i + 1}. ${q}</div><div class="intro-a">${a ? escapeHtml(a) : '—'}</div>`),
+  ].join('');
+  openModal(title, body);
+}
+
+function openResumeModal(userId) {
+  const user = users.find((item) => item.id === userId);
+  if (!user) return;
+  const title = `${escapeHtml(user.nickname || user.maskedPhone)} · 剪辑师简历`;
+  const homework = user.resumeHomework;
+  if (!homework) {
+    openModal(title, '<div class="intro-empty">这位学员还没有提交剪辑师简历。</div>');
+    return;
+  }
+  const versionMap = {
+    newbie: '新手版',
+    practice: '有练习作品版',
+    real: '已接真实单版',
+  };
+  const fields = [
+    ['版本', versionMap[homework.version] || '新手版'],
+    ['我是谁', homework.who],
+    ['我能剪什么', homework.canEdit],
+    ['我适合接什么单', homework.fitOrders],
+    ['我的交付方式', homework.delivery],
+  ];
+  const body = [
+    homework.savedAt ? `<div class="intro-q">提交时间</div><div class="intro-a">${formatDate(homework.savedAt)}</div>` : '',
+    ...fields.map(([q, a]) => `<div class="intro-q">${q}</div><div class="intro-a">${a ? escapeHtml(a) : '—'}</div>`),
   ].join('');
   openModal(title, body);
 }

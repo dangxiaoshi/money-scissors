@@ -1,0 +1,31 @@
+{
+  "name": "launch-live-fixed-export",
+  "fixture": "data/practice-templates/launch-live-20260612.json",
+  "audioPath": "/uploads/practice/kaiying-live-20260612.m4a",
+  "segmentCount": 4,
+  "keepSegmentCount": 3,
+  "expectedKeepSeconds": 32,
+  "durationSeconds": 32.04,
+  "bytes": 769968,
+  "sha256": "1c758e717d671a5d4a1fd389ae0c50f3ab7dc7d87cefa157e2f80f0593b6e55d",
+  "checkedAt": "2026-06-19T02:47:42.639Z",
+  "thresholdSeconds": 0.5,
+  "segments": [
+    {
+      "start": 0,
+      "end": 10
+    },
+    {
+      "start": 20,
+      "end": 120
+    },
+    {
+      "start": 132,
+      "end": 2810
+    },
+    {
+      "start": 2820,
+      "end": 3008
+    }
+  ]
+}

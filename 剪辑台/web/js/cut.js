@@ -4,6 +4,7 @@ const els = {};
 let outputUrl = '';
 let outputName = '';
 const CUT_POLL_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+const LONG_WAIT_HINT_MS = 30 * 60 * 1000;
 const PENDING_CUT_KEY = 'jinqian_pending_cut_job';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   els.download.addEventListener('click', async () => {
     if (!outputUrl) {
-      showError('MP3 还没准备好，请等页面显示“备用 MP3 已生成”后再点下载。');
+      showError('MP3 还没生成好，请等页面显示“MP3 已生成”后再点下载。');
       return;
     }
     const label = els.download.textContent;
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const detail = total
           ? `已准备 ${formatBytes(received)} / ${formatBytes(total)}，请不要关闭页面。`
           : `已准备 ${formatBytes(received)}，请不要关闭页面。`;
-        setStatus('正在下载备用 MP3', detail, total ? Math.max(92, Math.min(99, percent)) : 98);
+        setStatus('正在下载 MP3', detail, total ? Math.max(92, Math.min(99, percent)) : 98);
       });
       setStatus('下载已开始', '如果没有看到文件，请看一下浏览器右上角下载记录或下载文件夹。', 100);
     } catch (error) {
@@ -57,11 +58,15 @@ async function runCut() {
 
   let cutJob = readPendingCutJob(data);
   if (cutJob) {
-    setStatus('继续等待备用 MP3', '已找回刚才排队的任务，继续等待生成。', 5);
+    setStatus('继续等待 MP3 导出', '已找回刚才的导出任务，继续等待生成。', 5);
   } else {
-    setStatus('提交剪辑任务', '这是备用 MP3，不影响提交给助教；请保持页面打开。', 5);
+    setStatus('提交 MP3 导出任务', '服务器会按当前删减方案重新生成 MP3，完成后可下载到外部软件继续剪/精修。', 5);
     cutJob = await startServerCut(data);
-    savePendingCutJob(data, cutJob.jobId);
+    if (cutJob.resumedFromBusy) {
+      setStatus('继续等待已有 MP3 导出', '系统检测到你账号里已有一个 MP3 正在生成，先继续等待它完成；如果超过 30 分钟，请截图给助教。', 5);
+    } else {
+      savePendingCutJob(data, cutJob.jobId);
+    }
   }
   if (cutJob.stage === 'queued') showCutQueueStatus(cutJob);
 
@@ -72,10 +77,10 @@ async function runCut() {
     if (isTerminalCutError(error)) clearPendingCutJob(cutJob.jobId);
     throw error;
   }
-  if (!cutResult) throw new Error('剪辑任务未完成');
+  if (!cutResult) throw new Error('MP3 导出任务未完成');
   clearPendingCutJob(cutJob.jobId);
 
-  setStatus('生成下载链接', '正在准备备用 MP3 下载。', 92);
+  setStatus('生成下载链接', '正在准备 MP3 下载。', 92);
   const roughcutUrl = `/api/cut/download/${encodeURIComponent(cutJob.jobId)}`;
 
   const refineSettings = data.refineSettings || {};
@@ -92,8 +97,8 @@ async function runCut() {
 
   outputUrl = roughcutUrl;
   outputName = buildOutputName(false);
-  els.download.textContent = '下载粗剪 MP3';
-  setStatus('备用 MP3 已生成', '可以下载自己先听；如果已经点过提交审核，助教后台已经能看到。', 100);
+  els.download.textContent = '下载 MP3（去外部软件）';
+  setStatus('MP3 已生成', '可以下载到电脑，再去剪映 / AU / Logic / Audacity 等外部软件继续剪或精修。', 100);
   els.download.disabled = false;
   els.download.classList.add('ready');
 }
@@ -117,9 +122,16 @@ async function startServerCut(data) {
   });
   const payload = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    throw new Error(payload.message || payload.error || `剪辑提交失败：HTTP ${resp.status}`);
+    if (resp.status === 429 && payload.error === 'cut_user_busy') {
+      const currentResp = await apiFetch('/api/cut/current');
+      const current = await currentResp.json().catch(() => ({}));
+      if (currentResp.ok && current.jobId) {
+        return { ...current, resumedFromBusy: true };
+      }
+    }
+    throw new Error(payload.message || payload.error || `MP3 导出提交失败：HTTP ${resp.status}`);
   }
-  if (!payload.jobId) throw new Error('剪辑任务缺少 jobId');
+  if (!payload.jobId) throw new Error('MP3 导出任务缺少 jobId');
   return payload;
 }
 
@@ -129,25 +141,27 @@ async function pollServerCut(jobId) {
     await wait(1800);
     const resp = await apiFetch(`/api/cut/status/${encodeURIComponent(jobId)}`);
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.message || data.error || `剪辑状态读取失败：HTTP ${resp.status}`);
+    if (!resp.ok) throw new Error(data.message || data.error || `MP3 导出状态读取失败：HTTP ${resp.status}`);
 
     const progress = Number(data.progress);
+    const waitHint = buildLongWaitHint(startedAt);
     if (Number.isFinite(progress)) setProgress(Math.max(5, Math.min(99, progress)));
     if (data.status === 'done' || data.stage === 'done') return true;
-    if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || '剪辑处理失败');
-    if (data.stage === 'queued') showCutQueueStatus(data);
-    else if (data.stage === 'downloading') setStatus('读取原始音频', '服务器正在读取原始音频；这是备用 MP3，不用重复提交。', Math.max(10, Math.min(30, progress || 10)));
-    else setStatus('正在生成粗剪 MP3', '服务器正在剪辑并编码 MP3；请保持页面打开。', Math.max(30, Math.min(95, progress || 30)));
+    if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || 'MP3 导出失败');
+    if (data.stage === 'queued') showCutQueueStatus(data, startedAt);
+    else if (data.stage === 'downloading') setStatus('读取原始音频', `服务器正在读取原始音频，准备导出 MP3。${waitHint}`, Math.max(10, Math.min(30, progress || 10)));
+    else setStatus('正在生成 MP3', `服务器正在按你的删减方案重新剪辑并编码，请保持页面打开。${waitHint}`, Math.max(30, Math.min(95, progress || 30)));
   }
-  throw new Error('备用 MP3 排队等待超时，请稍后重新生成。');
+  throw new Error('MP3 导出等待超时，请截图给助教，带上项目名和手机号后四位。');
 }
 
-function showCutQueueStatus(data) {
+function showCutQueueStatus(data, startedAt = Date.now()) {
   const ahead = Number(data.queueAhead || 0);
+  const waitHint = buildLongWaitHint(startedAt);
   const detail = ahead > 0
-    ? `已进入队列，前面还有 ${ahead} 个任务；这只是备用 MP3，不影响提交审核。`
-    : '已进入队列，马上轮到你；请保持页面打开。';
-  setStatus('正在排队生成备用 MP3', detail, 5);
+    ? `已进入导出队列，前面还有 ${ahead} 个任务；请不要反复点生成。${waitHint}`
+    : `已进入导出队列，马上轮到你；请保持页面打开。${waitHint}`;
+  setStatus('正在排队导出 MP3', detail, 5);
 }
 
 function readPendingCutJob(data) {
@@ -204,7 +218,7 @@ function isTerminalCutError(error) {
 }
 
 async function runRefine(blob, filename, refineSettings) {
-  setStatus('正在上传粗剪音频', '准备交给服务器应用音频精修。', 94);
+  setStatus('正在上传待精修 MP3', '准备交给服务器应用音频精修。', 94);
 
   const form = new FormData();
   form.append('audio', blob, filename);
@@ -234,7 +248,7 @@ async function runRefine(blob, filename, refineSettings) {
   els.download.textContent = '下载精修版 MP3';
   els.download.disabled = false;
   els.download.classList.add('ready');
-  setStatus('备用精修 MP3 已生成', '可以下载自己先听；如果已经点过提交审核，助教后台已经能看到。', 100);
+  setStatus('精修版 MP3 已生成', '可以下载到电脑，再去剪映 / AU / Logic / Audacity 等外部软件继续剪或交付。', 100);
 }
 
 async function pollRefine(jobId, optionText) {
@@ -363,6 +377,11 @@ function formatBytes(bytes) {
   if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
   if (value >= 1024) return `${Math.round(value / 1024)} KB`;
   return `${value} B`;
+}
+
+function buildLongWaitHint(startedAt) {
+  if (Date.now() - Number(startedAt || 0) < LONG_WAIT_HINT_MS) return '';
+  return ' 已经超过 30 分钟，请不要反复点；截图给助教，带项目名和手机号后四位。';
 }
 
 function showError(message) {

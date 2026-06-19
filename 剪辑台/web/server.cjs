@@ -41,6 +41,12 @@ const SUBMIT_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/tra
 const TASK_URL = 'https://dashscope.aliyuncs.com/api/v1/tasks';
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 60 * 1000);
+const FFMPEG_TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS || 90 * 60 * 1000);
+const FFPROBE_TIMEOUT_MS = Number(process.env.FFPROBE_TIMEOUT_MS || 60 * 1000);
+const CHILD_KILL_GRACE_MS = Number(process.env.CHILD_KILL_GRACE_MS || 5000);
+const MAX_CUT_SEGMENTS = Number(process.env.MAX_CUT_SEGMENTS || 5000);
+const CUT_SEGMENT_OVERLAP_TOLERANCE = 0.04;
+const CUT_SEGMENT_DURATION_TOLERANCE = 0.5;
 const JWT_EXPIRE_HOURS = Number(process.env.JWT_EXPIRE_HOURS || 24 * 45);
 const MAX_DAILY_SMS_PER_PHONE = Number(process.env.MAX_DAILY_SMS_PER_PHONE || 5);
 const MAX_SMS_SENDS_PER_IP_WINDOW = Number(process.env.MAX_SMS_SENDS_PER_IP_WINDOW || 20);
@@ -161,6 +167,98 @@ const statements = {
   saveDay1Intro: db.prepare(`
     UPDATE users SET day1_complete = 1, day1_intro = @day1_intro, last_active_at = @last_active_at WHERE id = @id
   `),
+  savePdcaHomework: db.prepare(`
+    UPDATE users SET pdca_homework = @pdca_homework, last_active_at = @last_active_at WHERE id = @id
+  `),
+  saveResumeHomework: db.prepare(`
+    UPDATE users SET resume_homework = @resume_homework, last_active_at = @last_active_at WHERE id = @id
+  `),
+  findDay1FeedbackByUserHash: db.prepare(`
+    SELECT *
+    FROM day1_feedbacks
+    WHERE user_id = @user_id AND intro_hash = @intro_hash
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `),
+  findLatestConfirmedDay1FeedbackByUser: db.prepare(`
+    SELECT *
+    FROM day1_feedbacks
+    WHERE user_id = ? AND status = 'confirmed'
+    ORDER BY confirmed_at DESC, updated_at DESC
+    LIMIT 1
+  `),
+  findDay1FeedbackById: db.prepare('SELECT * FROM day1_feedbacks WHERE id = ?'),
+  insertDay1Feedback: db.prepare(`
+    INSERT INTO day1_feedbacks (
+      id, user_id, intro_hash, ai_draft, confirmed_text, status, model,
+      prompt_version, created_at, updated_at, confirmed_at, confirmed_by
+    )
+    VALUES (
+      @id, @user_id, @intro_hash, @ai_draft, @confirmed_text, @status, @model,
+      @prompt_version, @created_at, @updated_at, @confirmed_at, @confirmed_by
+    )
+  `),
+  updateDay1Feedback: db.prepare(`
+    UPDATE day1_feedbacks SET
+      ai_draft = @ai_draft,
+      confirmed_text = @confirmed_text,
+      status = @status,
+      model = @model,
+      prompt_version = @prompt_version,
+      updated_at = @updated_at,
+      confirmed_at = @confirmed_at,
+      confirmed_by = @confirmed_by
+    WHERE id = @id
+  `),
+  insertFeedbackReport: db.prepare(`
+    INSERT INTO feedback_reports (
+      id, user_id, project_id, snapshot_id, dispatch_task_id, dispatch_claim_id,
+      station, page, page_url, title, description, severity, context_json,
+      attachment_json, status, admin_note, created_at, updated_at, resolved_at
+    )
+    VALUES (
+      @id, @user_id, @project_id, @snapshot_id, @dispatch_task_id, @dispatch_claim_id,
+      @station, @page, @page_url, @title, @description, @severity, @context_json,
+      @attachment_json, @status, @admin_note, @created_at, @updated_at, @resolved_at
+    )
+  `),
+  listFeedbackReports: db.prepare(`
+    SELECT f.*, u.phone, u.nickname
+    FROM feedback_reports f
+    LEFT JOIN users u ON u.id = f.user_id
+    WHERE (@status = '' OR f.status = @status)
+    ORDER BY
+      CASE f.status WHEN 'open' THEN 0 WHEN 'triaged' THEN 1 WHEN 'resolved' THEN 2 ELSE 3 END,
+      f.created_at DESC
+    LIMIT @limit
+  `),
+  findFeedbackReport: db.prepare('SELECT * FROM feedback_reports WHERE id = ?'),
+  updateFeedbackReportStatus: db.prepare(`
+    UPDATE feedback_reports SET
+      status = @status,
+      admin_note = @admin_note,
+      updated_at = @updated_at,
+      resolved_at = @resolved_at
+    WHERE id = @id
+  `),
+  insertVisitEvent: db.prepare(`
+    INSERT INTO visit_events (
+      session_id, user_id, event_type, path, title, referrer,
+      user_agent, ip, duration_seconds, created_at
+    )
+    VALUES (
+      @session_id, @user_id, @event_type, @path, @title, @referrer,
+      @user_agent, @ip, @duration_seconds, @created_at
+    )
+  `),
+  listVisitEventsSince: db.prepare(`
+    SELECT v.*, u.phone, u.nickname
+    FROM visit_events v
+    LEFT JOIN users u ON u.id = v.user_id
+    WHERE v.created_at >= @since
+    ORDER BY v.created_at DESC
+    LIMIT @limit
+  `),
   completeDay2: db.prepare(`
     UPDATE users SET day2_complete = 1, last_active_at = @last_active_at WHERE id = @id
   `),
@@ -203,7 +301,7 @@ const statements = {
     UPDATE users SET usage_count = usage_count + 1, last_active_at = @last_active_at WHERE id = @id
   `),
   listUsers: db.prepare(`
-    SELECT id, phone, created_at, last_active_at, usage_count, wechat_added, note, is_admin, nickname, day1_complete, day2_complete, day1_intro,
+    SELECT id, phone, created_at, last_active_at, usage_count, wechat_added, note, is_admin, nickname, day1_complete, day2_complete, day1_intro, pdca_homework, resume_homework,
       (SELECT COUNT(*) FROM review_snapshots s WHERE s.user_id = users.id) AS snapshot_count,
       (SELECT COUNT(*) FROM review_snapshots s WHERE s.user_id = users.id AND s.status = 'pending_review') AS pending_count
     FROM users
@@ -343,6 +441,11 @@ const statements = {
     SELECT * FROM dispatch_claims
     WHERE task_id = @task_id AND user_id = @user_id
   `),
+  findDispatchClaimByIdForUser: db.prepare(`
+    SELECT *
+    FROM dispatch_claims
+    WHERE id = @id AND user_id = @user_id
+  `),
   findActiveDispatchClaimByUser: db.prepare(`
     SELECT c.*, t.title AS task_title
     FROM dispatch_claims c
@@ -413,10 +516,29 @@ const statements = {
         submitted_at = @submitted_at,
         updated_at = @updated_at,
         project_id = @project_id,
-        snapshot_id = @snapshot_id
+        snapshot_id = @snapshot_id,
+        external_submission_json = '',
+        external_submission_url = '',
+        external_tool = '',
+        external_submitted_at = NULL
     WHERE task_id = @task_id
       AND user_id = @user_id
       AND status != 'abandoned'
+  `),
+  saveExternalDispatchSubmission: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'submitted',
+        submitted_at = @submitted_at,
+        updated_at = @updated_at,
+        external_submitted_at = @external_submitted_at,
+        external_submission_url = @external_submission_url,
+        external_tool = @external_tool,
+        external_submission_json = @external_submission_json,
+        project_id = '',
+        snapshot_id = ''
+    WHERE id = @id
+      AND user_id = @user_id
+      AND status IN ('in_progress', 'returned')
   `),
   markDispatchClaimApproved: db.prepare(`
     UPDATE dispatch_claims
@@ -452,8 +574,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (url.pathname.startsWith('/api/auth/')) {
+    if (url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/training/')) {
       await handleAuth(req, res, url);
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/feedback/')) {
+      await handleFeedback(req, res, url);
+      return;
+    }
+
+    if (url.pathname === '/api/visit') {
+      await handleVisit(req, res);
       return;
     }
 
@@ -687,6 +819,52 @@ async function handleAuth(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/training/day1-feedback') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const row = statements.findLatestConfirmedDay1FeedbackByUser.get(user.id);
+    sendJson(res, 200, { feedback: publicDay1FeedbackForStudent(row) });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/training/pdca') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await readJson(req).catch(() => ({}));
+    const homework = normalizePdcaHomework(body);
+    if (!homework) {
+      sendJson(res, 400, { error: 'empty_homework', message: '请至少填写一栏复盘内容。' });
+      return;
+    }
+    statements.savePdcaHomework.run({
+      id: user.id,
+      pdca_homework: JSON.stringify(homework),
+      last_active_at: new Date().toISOString(),
+    });
+    const updated = statements.findUserById.get(user.id);
+    sendJson(res, 200, { user: publicUser(updated), homework: parsePdcaHomework(updated.pdca_homework) });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/training/resume') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await readJson(req).catch(() => ({}));
+    const homework = normalizeResumeHomework(body);
+    if (!homework) {
+      sendJson(res, 400, { error: 'empty_homework', message: '请至少填写一栏简历内容。' });
+      return;
+    }
+    statements.saveResumeHomework.run({
+      id: user.id,
+      resume_homework: JSON.stringify(homework),
+      last_active_at: new Date().toISOString(),
+    });
+    const updated = statements.findUserById.get(user.id);
+    sendJson(res, 200, { user: publicUser(updated), homework: parseResumeHomework(updated.resume_homework) });
+    return;
+  }
+
   sendJson(res, 404, { error: 'not_found' });
 }
 
@@ -718,6 +896,85 @@ async function handleUsage(req, res) {
 
   recordUsage(user.id, action);
   sendJson(res, 200, { ok: true });
+}
+
+async function handleVisit(req, res) {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return;
+  }
+
+  const body = await readJson(req, 16 * 1024).catch(() => ({}));
+  const event = normalizeVisitEvent(body, req);
+  if (!event) {
+    sendJson(res, 400, { error: 'invalid_visit_event' });
+    return;
+  }
+  const user = optionalAuthUser(req);
+  statements.insertVisitEvent.run({
+    ...event,
+    user_id: user?.id || null,
+  });
+  sendJson(res, 200, { ok: true });
+}
+
+async function handleFeedback(req, res, url) {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/feedback/reports') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    const body = await readJson(req, MAX_JSON_BYTES).catch(() => ({}));
+    let report;
+    try {
+      report = normalizeFeedbackReport(body);
+      validateFeedbackOwnership(report, user);
+    } catch (error) {
+      sendJson(res, error.statusCode || 400, {
+        error: error.code || 'invalid_feedback_report',
+        message: error.message || '反馈内容不完整。',
+      });
+      return;
+    }
+    const now = new Date().toISOString();
+    const row = {
+      id: buildPublicId('fb'),
+      user_id: user.id,
+      project_id: report.projectId,
+      snapshot_id: report.snapshotId,
+      dispatch_task_id: report.dispatchTaskId || null,
+      dispatch_claim_id: report.dispatchClaimId || null,
+      station: report.station,
+      page: report.page,
+      page_url: report.pageUrl,
+      title: report.title,
+      description: report.description,
+      severity: report.severity,
+      context_json: report.contextJson,
+      attachment_json: report.attachmentJson,
+      status: 'open',
+      admin_note: '',
+      created_at: now,
+      updated_at: now,
+      resolved_at: null,
+    };
+    statements.insertFeedbackReport.run(row);
+    sendJson(res, 201, { report: publicFeedbackReport(statements.findFeedbackReport.get(row.id)) });
+    return;
+  }
+
+  sendJson(res, 404, { error: 'not_found' });
 }
 
 async function handleOrdersData(req, res) {
@@ -803,6 +1060,7 @@ function publicDispatchClaim(row, taskRow = null) {
     reviewNote: row.review_note || '',
     projectId: row.project_id || '',
     snapshotId: row.snapshot_id || '',
+    externalSubmission: publicExternalSubmission(row),
     task: {
       id: Number(row.task_id || task.id || 0),
       title: task.title || '',
@@ -845,6 +1103,7 @@ function publicDispatchReviewClaim(row) {
     reviewNote: row.review_note || '',
     projectId: row.project_id || '',
     snapshotId: row.snapshot_id || '',
+    externalSubmission: publicExternalSubmission(row),
     snapshot: row.snapshot_id ? {
       id: row.snapshot_id,
       fileName: row.snapshot_file_name || '未命名音频',
@@ -854,6 +1113,32 @@ function publicDispatchReviewClaim(row) {
       removedDuration: Number(row.snapshot_removed_duration || 0),
       createdAt: row.snapshot_created_at || null,
     } : null,
+  };
+}
+
+function publicExternalSubmission(row) {
+  const raw = String(row?.external_submission_json || '').trim();
+  let data = {};
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) data = parsed;
+    } catch (_) {}
+  }
+  const url = String(data.url || row?.external_submission_url || '').trim();
+  const tool = String(data.tool || row?.external_tool || '').trim();
+  const description = String(data.description || '').trim();
+  const submittedAt = data.submittedAt || row?.external_submitted_at || null;
+  if (!url && !tool && !description) return null;
+  return {
+    url,
+    tool,
+    toolLabel: String(data.toolLabel || tool).trim(),
+    description,
+    durationText: String(data.durationText || '').trim(),
+    fileName: String(data.fileName || '').trim(),
+    notes: String(data.notes || '').trim(),
+    submittedAt,
   };
 }
 
@@ -904,6 +1189,42 @@ function readDispatchInput(body) {
     published: body.published ? 1 : 0,
     sort_order: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
   };
+}
+
+function readExternalSubmissionInput(body) {
+  const cleanLine = (value, max) => String(value == null ? '' : value)
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim()
+    .slice(0, max);
+  const cleanText = (value, max) => String(value == null ? '' : value)
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .slice(0, max);
+  const tool = cleanLine(body.tool, 50);
+  const toolLabel = cleanLine(body.toolLabel || body.tool_label || tool, 80);
+  const url = normalizeExternalSubmissionUrl(body.url || body.link || body.externalSubmissionUrl);
+  const description = cleanText(body.description || body.note || body.notes, 2000);
+  return {
+    tool,
+    toolLabel,
+    url,
+    description,
+    durationText: cleanLine(body.durationText || body.duration_text, 50),
+    fileName: cleanLine(body.fileName || body.file_name, 180),
+    notes: cleanText(body.extraNotes || body.extra_notes, 1000),
+  };
+}
+
+function normalizeExternalSubmissionUrl(value) {
+  const raw = String(value == null ? '' : value).trim().slice(0, 1000);
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    return parsed.href;
+  } catch (_) {
+    return '';
+  }
 }
 
 function dispatchTaskVisibility(row) {
@@ -1109,6 +1430,63 @@ async function handleDispatchTasks(req, res, url) {
     return;
   }
 
+  const externalSubmissionMatch = url.pathname.match(/^\/api\/orders\/claims\/(\d+)\/external-submission$/);
+  if (externalSubmissionMatch && req.method === 'POST') {
+    const user = requireAuth(req, res);
+    if (!user) return;
+    if (!hasDay2Access(user)) {
+      sendJson(res, 403, { error: 'day2_required', message: '请先完成第二天剪辑练习，并提交一次助教审核。' });
+      return;
+    }
+    const claimId = Number(externalSubmissionMatch[1]);
+    const claim = statements.findDispatchClaimByIdForUser.get({ id: claimId, user_id: user.id });
+    if (!claim || claim.status === 'abandoned') {
+      sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
+      return;
+    }
+    if (!['in_progress', 'returned'].includes(claim.status)) {
+      sendJson(res, 409, { error: 'claim_not_editable', message: '这单当前不能重复提交。' });
+      return;
+    }
+    const body = await readJson(req);
+    const input = readExternalSubmissionInput(body);
+    if (!input.tool) {
+      sendJson(res, 400, { error: 'missing_tool', message: '请选择这单使用的工具。' });
+      return;
+    }
+    if (!input.url) {
+      sendJson(res, 400, { error: 'invalid_submission_url', message: '请粘贴一个能打开的 http 或 https 成品链接。' });
+      return;
+    }
+    if (input.description.length < 8) {
+      sendJson(res, 400, { error: 'missing_description', message: '文字说明至少写 8 个字，方便助教知道重点听哪里。' });
+      return;
+    }
+    const now = new Date().toISOString();
+    const payload = { ...input, submittedAt: now };
+    const info = statements.saveExternalDispatchSubmission.run({
+      id: claimId,
+      user_id: user.id,
+      submitted_at: now,
+      updated_at: now,
+      external_submitted_at: now,
+      external_submission_url: input.url,
+      external_tool: input.tool,
+      external_submission_json: JSON.stringify(payload),
+    });
+    if (!info.changes) {
+      sendJson(res, 409, { error: 'claim_not_editable', message: '这单当前不能提交，请刷新后再试。' });
+      return;
+    }
+    const updated = statements.listDispatchClaimsByUser.all(user.id)
+      .find((item) => Number(item.id) === claimId);
+    sendJson(res, 200, {
+      ok: true,
+      claim: updated ? publicDispatchClaim(updated) : publicDispatchClaim(statements.findDispatchClaimByIdForUser.get({ id: claimId, user_id: user.id })),
+    });
+    return;
+  }
+
   const abandonClaimMatch = url.pathname.match(/^\/api\/orders\/claims\/(\d+)\/abandon$/);
   if (abandonClaimMatch && req.method === 'POST') {
     const user = requireAuth(req, res);
@@ -1148,14 +1526,19 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
       return;
     }
-    if (!claim.snapshot_id) {
-      sendJson(res, 400, { error: 'snapshot_required', message: '这条接单还没有提交审核作品。' });
+    const hasSnapshot = Boolean(String(claim.snapshot_id || '').trim());
+    const hasExternal = Boolean(publicExternalSubmission(claim));
+    if (!hasSnapshot && !hasExternal) {
+      sendJson(res, 400, { error: 'snapshot_or_external_required', message: '这条接单还没有提交审核作品。' });
       return;
     }
-    const snapshot = statements.findSnapshotById.get(claim.snapshot_id);
-    if (!snapshot) {
-      sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
-      return;
+    let snapshot = null;
+    if (hasSnapshot) {
+      snapshot = statements.findSnapshotById.get(claim.snapshot_id);
+      if (!snapshot) {
+        sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
+        return;
+      }
     }
     const body = await readJson(req);
     const action = String(body.status || body.action || '').trim();
@@ -1168,17 +1551,19 @@ async function handleDispatchTasks(req, res, url) {
     const now = new Date().toISOString();
     const snapshotStatus = approved ? 'approved' : 'rejected';
     const note = String(body.note || '').trim().slice(0, 1000);
-    statements.updateSnapshotStatus.run({
-      id: snapshot.id,
-      status: snapshotStatus,
-      reviewed_at: now,
-      reviewed_by: admin.id,
-    });
-    statements.updateProjectReviewStatus.run({
-      id: snapshot.project_id,
-      status: snapshotStatus,
-      updated_at: now,
-    });
+    if (snapshot) {
+      statements.updateSnapshotStatus.run({
+        id: snapshot.id,
+        status: snapshotStatus,
+        reviewed_at: now,
+        reviewed_by: admin.id,
+      });
+      statements.updateProjectReviewStatus.run({
+        id: snapshot.project_id,
+        status: snapshotStatus,
+        updated_at: now,
+      });
+    }
     if (approved) {
       statements.markDispatchClaimApproved.run({
         id: claimId,
@@ -1195,24 +1580,26 @@ async function handleDispatchTasks(req, res, url) {
         review_note: note,
       });
     }
-    const data = readJsonFile(snapshot.data_path, {});
-    writeJsonFile(snapshot.data_path, {
-      ...data,
-      status: snapshotStatus,
-      reviewedAt: now,
-      reviewedBy: admin.id,
-      reviewNote: note,
-      dispatchReview: {
-        claimId,
-        status: approved ? 'completed' : 'returned',
+    if (snapshot) {
+      const data = readJsonFile(snapshot.data_path, {});
+      writeJsonFile(snapshot.data_path, {
+        ...data,
+        status: snapshotStatus,
         reviewedAt: now,
         reviewedBy: admin.id,
-        note,
-      },
-    });
+        reviewNote: note,
+        dispatchReview: {
+          claimId,
+          status: approved ? 'completed' : 'returned',
+          reviewedAt: now,
+          reviewedBy: admin.id,
+          note,
+        },
+      });
+    }
     sendJson(res, 200, {
       claim: publicDispatchReviewClaim(statements.findDispatchReviewClaimById.get(claimId)),
-      snapshot: publicSnapshot(statements.findSnapshotById.get(snapshot.id)),
+      snapshot: snapshot ? publicSnapshot(statements.findSnapshotById.get(snapshot.id)) : null,
     });
     return;
   }
@@ -1568,10 +1955,176 @@ async function handleAdmin(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/admin/visit-stats') {
+    const days = clampNumber(Number(url.searchParams.get('days') || 7), 1, 30);
+    const since = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+    since.setHours(0, 0, 0, 0);
+    const events = statements.listVisitEventsSince.all({
+      since: since.toISOString(),
+      limit: 50000,
+    });
+    sendJson(res, 200, buildVisitStats(events, days));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/admin/feedback/reports') {
+    const status = normalizeFeedbackStatus(url.searchParams.get('status') || '') || '';
+    const limit = clampNumber(Number(url.searchParams.get('limit') || 100), 1, 200);
+    const reports = statements.listFeedbackReports.all({ status, limit }).map(publicFeedbackReport);
+    sendJson(res, 200, { reports });
+    return;
+  }
+
+  const feedbackAdminMatch = url.pathname.match(/^\/api\/admin\/feedback\/reports\/([A-Za-z0-9_-]+)$/);
+  if (feedbackAdminMatch && req.method === 'PATCH') {
+    const row = statements.findFeedbackReport.get(feedbackAdminMatch[1]);
+    if (!row) {
+      sendJson(res, 404, { error: 'feedback_not_found', message: '没有找到这条反馈。' });
+      return;
+    }
+    const body = await readJson(req).catch(() => ({}));
+    const status = normalizeFeedbackStatus(body.status);
+    if (!status) {
+      sendJson(res, 400, { error: 'invalid_feedback_status', message: '反馈状态只能是 open、triaged、resolved 或 ignored。' });
+      return;
+    }
+    const now = new Date().toISOString();
+    statements.updateFeedbackReportStatus.run({
+      id: row.id,
+      status,
+      admin_note: String(body.adminNote ?? row.admin_note ?? '').trim().slice(0, 1000),
+      updated_at: now,
+      resolved_at: status === 'resolved' ? now : null,
+    });
+    sendJson(res, 200, { report: publicFeedbackReport(statements.findFeedbackReport.get(row.id)) });
+    return;
+  }
+
   const userSnapMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)\/snapshots$/);
   if (req.method === 'GET' && userSnapMatch) {
     const snapshots = statements.listSnapshotsByUser.all(Number(userSnapMatch[1])).map(publicSnapshot);
     sendJson(res, 200, { snapshots });
+    return;
+  }
+
+  const day1FeedbackBaseMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)\/day1-feedback$/);
+  if (day1FeedbackBaseMatch && req.method === 'GET') {
+    const target = statements.findUserById.get(Number(day1FeedbackBaseMatch[1]));
+    if (!target) {
+      sendJson(res, 404, { error: 'user_not_found', message: '没有找到这位学员。' });
+      return;
+    }
+    const intro = parseDay1Intro(target.day1_intro);
+    if (!intro) {
+      sendJson(res, 200, { feedback: null, message: '这位学员还没有可反馈的 Day1 自我介绍。' });
+      return;
+    }
+    const introHash = hashDay1Intro(target.day1_intro);
+    const row = statements.findDay1FeedbackByUserHash.get({ user_id: target.id, intro_hash: introHash });
+    sendJson(res, 200, { feedback: publicDay1FeedbackForAdmin(row), introHash });
+    return;
+  }
+
+  const day1AiDraftMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)\/day1-feedback\/ai-draft$/);
+  if (day1AiDraftMatch && req.method === 'POST') {
+    if (!DEEPSEEK_KEY) {
+      sendJson(res, 500, { error: 'missing_deepseek_key', message: '服务端未配置 DEEPSEEK_KEY。' });
+      return;
+    }
+    const target = statements.findUserById.get(Number(day1AiDraftMatch[1]));
+    if (!target) {
+      sendJson(res, 404, { error: 'user_not_found', message: '没有找到这位学员。' });
+      return;
+    }
+    const intro = parseDay1Intro(target.day1_intro);
+    if (!intro) {
+      sendJson(res, 400, { error: 'day1_intro_required', message: '这位学员还没有提交 Day1 自我介绍。' });
+      return;
+    }
+    const body = await readJson(req).catch(() => ({}));
+    const refresh = Boolean(body.refresh || url.searchParams.get('refresh') === '1');
+    const introHash = hashDay1Intro(target.day1_intro);
+    const existing = statements.findDay1FeedbackByUserHash.get({ user_id: target.id, intro_hash: introHash });
+    if (existing && !refresh) {
+      sendJson(res, 200, { feedback: publicDay1FeedbackForAdmin(existing), reused: true });
+      return;
+    }
+    const messages = buildDay1FeedbackMessages(target, intro);
+    let draftText = '';
+    try {
+      const ai = await fetchDeepseekChatJson({
+        model: 'deepseek-chat',
+        max_tokens: 1800,
+        response_format: { type: 'json_object' },
+        messages,
+      }, {
+        timeoutMs: DEEPSEEK_TIMEOUT_MS,
+        timeoutMessage: 'Day1 AI 反馈等待超时，请稍后重试。',
+        errorMessage: 'AI 服务暂时不可用，请稍后重试。',
+      });
+      draftText = normalizeDay1FeedbackAiContent(ai.content);
+    } catch (error) {
+      sendJson(res, error.statusCode || 502, {
+        error: error.code || 'day1_ai_failed',
+        message: error.message || 'Day1 AI 反馈生成失败，请稍后重试。',
+      });
+      return;
+    }
+    const now = new Date().toISOString();
+    const row = {
+      id: existing?.id || buildPublicId('d1fb'),
+      user_id: target.id,
+      intro_hash: introHash,
+      ai_draft: draftText,
+      confirmed_text: existing?.confirmed_text || '',
+      status: 'draft',
+      model: 'deepseek-chat',
+      prompt_version: 'day1_intro_feedback_v1',
+      created_at: existing?.created_at || now,
+      updated_at: now,
+      confirmed_at: null,
+      confirmed_by: null,
+    };
+    if (existing) statements.updateDay1Feedback.run(row);
+    else statements.insertDay1Feedback.run(row);
+    const saved = statements.findDay1FeedbackById.get(row.id);
+    sendJson(res, existing ? 200 : 201, { feedback: publicDay1FeedbackForAdmin(saved), reused: false });
+    return;
+  }
+
+  const day1FeedbackPatchMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)\/day1-feedback\/([A-Za-z0-9_-]+)$/);
+  if (day1FeedbackPatchMatch && req.method === 'PATCH') {
+    const targetUserId = Number(day1FeedbackPatchMatch[1]);
+    const row = statements.findDay1FeedbackById.get(day1FeedbackPatchMatch[2]);
+    if (!row || Number(row.user_id) !== targetUserId) {
+      sendJson(res, 404, { error: 'day1_feedback_not_found', message: '没有找到这条 Day1 反馈。' });
+      return;
+    }
+    const body = await readJson(req).catch(() => ({}));
+    const status = normalizeDay1FeedbackStatus(body.status || row.status);
+    if (!status) {
+      sendJson(res, 400, { error: 'invalid_day1_feedback_status', message: '反馈状态只能是草稿、已确认或需人工处理。' });
+      return;
+    }
+    const aiDraft = String(body.aiDraft ?? row.ai_draft ?? '').trim().slice(0, 3000);
+    const confirmedText = String(body.confirmedText ?? row.confirmed_text ?? '').trim().slice(0, 3000);
+    if (status === 'confirmed' && !confirmedText) {
+      sendJson(res, 400, { error: 'confirmed_text_required', message: '确认反馈前，请先填写最终要给学员看的内容。' });
+      return;
+    }
+    const now = new Date().toISOString();
+    statements.updateDay1Feedback.run({
+      id: row.id,
+      ai_draft: aiDraft,
+      confirmed_text: confirmedText,
+      status,
+      model: row.model || '',
+      prompt_version: row.prompt_version || 'day1_intro_feedback_v1',
+      updated_at: now,
+      confirmed_at: status === 'confirmed' ? now : null,
+      confirmed_by: status === 'confirmed' ? user.id : null,
+    });
+    sendJson(res, 200, { feedback: publicDay1FeedbackForAdmin(statements.findDay1FeedbackById.get(row.id)) });
     return;
   }
 
@@ -1665,7 +2218,7 @@ async function handleAdmin(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/admin/users.csv') {
     const rows = statements.listUsers.all();
     const csv = [
-      ['手机号', '微信名', '注册时间', '最后活跃', '使用次数', 'D1作业', 'D2作业', '已加微信', '备注', '管理员'].join(','),
+      ['手机号', '微信名', '注册时间', '最后活跃', '使用次数', 'D1作业', 'D2作业', 'PDCA复盘', '剪辑师简历', '已加微信', '备注', '管理员'].join(','),
       ...rows.map((row) => [
         csvCell(row.phone),
         csvCell(row.nickname || ''),
@@ -1674,6 +2227,8 @@ async function handleAdmin(req, res, url) {
         row.usage_count,
         row.day1_complete ? '已完成' : '未完成',
         row.day2_complete ? '已完成' : '未完成',
+        row.pdca_homework ? '已提交' : '未提交',
+        row.resume_homework ? '已提交' : '未提交',
         row.wechat_added ? '是' : '否',
         csvCell(row.note || ''),
         row.is_admin ? '是' : '否',
@@ -1947,6 +2502,10 @@ async function serveStatic(req, res, url) {
     sendJson(res, 403, { error: 'forbidden' });
     return;
   }
+  if (normalizedPathname.split('/').some((part) => part.startsWith('.') && part !== '.well-known')) {
+    sendJson(res, 404, { error: 'not_found' });
+    return;
+  }
   if (normalizedPathname === '/orders/data.json') {
     sendJson(res, 403, { error: 'forbidden' });
     return;
@@ -2016,6 +2575,50 @@ async function proxyJson(res, url, options = {}, settings = {}) {
       error: 'upstream_error',
       message: settings.errorMessage || '外部服务暂时不可用，请稍后重试。',
     });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchDeepseekChatJson(payload, settings = {}) {
+  const controller = new AbortController();
+  const timeoutMs = Number(settings.timeoutMs || 30 * 1000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const upstream = await fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${DEEPSEEK_KEY}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await upstream.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : {}; } catch {}
+    if (!upstream.ok) {
+      const error = new Error(data?.error?.message || data?.message || settings.errorMessage || 'AI 服务暂时不可用，请稍后重试。');
+      error.statusCode = upstream.status || 502;
+      error.code = data?.error?.type || data?.error || 'upstream_error';
+      throw error;
+    }
+    const content = data?.choices?.[0]?.message?.content || '';
+    return { data, content };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      const timeout = new Error(settings.timeoutMessage || '外部服务等待超时，请稍后重试。');
+      timeout.statusCode = 504;
+      timeout.code = 'upstream_timeout';
+      throw timeout;
+    }
+    if (!error.statusCode) {
+      error.statusCode = 502;
+      error.code = error.code || 'upstream_error';
+      error.message = settings.errorMessage || error.message || 'AI 服务暂时不可用，请稍后重试。';
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -2189,7 +2792,10 @@ function initializeDatabase(database) {
       is_admin INTEGER NOT NULL DEFAULT 0,
       nickname TEXT NOT NULL DEFAULT '',
       day1_complete INTEGER NOT NULL DEFAULT 0,
-      day2_complete INTEGER NOT NULL DEFAULT 0
+      day2_complete INTEGER NOT NULL DEFAULT 0,
+      day1_intro TEXT NOT NULL DEFAULT '',
+      pdca_homework TEXT NOT NULL DEFAULT '',
+      resume_homework TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS usage_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2197,6 +2803,71 @@ function initializeDatabase(database) {
       action TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS day1_feedbacks (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      intro_hash TEXT NOT NULL DEFAULT '',
+      ai_draft TEXT NOT NULL DEFAULT '',
+      confirmed_text TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      model TEXT NOT NULL DEFAULT '',
+      prompt_version TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      confirmed_at TEXT,
+      confirmed_by INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_day1_feedbacks_user_intro
+      ON day1_feedbacks(user_id, intro_hash);
+    CREATE INDEX IF NOT EXISTS idx_day1_feedbacks_status
+      ON day1_feedbacks(status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS feedback_reports (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      project_id TEXT NOT NULL DEFAULT '',
+      snapshot_id TEXT NOT NULL DEFAULT '',
+      dispatch_task_id INTEGER,
+      dispatch_claim_id INTEGER,
+      station TEXT NOT NULL DEFAULT 'other',
+      page TEXT NOT NULL DEFAULT '',
+      page_url TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      severity TEXT NOT NULL DEFAULT 'normal',
+      context_json TEXT NOT NULL DEFAULT '{}',
+      attachment_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'open',
+      admin_note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_reports_created
+      ON feedback_reports(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_feedback_reports_user
+      ON feedback_reports(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS visit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      user_id INTEGER,
+      event_type TEXT NOT NULL,
+      path TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      referrer TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      duration_seconds INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_visit_events_created
+      ON visit_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_visit_events_session_created
+      ON visit_events(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_visit_events_user_created
+      ON visit_events(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS verification_codes (
       phone TEXT PRIMARY KEY,
@@ -2287,6 +2958,10 @@ function initializeDatabase(database) {
       review_note TEXT NOT NULL DEFAULT '',
       project_id TEXT NOT NULL DEFAULT '',
       snapshot_id TEXT NOT NULL DEFAULT '',
+      external_submission_json TEXT NOT NULL DEFAULT '',
+      external_submission_url TEXT NOT NULL DEFAULT '',
+      external_tool TEXT NOT NULL DEFAULT '',
+      external_submitted_at TEXT,
       UNIQUE(task_id, user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_dispatch_claims_task
@@ -2298,12 +2973,18 @@ function initializeDatabase(database) {
   try { database.exec(`ALTER TABLE users ADD COLUMN day1_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
   try { database.exec(`ALTER TABLE users ADD COLUMN day2_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
   try { database.exec(`ALTER TABLE users ADD COLUMN day1_intro TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE users ADD COLUMN pdca_homework TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE users ADD COLUMN resume_homework TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_review'`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_by INTEGER`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN max_claims INTEGER NOT NULL DEFAULT 5`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN assignee_refs TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submission_json TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submission_url TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_tool TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submitted_at TEXT`); } catch {}
   database.exec(`
     UPDATE users
     SET day1_complete = 1,
@@ -2352,6 +3033,19 @@ function requireAuth(req, res) {
     return user;
   } catch {
     sendJson(res, 401, { error: 'unauthorized', message: '登录已失效，请重新登录。' });
+    return null;
+  }
+}
+
+function optionalAuthUser(req) {
+  const auth = req.headers.authorization || '';
+  const headerToken = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const token = headerToken || readCookie(req.headers.cookie, AUTH_COOKIE_NAME);
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    return statements.findUserById.get(payload.userId) || null;
+  } catch {
     return null;
   }
 }
@@ -2483,6 +3177,89 @@ function parseDay1Intro(raw) {
   }
 }
 
+function hashDay1Intro(raw) {
+  return crypto.createHash('sha256').update(String(raw || '')).digest('hex');
+}
+
+function normalizeDay1FeedbackStatus(value) {
+  const status = String(value || '').trim();
+  if (['draft', 'confirmed', 'needs_manual'].includes(status)) return status;
+  if (status === '草稿') return 'draft';
+  if (status === '已确认') return 'confirmed';
+  if (status === '需人工处理') return 'needs_manual';
+  return '';
+}
+
+function normalizePdcaHomework(body) {
+  if (!body || typeof body !== 'object') return null;
+  const cap = (v) => String(v == null ? '' : v).trim().slice(0, 1800);
+  const data = {
+    plan: cap(body.plan),
+    do: cap(body.do),
+    check: cap(body.check),
+    act: cap(body.act),
+    savedAt: new Date().toISOString(),
+  };
+  if (![data.plan, data.do, data.check, data.act].some(Boolean)) return null;
+  return data;
+}
+
+function parsePdcaHomework(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return null;
+    const data = {
+      plan: String(obj.plan || ''),
+      do: String(obj.do || ''),
+      check: String(obj.check || ''),
+      act: String(obj.act || ''),
+      savedAt: obj.savedAt || null,
+    };
+    if (![data.plan, data.do, data.check, data.act].some(Boolean)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeResumeHomework(body) {
+  if (!body || typeof body !== 'object') return null;
+  const cap = (v) => String(v == null ? '' : v).trim().slice(0, 1800);
+  const version = ['newbie', 'practice', 'real'].includes(String(body.version || '')) ? String(body.version) : 'newbie';
+  const data = {
+    version,
+    who: cap(body.who),
+    canEdit: cap(body.canEdit),
+    fitOrders: cap(body.fitOrders),
+    delivery: cap(body.delivery),
+    savedAt: new Date().toISOString(),
+  };
+  if (![data.who, data.canEdit, data.fitOrders, data.delivery].some(Boolean)) return null;
+  return data;
+}
+
+function parseResumeHomework(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return null;
+    const version = ['newbie', 'practice', 'real'].includes(String(obj.version || '')) ? String(obj.version) : 'newbie';
+    const data = {
+      version,
+      who: String(obj.who || ''),
+      canEdit: String(obj.canEdit || ''),
+      fitOrders: String(obj.fitOrders || ''),
+      delivery: String(obj.delivery || ''),
+      savedAt: obj.savedAt || null,
+    };
+    if (![data.who, data.canEdit, data.fitOrders, data.delivery].some(Boolean)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -2498,9 +3275,144 @@ function publicUser(user) {
     day1Complete: Boolean(user.day1_complete),
     day2Complete: Boolean(user.day2_complete),
     day1Intro: parseDay1Intro(user.day1_intro),
+    pdcaHomework: parsePdcaHomework(user.pdca_homework),
+    resumeHomework: parseResumeHomework(user.resume_homework),
     snapshotCount: Number(user.snapshot_count || 0),
     pendingReviewCount: Number(user.pending_count || 0),
   };
+}
+
+function normalizeVisitEvent(body, req) {
+  if (!body || typeof body !== 'object') return null;
+  const sessionId = String(body.sessionId || body.session_id || '')
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '')
+    .slice(0, 80);
+  if (!sessionId) return null;
+  const eventType = String(body.eventType || body.event_type || '').trim();
+  if (!['pageview', 'heartbeat'].includes(eventType)) return null;
+  const rawDuration = Number(body.durationSeconds || body.duration_seconds || 0);
+  const durationSeconds = eventType === 'heartbeat'
+    ? Math.round(clampNumber(Number.isFinite(rawDuration) ? rawDuration : 0, 1, 30))
+    : 0;
+  return {
+    session_id: sessionId,
+    event_type: eventType,
+    path: sanitizeVisitPath(body.path || body.pageUrl || body.page_url),
+    title: String(body.title || '').trim().slice(0, 120),
+    referrer: sanitizeVisitPath(body.referrer || ''),
+    user_agent: String(req.headers['user-agent'] || '').slice(0, 300),
+    ip: getClientIp(req).slice(0, 80),
+    duration_seconds: durationSeconds,
+    created_at: new Date().toISOString(),
+  };
+}
+
+function sanitizeVisitPath(value) {
+  const raw = String(value || '').trim().slice(0, 600);
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw, 'https://local.invalid');
+    parsed.searchParams.delete('token');
+    parsed.searchParams.delete('jinqian_token');
+    parsed.searchParams.delete('code');
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`.slice(0, 500);
+  } catch {
+    return raw
+      .replace(/(token|jinqian_token|code)=[^&]+/gi, '$1=')
+      .slice(0, 500);
+  }
+}
+
+function buildVisitStats(events, days) {
+  const dayKeys = recentChinaDayKeys(days);
+  const byDay = new Map(dayKeys.map((day) => [day, {
+    day,
+    visitors: new Set(),
+    loggedInUsers: new Set(),
+    pageviews: 0,
+    heartbeats: 0,
+    onlineSeconds: 0,
+  }]));
+  const topPages = new Map();
+  const recentUsers = new Map();
+  const onlineSessions = new Set();
+  const onlineCutoff = Date.now() - 90 * 1000;
+
+  events.forEach((event) => {
+    const day = chinaDayKey(event.created_at);
+    const row = byDay.get(day);
+    if (!row) return;
+    const sessionId = String(event.session_id || '');
+    if (sessionId) row.visitors.add(sessionId);
+    if (event.user_id) {
+      row.loggedInUsers.add(Number(event.user_id));
+      if (!recentUsers.has(event.user_id)) {
+        recentUsers.set(event.user_id, {
+          id: Number(event.user_id),
+          name: event.nickname || maskPhone(event.phone || ''),
+          lastSeenAt: event.created_at,
+          path: event.path || '',
+        });
+      }
+    }
+    if (event.event_type === 'pageview') {
+      row.pageviews += 1;
+      const pathKey = event.path || '/';
+      topPages.set(pathKey, (topPages.get(pathKey) || 0) + 1);
+    }
+    if (event.event_type === 'heartbeat') {
+      row.heartbeats += 1;
+      row.onlineSeconds += clampNumber(Number(event.duration_seconds || 0), 0, 30);
+      if (Date.parse(event.created_at) >= onlineCutoff && sessionId) onlineSessions.add(sessionId);
+    }
+  });
+
+  const summary = dayKeys.map((day) => {
+    const row = byDay.get(day);
+    return {
+      day,
+      visitors: row.visitors.size,
+      loggedInUsers: row.loggedInUsers.size,
+      pageviews: row.pageviews,
+      heartbeats: row.heartbeats,
+      onlineSeconds: Math.round(row.onlineSeconds),
+      avgOnlineSeconds: row.visitors.size ? Math.round(row.onlineSeconds / row.visitors.size) : 0,
+    };
+  });
+
+  const totals = summary.reduce((acc, row) => ({
+    visitors: acc.visitors + row.visitors,
+    loggedInUsers: acc.loggedInUsers + row.loggedInUsers,
+    pageviews: acc.pageviews + row.pageviews,
+    onlineSeconds: acc.onlineSeconds + row.onlineSeconds,
+  }), { visitors: 0, loggedInUsers: 0, pageviews: 0, onlineSeconds: 0 });
+
+  return {
+    summary,
+    totals,
+    onlineNow: onlineSessions.size,
+    topPages: Array.from(topPages.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([path, count]) => ({ path, count })),
+    recentUsers: Array.from(recentUsers.values()).slice(0, 12),
+  };
+}
+
+function recentChinaDayKeys(days) {
+  const now = Date.now();
+  const result = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    result.push(chinaDayKey(new Date(now - i * 24 * 60 * 60 * 1000).toISOString()));
+  }
+  return result;
+}
+
+function chinaDayKey(value) {
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return '';
+  return new Date(ts + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function hasDay1Access(user) {
@@ -2549,6 +3461,175 @@ function publicSnapshot(row) {
     reviewedAt: row.reviewed_at || null,
     reviewedBy: row.reviewed_by ? Number(row.reviewed_by) : null,
   };
+}
+
+function publicDay1FeedbackForAdmin(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: Number(row.user_id || 0),
+    introHash: row.intro_hash || '',
+    aiDraft: row.ai_draft || '',
+    confirmedText: row.confirmed_text || '',
+    status: row.status || 'draft',
+    model: row.model || '',
+    promptVersion: row.prompt_version || '',
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    confirmedAt: row.confirmed_at || null,
+    confirmedBy: row.confirmed_by ? Number(row.confirmed_by) : null,
+  };
+}
+
+function publicDay1FeedbackForStudent(row) {
+  if (!row || row.status !== 'confirmed' || !String(row.confirmed_text || '').trim()) return null;
+  return {
+    status: 'confirmed',
+    text: row.confirmed_text || '',
+    confirmedAt: row.confirmed_at || null,
+  };
+}
+
+function normalizeFeedbackReport(body) {
+  if (!body || typeof body !== 'object') {
+    const error = new Error('请填写反馈内容。');
+    error.code = 'empty_feedback';
+    throw error;
+  }
+  const cap = (value, max) => String(value == null ? '' : value).trim().slice(0, max);
+  const title = cap(body.title, 120);
+  const description = cap(body.description, 2000);
+  if (!title && !description) {
+    const error = new Error('请至少写一句你遇到的问题。');
+    error.code = 'empty_feedback';
+    throw error;
+  }
+  const contextJson = safeLimitedJson(body.context || {}, 20 * 1024, '问题上下文太大，请少填一点。');
+  const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 3) : [];
+  const attachmentJson = safeLimitedJson(attachments, 8 * 1024, '附件信息太多，请最多保留 3 条链接。');
+  return {
+    projectId: cap(body.projectId || body.project_id, 80),
+    snapshotId: cap(body.snapshotId || body.snapshot_id, 80),
+    dispatchTaskId: readOptionalInteger(body.dispatchTaskId ?? body.dispatch_task_id),
+    dispatchClaimId: readOptionalInteger(body.dispatchClaimId ?? body.dispatch_claim_id),
+    station: normalizeFeedbackStation(body.station),
+    page: cap(body.page, 80) || 'other',
+    pageUrl: sanitizePageUrl(body.pageUrl || body.page_url),
+    title,
+    description,
+    severity: normalizeFeedbackSeverity(body.severity),
+    contextJson,
+    attachmentJson,
+  };
+}
+
+function validateFeedbackOwnership(report, user) {
+  const isAdmin = Boolean(user.is_admin) || ADMIN_PHONES.has(user.phone);
+  if (report.projectId) {
+    const project = statements.findProjectById.get(report.projectId);
+    if (!project) throw feedbackError(404, 'project_not_found', '没有找到这个项目。');
+    if (!isAdmin && Number(project.user_id) !== Number(user.id)) {
+      throw feedbackError(403, 'forbidden_project', '你不能给别人的项目提交反馈。');
+    }
+  }
+  if (report.snapshotId) {
+    const snapshot = statements.findSnapshotById.get(report.snapshotId);
+    if (!snapshot) throw feedbackError(404, 'snapshot_not_found', '没有找到这份审核记录。');
+    if (!isAdmin && Number(snapshot.user_id) !== Number(user.id)) {
+      throw feedbackError(403, 'forbidden_snapshot', '你不能给别人的审核记录提交反馈。');
+    }
+  }
+  if (report.dispatchClaimId && !isAdmin) {
+    const claim = statements.findDispatchClaimByIdForUser.get({ id: report.dispatchClaimId, user_id: user.id });
+    if (!claim) throw feedbackError(403, 'forbidden_claim', '你不能给别人的接单记录提交反馈。');
+  }
+}
+
+function feedbackError(statusCode, code, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = code;
+  return error;
+}
+
+function publicFeedbackReport(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: Number(row.user_id || 0),
+    userName: row.nickname || '',
+    userPhone: row.phone ? maskPhone(row.phone) : '',
+    projectId: row.project_id || '',
+    snapshotId: row.snapshot_id || '',
+    dispatchTaskId: row.dispatch_task_id ? Number(row.dispatch_task_id) : null,
+    dispatchClaimId: row.dispatch_claim_id ? Number(row.dispatch_claim_id) : null,
+    station: row.station || 'other',
+    page: row.page || '',
+    pageUrl: row.page_url || '',
+    title: row.title || '',
+    description: row.description || '',
+    severity: row.severity || 'normal',
+    context: parseJsonObject(row.context_json, {}),
+    attachments: parseJsonObject(row.attachment_json, []),
+    status: row.status || 'open',
+    adminNote: row.admin_note || '',
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null,
+    resolvedAt: row.resolved_at || null,
+  };
+}
+
+function normalizeFeedbackStation(value) {
+  const station = String(value || '').trim();
+  return ['training', 'editor', 'orders', 'login', 'other'].includes(station) ? station : 'other';
+}
+
+function normalizeFeedbackSeverity(value) {
+  const severity = String(value || '').trim();
+  return severity === 'blocking' ? 'blocking' : 'normal';
+}
+
+function normalizeFeedbackStatus(value) {
+  const status = String(value || '').trim();
+  return ['open', 'triaged', 'resolved', 'ignored'].includes(status) ? status : '';
+}
+
+function readOptionalInteger(value) {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function safeLimitedJson(value, maxBytes, message) {
+  const json = JSON.stringify(value == null ? {} : value);
+  if (Buffer.byteLength(json, 'utf8') > maxBytes) {
+    const error = new Error(message);
+    error.code = 'payload_too_large';
+    throw error;
+  }
+  return json;
+}
+
+function sanitizePageUrl(value) {
+  const raw = String(value || '').trim().slice(0, 500);
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw, 'http://local');
+    parsed.searchParams.delete('token');
+    parsed.searchParams.delete('jinqian_token');
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`.slice(0, 500);
+  } catch {
+    return raw.replace(/(token|jinqian_token)=[^&]+/gi, '$1=').slice(0, 500);
+  }
+}
+
+function parseJsonObject(raw, fallback) {
+  try {
+    const data = JSON.parse(String(raw || ''));
+    return data == null ? fallback : data;
+  } catch {
+    return fallback;
+  }
 }
 
 function projectPayloadForResponse(payload) {
@@ -2802,6 +3883,66 @@ function buildAiReviewMessages(data, row) {
   ];
 }
 
+function buildDay1FeedbackMessages(user, intro) {
+  const fields = Array.isArray(intro.fields) ? intro.fields : [];
+  const questions = ['你是谁', '为什么加入剪辑营', '第一天最触动你的一点', '你 21 天的目标'];
+  const answers = questions
+    .map((question, index) => `${index + 1}. ${question}\n${String(fields[index] || '').trim() || '（未填写）'}`)
+    .join('\n\n');
+  const nickname = intro.nickname || user.nickname || maskPhone(user.phone);
+  const system = [
+    '你是金钱剪刀剪辑营的温暖但有判断力的助教。',
+    '你要根据学员 Day1 自我介绍，生成一份给主助教看的反馈草稿。',
+    '这份反馈不会自动发给学员，主助教会先看、修改、确认。',
+    '',
+    '反馈目标：让学员感到被看见，同时知道接下来 24 小时最该做什么。',
+    '',
+    '硬规则：',
+    '- 不打分，不排名，不诊断人格。',
+    '- 不说“你适合/不适合赚钱”这类终局判断。',
+    '- 不要空泛鸡汤，要引用学员自己的表达。',
+    '- 先肯定一个真实优势，再指出一个可能卡点，最后给一个小行动。',
+    '- 语气像当当和助教私下认真回复，不要像客服。',
+    '',
+    '只输出 JSON，结构如下：',
+    '{',
+    '  "summary": "一句话看见这个学员的优势",',
+    '  "strengths": ["真实优势1", "真实优势2"],',
+    '  "risk": "最可能卡住他的地方，语气温和",',
+    '  "nextStep": "接下来24小时最该做的一步",',
+    '  "messageToStudent": "可直接发给学员的300到600字反馈"',
+    '}',
+  ].join('\n');
+  const userMsg = [
+    `学员昵称：${nickname}`,
+    '',
+    'Day1 自我介绍内容：',
+    answers,
+  ].join('\n');
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: userMsg },
+  ];
+}
+
+function normalizeDay1FeedbackAiContent(content) {
+  const text = String(content || '').trim();
+  if (!text) throw new Error('AI 没有返回反馈内容。');
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch {}
+  if (!parsed || typeof parsed !== 'object') return text.slice(0, 3000);
+  const message = String(parsed.messageToStudent || '').trim();
+  if (message) return message.slice(0, 3000);
+  const lines = [
+    parsed.summary ? `我先说一个很明显的优点：${parsed.summary}` : '',
+    Array.isArray(parsed.strengths) && parsed.strengths.length ? `我看到你的积累：${parsed.strengths.join('；')}` : '',
+    parsed.risk ? `接下来最容易卡住你的地方可能是：${parsed.risk}` : '',
+    parsed.nextStep ? `所以接下来 24 小时，先做这一件事：${parsed.nextStep}` : '',
+  ].filter(Boolean);
+  if (!lines.length) throw new Error('AI 返回内容缺少可用反馈。');
+  return lines.join('\n\n').slice(0, 3000);
+}
+
 function normalizeReviewStatus(value) {
   const status = String(value || '').trim();
   if (['pending_review', 'approved', 'rejected'].includes(status)) return status;
@@ -2960,7 +4101,43 @@ async function handleCut(req, res, url) {
       return;
     }
     const body = await readJson(req, MAX_PROJECT_JSON_BYTES);
-    const payloadSignature = buildCutPayloadSignature(body);
+    const audioUrl = String(body.audioUrl || '').trim();
+    const objectKey = String(body.objectKey || '').trim();
+    const materialObjectKey = objectKeyFromOrderMaterialUrl(audioUrl, req);
+    if (materialObjectKey && !hasDay2Access(user)) {
+      sendJson(res, 403, {
+        error: 'day2_required',
+        message: '请先完成第二天剪辑练习，并提交一次助教审核。',
+      });
+      return;
+    }
+    const signedObjectKey = objectKey || materialObjectKey;
+    const useOss = String(body.storage || '') === 'oss' || isOwnedOssObjectKey(objectKey) || Boolean(materialObjectKey);
+    const originalDuration = Number(body.originalDuration || body.original_duration || 0);
+    let segments;
+    let goldenSegments;
+    try {
+      segments = normalizeCutSegments(body.segments, {
+        label: '删除段',
+        allowEmpty: true,
+      });
+      // 金句前置：从同一条原始音频里提取的金句时间段（仍保留在正文里，这里只是另存一份拼到开头）。
+      goldenSegments = normalizeCutSegments(body.goldenSegments, {
+        label: '金句段',
+        allowEmpty: true,
+      });
+    } catch (error) {
+      sendJson(res, 400, {
+        error: 'invalid_cut_segments',
+        message: error.message || '删除段格式不正确，请回到审稿页重新生成备用 MP3。',
+      });
+      return;
+    }
+    if (!useOss && !audioUrl) {
+      sendJson(res, 400, { error: 'missing_audio_url', message: '缺少原始音频 URL，请从审查页重新导出。' });
+      return;
+    }
+    const payloadSignature = buildCutPayloadSignature({ ...body, segments, goldenSegments });
     const existingUserJob = findPendingCutJob(user.id);
     const activeUserJobCount = countPendingCutJobs(user.id);
     if (existingUserJob?.payloadSignature && existingUserJob.payloadSignature === payloadSignature) {
@@ -2987,29 +4164,6 @@ async function handleCut(req, res, url) {
       });
       return;
     }
-    const audioUrl = String(body.audioUrl || '').trim();
-    const objectKey = String(body.objectKey || '').trim();
-    const materialObjectKey = objectKeyFromOrderMaterialUrl(audioUrl, req);
-    if (materialObjectKey && !hasDay2Access(user)) {
-      sendJson(res, 403, {
-        error: 'day2_required',
-        message: '请先完成第二天剪辑练习，并提交一次助教审核。',
-      });
-      return;
-    }
-    const signedObjectKey = objectKey || materialObjectKey;
-    const useOss = String(body.storage || '') === 'oss' || isOwnedOssObjectKey(objectKey) || Boolean(materialObjectKey);
-    const segments = Array.isArray(body.segments) ? body.segments : [];
-    if (!useOss && !audioUrl) {
-      sendJson(res, 400, { error: 'missing_audio_url', message: '缺少原始音频 URL，请从审查页重新导出。' });
-      return;
-    }
-    // 金句前置：从同一条原始音频里提取的金句时间段（仍保留在正文里，这里只是另存一份拼到开头）。
-    const goldenSegments = Array.isArray(body.goldenSegments)
-      ? body.goldenSegments
-          .map((seg) => ({ start: Number(seg.start) || 0, end: Number(seg.end) || 0 }))
-          .filter((seg) => seg.end > seg.start)
-      : [];
     // 过渡音乐：只允许 /assets/music/ 下的素材，做路径归一防穿越；找不到就忽略（降级为无音乐）。
     const musicPath = resolveIntroMusicPath(body.introMusic);
     let audioSource;
@@ -3053,7 +4207,7 @@ async function handleCut(req, res, url) {
       segments,
       goldenSegments,
       musicPath,
-      originalDuration: Number(body.originalDuration || body.original_duration || 0),
+      originalDuration,
       createdAt: Date.now(),
       queuedAt: Date.now(),
       startedAt: null,
@@ -3154,6 +4308,60 @@ function findPendingCutJob(userId) {
   return [...cutJobs.values()]
     .filter((job) => job.userId === userId && ['queued', 'downloading', 'processing'].includes(job.stage))
     .sort((a, b) => (Number(a.queuedAt || a.createdAt) - Number(b.queuedAt || b.createdAt)) || String(a.id).localeCompare(String(b.id)))[0] || null;
+}
+
+function normalizeCutSegments(segments, options = {}) {
+  const label = options.label || '删除段';
+  if (segments == null) return [];
+  if (!Array.isArray(segments)) throw new Error(`${label}必须是数组。`);
+  if (segments.length > MAX_CUT_SEGMENTS) throw new Error(`${label}数量过多，请分批处理。`);
+
+  const rawDuration = Number(options.duration || 0);
+  const hasDuration = Number.isFinite(rawDuration) && rawDuration > 0;
+  const duration = hasDuration ? rawDuration : 0;
+
+  const normalized = segments
+    .map((segment, index) => {
+      let start;
+      let end;
+      if (Array.isArray(segment)) {
+        start = Number(segment[0]);
+        end = Number(segment[1]);
+      } else if (segment && typeof segment === 'object') {
+        start = Number(segment.start != null ? segment.start : segment.s);
+        end = Number(segment.end != null ? segment.end : segment.e);
+      } else {
+        throw new Error(`${label}第 ${index + 1} 段格式不正确。`);
+      }
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        throw new Error(`${label}第 ${index + 1} 段时间不是有效数字。`);
+      }
+      if (start < -CUT_SEGMENT_DURATION_TOLERANCE || end < -CUT_SEGMENT_DURATION_TOLERANCE) {
+        throw new Error(`${label}第 ${index + 1} 段不能小于 0 秒。`);
+      }
+      if (hasDuration && (start > duration + CUT_SEGMENT_DURATION_TOLERANCE || end > duration + CUT_SEGMENT_DURATION_TOLERANCE)) {
+        throw new Error(`${label}第 ${index + 1} 段超过原音频时长。`);
+      }
+      const safeStart = hasDuration ? clampNumber(start, 0, duration) : Math.max(0, start);
+      const safeEnd = hasDuration ? clampNumber(end, 0, duration) : Math.max(0, end);
+      if (safeEnd <= safeStart) {
+        throw new Error(`${label}第 ${index + 1} 段结束时间必须大于开始时间。`);
+      }
+      return { start: round3(safeStart), end: round3(safeEnd) };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const merged = [];
+  normalized.forEach((segment) => {
+    const previous = merged[merged.length - 1];
+    if (previous && segment.start <= previous.end + CUT_SEGMENT_OVERLAP_TOLERANCE) {
+      previous.end = Math.max(previous.end, segment.end);
+    } else {
+      merged.push({ ...segment });
+    }
+  });
+
+  return merged.filter((segment) => segment.end - segment.start > 0.04);
 }
 
 function buildCutPayloadSignature(data = {}) {
@@ -3503,14 +4711,14 @@ async function writeFetchBody(response, filePath, maxBytes) {
 
 async function cutProcess(job) {
   setCutJobStage(job, 'processing', 25);
-  const duration = job.originalDuration > 0 ? job.originalDuration : await refineProbe(job.inputPath);
+  const duration = await resolveCutDuration(job);
+  job.segments = normalizeCutSegments(job.segments, { duration, label: '删除段', allowEmpty: true });
+  job.goldenSegments = normalizeCutSegments(job.goldenSegments, { duration, label: '金句段', allowEmpty: true });
   const keepSegments = invertCutSegments(job.segments, duration);
   if (!keepSegments.length) throw new Error('所有音频都被标记删除了，无法生成成品。');
 
   // 有金句时走"金句前置"拼接：金句 → (过渡音乐) → 正文；否则走原来的纯删减拼接。
-  const golden = Array.isArray(job.goldenSegments)
-    ? job.goldenSegments.filter((seg) => Number(seg.end) > Number(seg.start))
-    : [];
+  const golden = job.goldenSegments;
   const hasMusic = Boolean(job.musicPath);
   const inputs = ['-i', job.inputPath];
   let args;
@@ -3521,28 +4729,39 @@ async function cutProcess(job) {
     args = buildServerCutArgs(keepSegments);
   }
 
-  await new Promise((resolve, reject) => {
-    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...inputs, ...args, '-y', job.outputPath]);
-    job.childProcess = pass;
-    pass.stderr.on('data', (chunk) => {
-      const line = chunk.toString();
-      const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
-      if (t && duration > 0) {
-        const elapsed = Number(t[1]) * 3600 + Number(t[2]) * 60 + parseFloat(t[3]);
-        setCutJobProgress(job, Math.min(95, 25 + Math.round((elapsed / duration) * 70)));
-      }
+  const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...inputs, ...args, '-y', job.outputPath]);
+  job.childProcess = pass;
+  try {
+    const code = await waitForTimedProcess(pass, {
+      timeoutMs: FFMPEG_TIMEOUT_MS,
+      timeoutMessage: '备用 MP3 生成超时，请重新生成。',
+      onStderr: (chunk) => {
+        const line = chunk.toString();
+        const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+        if (t && duration > 0) {
+          const elapsed = Number(t[1]) * 3600 + Number(t[2]) * 60 + parseFloat(t[3]);
+          setCutJobProgress(job, Math.min(95, 25 + Math.round((elapsed / duration) * 70)));
+        }
+      },
     });
-    pass.on('close', (code) => {
-      job.childProcess = null;
-      if (code !== 0) return reject(new Error('ffmpeg 剪辑失败'));
-      setCutJobStage(job, 'done', 100);
-      resolve();
-    });
-    pass.on('error', (error) => {
-      job.childProcess = null;
-      reject(error);
-    });
-  });
+    if (code !== 0) throw new Error('ffmpeg 剪辑失败');
+    setCutJobStage(job, 'done', 100);
+  } finally {
+    job.childProcess = null;
+  }
+}
+
+async function resolveCutDuration(job) {
+  const probedDuration = await refineProbe(job.inputPath);
+  if (Number.isFinite(probedDuration) && probedDuration > 0) return probedDuration;
+
+  const fallbackDuration = Number(job.originalDuration || 0);
+  if (Number.isFinite(fallbackDuration) && fallbackDuration > 0) {
+    console.warn('[cut]', job.id, 'ffprobe returned no duration, using originalDuration fallback:', fallbackDuration);
+    return fallbackDuration;
+  }
+
+  throw new Error('无法读取原音频时长，请重新上传音频。');
 }
 
 function buildServerCutArgs(keepSegments) {
@@ -3624,13 +4843,11 @@ function buildGoldCutArgs(keepSegments, goldenSegments, hasMusic) {
 
 function invertCutSegments(segments, duration) {
   const total = Number(duration) || 0;
-  const sorted = segments
-    .map((segment) => ({
-      start: clampNumber(Number(segment.start) || 0, 0, total),
-      end: clampNumber(Number(segment.end) || 0, 0, total),
-    }))
-    .filter((segment) => segment.end > segment.start)
-    .sort((a, b) => a.start - b.start);
+  const sorted = normalizeCutSegments(segments, {
+    duration: total,
+    label: '删除段',
+    allowEmpty: true,
+  });
 
   if (!sorted.length) return [{ start: 0, end: total || Number.POSITIVE_INFINITY }];
 
@@ -3732,7 +4949,13 @@ async function handleConcat(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/api/audio/concat/status/')) {
     const jobId = url.pathname.replace('/api/audio/concat/status/', '');
     const job = concatJobs.get(jobId);
-    if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
+    if (!job) {
+      sendJson(res, 410, {
+        error: 'job_interrupted',
+        message: '音频拼接任务已中断，可能是服务器刚重启或页面停留太久。请重新选择音频并重新开始。',
+      });
+      return;
+    }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
     sendJson(res, 200, {
       jobId,
@@ -3774,23 +4997,21 @@ async function concatProcess(job) {
   const filter = `${norm};${concatInputs}concat=n=${job.inputs.length}:v=0:a=1[out]`;
   args.push('-filter_complex', filter, '-map', '[out]', '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath);
 
-  await new Promise((resolve, reject) => {
-    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...args]);
-    pass.stderr.on('data', (chunk) => {
+  const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', ...args]);
+  const code = await waitForTimedProcess(pass, {
+    timeoutMs: FFMPEG_TIMEOUT_MS,
+    timeoutMessage: '音频拼接超时，请减少音频数量后重试。',
+    onStderr: (chunk) => {
       const t = chunk.toString().match(/time=(\d+):(\d+):(\d+\.\d+)/);
       if (t && totalDur > 0) {
         const elapsed = Number(t[1]) * 3600 + Number(t[2]) * 60 + parseFloat(t[3]);
         job.progress = Math.min(95, 5 + Math.round((elapsed / totalDur) * 90));
       }
-    });
-    pass.on('close', (code) => {
-      if (code !== 0) return reject(new Error('ffmpeg 音频拼接失败'));
-      job.stage = 'done';
-      job.progress = 100;
-      resolve();
-    });
-    pass.on('error', reject);
+    },
   });
+  if (code !== 0) throw new Error('ffmpeg 音频拼接失败');
+  job.stage = 'done';
+  job.progress = 100;
 }
 
 function cleanupAudioJobs(jobs, ttl) {
@@ -3817,6 +5038,48 @@ function clampNumber(value, min, max) {
 
 function round3(value) {
   return Math.round(value * 1000) / 1000;
+}
+
+function waitForTimedProcess(child, options = {}) {
+  const timeoutMs = Number(options.timeoutMs || 0);
+  const timeoutMessage = options.timeoutMessage || '音频处理超时，请稍后重试。';
+  return new Promise((resolve, reject) => {
+    let timedOut = false;
+    let timeoutTimer = null;
+    let killTimer = null;
+
+    const clearTimers = () => {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (killTimer) clearTimeout(killTimer);
+    };
+
+    if (typeof options.onStderr === 'function' && child.stderr) {
+      child.stderr.on('data', options.onStderr);
+    }
+
+    if (timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        try { child.kill('SIGTERM'); } catch {}
+        killTimer = setTimeout(() => {
+          try { child.kill('SIGKILL'); } catch {}
+        }, CHILD_KILL_GRACE_MS);
+      }, timeoutMs);
+    }
+
+    child.on('close', (code) => {
+      clearTimers();
+      if (timedOut) {
+        reject(new Error(timeoutMessage));
+        return;
+      }
+      resolve(code);
+    });
+    child.on('error', (error) => {
+      clearTimers();
+      reject(error);
+    });
+  });
 }
 
 // ── Audio Refine ─────────────────────────────────────────────────────────────
@@ -3910,7 +5173,13 @@ async function handleRefine(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/api/refine/status/')) {
     const jobId = url.pathname.replace('/api/refine/status/', '');
     const job = refineJobs.get(jobId);
-    if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
+    if (!job) {
+      sendJson(res, 410, {
+        error: 'job_interrupted',
+        message: '音频精修任务已中断，可能是服务器刚重启或页面停留太久。请重新上传音频处理。',
+      });
+      return;
+    }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
     sendJson(res, 200, {
       jobId,
@@ -3934,7 +5203,13 @@ async function handleRefine(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/api/refine/download/')) {
     const jobId = url.pathname.replace('/api/refine/download/', '');
     const job = refineJobs.get(jobId);
-    if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
+    if (!job) {
+      sendJson(res, 410, {
+        error: 'job_interrupted',
+        message: '音频精修文件已过期或任务已中断，请重新上传音频处理。',
+      });
+      return;
+    }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
     if (job.stage !== 'done') { sendJson(res, 409, { error: '文件尚未就绪' }); return; }
     if (!fs.existsSync(job.outputPath)) { sendJson(res, 410, { error: '文件已过期' }); return; }
@@ -3967,48 +5242,53 @@ function countActiveRefineJobs(userId) {
   return count;
 }
 
-function refineProbe(filePath) {
-  return new Promise(resolve => {
-    const p = spawn('ffprobe', ['-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1', filePath]);
-    let out = '';
-    p.stdout.on('data', d => { out += d; });
-    p.on('close', () => resolve(parseFloat(out.trim()) || 0));
-    p.on('error', () => resolve(0));
-  });
+async function refineProbe(filePath) {
+  const p = spawn('ffprobe', ['-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1', filePath]);
+  let out = '';
+  p.stdout.on('data', d => { out += d; });
+  try {
+    const code = await waitForTimedProcess(p, {
+      timeoutMs: FFPROBE_TIMEOUT_MS,
+      timeoutMessage: 'ffprobe 读取音频时长超时',
+    });
+    if (code !== 0) return 0;
+    return parseFloat(out.trim()) || 0;
+  } catch (error) {
+    console.error('[audio] ffprobe 失败', error.message || error);
+    return 0;
+  }
 }
 
-function refineProcess(job) {
-  return new Promise((resolve, reject) => {
-    const filters = [];
-    if (job.denoise) filters.push('afftdn=nf=-25');
-    if (job.voiceEnhance) filters.push('acompressor=threshold=-18dB:ratio=2:attack=20:release=200');
-    if (job.normalizeLoudness) filters.push(`loudnorm=I=${job.targetLufs}:TP=-1.5:LRA=11`);
+async function refineProcess(job) {
+  const filters = [];
+  if (job.denoise) filters.push('afftdn=nf=-25');
+  if (job.voiceEnhance) filters.push('acompressor=threshold=-18dB:ratio=2:attack=20:release=200');
+  if (job.normalizeLoudness) filters.push(`loudnorm=I=${job.targetLufs}:TP=-1.5:LRA=11`);
 
-    const audioFilter = filters.join(',');
-    if (!audioFilter) return reject(new Error('未选择任何精修处理'));
+  const audioFilter = filters.join(',');
+  if (!audioFilter) throw new Error('未选择任何精修处理');
 
-    job.stage = 'processing';
-    job.progress = 10;
-    job.log.push(`正在处理: ${describeRefineJob(job).join('、')}`);
+  job.stage = 'processing';
+  job.progress = 10;
+  job.log.push(`正在处理: ${describeRefineJob(job).join('、')}`);
 
-    const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', '-i', job.inputPath, '-af', audioFilter, '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath]);
-    pass.stderr.on('data', d => {
+  const pass = spawn('nice', ['-n', '19', 'ffmpeg', '-threads', '1', '-i', job.inputPath, '-af', audioFilter, '-c:a', 'libmp3lame', '-b:a', '192k', '-y', job.outputPath]);
+  const code = await waitForTimedProcess(pass, {
+    timeoutMs: FFMPEG_TIMEOUT_MS,
+    timeoutMessage: '音频精修超时，请稍后重试。',
+    onStderr: d => {
       const line = d.toString();
       const t = line.match(/time=(\d+):(\d+):(\d+\.\d+)/);
       if (t && job.durationSec > 0) {
         const elapsed = Number(t[1]) * 3600 + Number(t[2]) * 60 + parseFloat(t[3]);
         job.progress = Math.min(95, 10 + Math.round((elapsed / job.durationSec) * 85));
       }
-    });
-    pass.on('close', c => {
-      if (c !== 0) return reject(new Error('ffmpeg 处理失败'));
-      job.stage = 'done';
-      job.progress = 100;
-      job.log.push('处理完成');
-      resolve();
-    });
-    pass.on('error', reject);
+    },
   });
+  if (code !== 0) throw new Error('ffmpeg 处理失败');
+  job.stage = 'done';
+  job.progress = 100;
+  job.log.push('处理完成');
 }
 
 function describeRefineJob(job) {

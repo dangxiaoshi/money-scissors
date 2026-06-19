@@ -302,6 +302,12 @@
       background: #fff1df;
       color: #e07d2c;
     }
+    .path-btn[aria-disabled="true"],
+    .path-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      pointer-events: none;
+    }
     .map-row {
       align-items: start;
       display: grid;
@@ -514,6 +520,87 @@
       line-height: 1.55;
       margin-top: 10px;
     }
+    .material-box,
+    .submit-box {
+      background: #fff7e8;
+      border: 1px solid #efd9ac;
+      border-radius: 12px;
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+      padding: 12px;
+    }
+    .material-head,
+    .submit-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+    }
+    .material-status {
+      color: #6b5629;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.45;
+    }
+    .material-audio {
+      height: 38px;
+      width: 100%;
+    }
+    .material-audio[hidden] { display: none; }
+    .hint-text {
+      color: var(--path-soft);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.55;
+    }
+    .submit-dialog .detail-card { max-width: 520px; }
+    .submit-field {
+      display: grid;
+      gap: 6px;
+    }
+    .submit-field label {
+      color: #6b5629;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .submit-field input,
+    .submit-field select,
+    .submit-field textarea {
+      background: #fffdf7;
+      border: 1px solid #e5c98d;
+      border-radius: 9px;
+      color: var(--path-text);
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 11px;
+      width: 100%;
+    }
+    .submit-field textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+    .submit-error {
+      color: #ad3e19;
+      display: none;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.45;
+    }
+    .submit-error.visible { display: block; }
+    .submit-success {
+      background: #e8f6ec;
+      border: 1px solid #b7dfc3;
+      border-radius: 10px;
+      color: #256c3d;
+      display: none;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.45;
+      padding: 8px 10px;
+    }
+    .submit-success.visible { display: block; }
     .task-actions [hidden] { display: none !important; }
     @media (max-width: 820px) {
       .hero { align-items: stretch; flex-direction: column; }
@@ -614,12 +701,62 @@
         <h3>提交重点</h3>
         <p id="detail-submit"></p>
       </div>
+      <div class="detail-section">
+        <h3>素材试听 / 下载</h3>
+        <div class="material-box" id="detail-material-box">
+          <div class="material-head">
+            <span class="material-status" id="detail-material-status">正在读取素材状态…</span>
+            <a class="path-btn secondary" id="detail-download" href="#" target="_blank" rel="noopener" download>下载素材</a>
+          </div>
+          <audio class="material-audio" id="detail-audio-player" preload="metadata" controls hidden></audio>
+          <div class="hint-text" id="detail-material-hint">试听失败时，直接下载素材再上传剪辑台。</div>
+        </div>
+      </div>
       <div class="task-actions">
         <a class="path-btn primary" id="detail-start" href="#">抢单并开始剪</a>
-        <a class="path-btn secondary" id="detail-audio" href="#" target="_blank" rel="noopener">听原音</a>
+        <button class="path-btn secondary" id="detail-submit-work" type="button">提交成品</button>
         <button class="path-btn secondary" id="detail-back" type="button">再看看</button>
       </div>
       <div class="detail-note">点“抢单并开始剪”后，这单会进入“我的接单 / 制作中”。</div>
+    </article>
+  </div>
+
+  <div class="dialog-backdrop submit-dialog" id="submit-dialog" aria-hidden="true">
+    <article class="detail-card" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+      <div class="detail-top">
+        <div>
+          <div class="detail-title" id="submit-title">提交成品</div>
+          <div class="detail-meta" id="submit-meta"></div>
+        </div>
+        <button class="detail-close" id="submit-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="submit-box">
+        <div class="submit-field">
+          <label for="submit-tool">使用工具</label>
+          <select id="submit-tool">
+            <option value="">请选择工具</option>
+            <option value="jianjiying">剪映</option>
+            <option value="au">Adobe Audition</option>
+            <option value="fcp">Final Cut Pro</option>
+            <option value="other">其他工具</option>
+          </select>
+        </div>
+        <div class="submit-field">
+          <label for="submit-link">成品链接</label>
+          <input id="submit-link" type="url" placeholder="粘贴网盘、飞书、腾讯文档等可打开链接">
+        </div>
+        <div class="submit-field">
+          <label for="submit-note">文字说明</label>
+          <textarea id="submit-note" placeholder="写清楚剪到几分钟、删了什么、哪里需要助教重点听"></textarea>
+        </div>
+        <div class="submit-error" id="submit-error"></div>
+        <div class="submit-success" id="submit-success"></div>
+        <div class="hint-text">提交后会进入待审核；待审核状态不会挡住继续接下一单。</div>
+        <div class="submit-row">
+          <button class="path-btn primary" id="submit-save" type="button">提交给助教</button>
+          <button class="path-btn secondary" id="submit-cancel" type="button">取消</button>
+        </div>
+      </div>
     </article>
   </div>
 
@@ -629,17 +766,31 @@
 
     let dispatchTasks = [];
     let dispatchClaims = [];
+    let activeSubmitContext = null;
 
     const auth = await initStationNav({ active: 'orders', requireDay2: true });
     document.getElementById('refresh-btn')?.addEventListener('click', () => loadDispatchTasks());
     document.getElementById('detail-start')?.addEventListener('click', handleDetailStart);
+    document.getElementById('detail-submit-work')?.addEventListener('click', () => openSubmitDialogFromTask());
     document.getElementById('detail-close')?.addEventListener('click', closeTaskDialog);
     document.getElementById('detail-back')?.addEventListener('click', closeTaskDialog);
+    document.getElementById('detail-audio-player')?.addEventListener('loadstart', () => setDetailMaterialStatus('正在加载试听音频…'));
+    document.getElementById('detail-audio-player')?.addEventListener('canplay', () => setDetailMaterialStatus('可以试听，也可以直接下载素材。'));
+    document.getElementById('detail-audio-player')?.addEventListener('error', () => setDetailMaterialStatus('试听加载失败，请点“下载素材”。'));
     document.getElementById('task-dialog')?.addEventListener('click', (event) => {
       if (event.target.id === 'task-dialog') closeTaskDialog();
     });
+    document.getElementById('submit-close')?.addEventListener('click', closeSubmitDialog);
+    document.getElementById('submit-cancel')?.addEventListener('click', closeSubmitDialog);
+    document.getElementById('submit-save')?.addEventListener('click', handleSubmitShell);
+    document.getElementById('submit-dialog')?.addEventListener('click', (event) => {
+      if (event.target.id === 'submit-dialog') closeSubmitDialog();
+    });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeTaskDialog();
+      if (event.key === 'Escape') {
+        closeSubmitDialog();
+        closeTaskDialog();
+      }
     });
     if (auth) loadDispatchTasks();
 
@@ -664,9 +815,10 @@
       }
       root.innerHTML = dispatchTasks.map((task, index) => `
         <article class="task-card compact ${index === 0 ? 'featured' : ''}" role="button" tabindex="0" data-task-id="${escapeAttr(task.id)}" aria-label="查看${escapeAttr(task.title)}需求">
-          <span class="task-head"><span>#${escapeHtml(task.id)} · ${escapeHtml(task.price)}</span><span class="tag">${escapeHtml(task.quota)}</span></span>
+          <span class="task-head"><span>派单 #${escapeHtml(task.id)} · ${escapeHtml(task.price)}</span><span class="tag">${escapeHtml(task.quota)}</span></span>
           <span class="task-emoji">${escapeHtml(task.emoji)}</span>
           <span class="task-title">${escapeHtml(task.title)}</span>
+          <span class="task-goal">${escapeHtml(task.materialStatus)}</span>
           <span class="task-quota">${escapeHtml(task.progress)}</span>
         </article>`).join('');
       root.querySelectorAll('[data-task-id]').forEach((card) => {
@@ -695,22 +847,22 @@
       }
       root.innerHTML = dispatchClaims.map((claim) => `
         <article class="task-card my-task claim-card">
-          <span class="task-head"><span>${escapeHtml(claimStatusLabel(claim.status))}</span><span class="tag">#${escapeHtml(claim.taskId)}</span></span>
+          <span class="task-head"><span>${escapeHtml(claimStatusLabel(claim.status))}</span><span class="tag">派单 #${escapeHtml(claim.taskId)}</span></span>
           <span class="task-emoji">${escapeHtml(inferEmoji(claim.task.title, claim.task.demand))}</span>
           <span class="task-title">${escapeHtml(claim.task.title || '未命名任务')}</span>
           <span class="task-goal">${escapeHtml(claim.task.budget || '待定')} · ${escapeHtml(formatClaimTime(claim.updatedAt || claim.claimedAt))}</span>
           <span class="claim-status">${escapeHtml(claimStatusHint(claim))}</span>
           <div class="task-actions">
-            ${isAutoAudioMaterial(claim.task.materialLink)
-              ? `<a class="path-btn primary" href="/edit?task=${encodeURIComponent(claim.taskId)}&claim=${encodeURIComponent(claim.id)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`
-              : claim.task.materialLink
-                ? `<a class="path-btn primary" href="${escapeAttr(claim.task.materialLink)}" target="_blank" rel="noopener">打开素材下载</a><a class="path-btn secondary" href="/edit">去剪辑台上传</a>`
-              : `<button class="path-btn primary" type="button" disabled>等待音频素材</button>`}
+            ${renderClaimPrimaryActions(claim)}
+            <button class="path-btn secondary" type="button" data-submit-claim="${escapeAttr(claim.id)}" ${canSubmitClaim(claim.status) ? '' : 'hidden'}>提交成品</button>
             <button class="path-btn secondary" type="button" data-abandon-claim="${escapeAttr(claim.id)}" ${canAbandonClaim(claim.status) ? '' : 'hidden'}>放弃此单</button>
           </div>
         </article>`).join('');
       root.querySelectorAll('[data-abandon-claim]').forEach((button) => {
         button.addEventListener('click', () => abandonClaim(button.dataset.abandonClaim));
+      });
+      root.querySelectorAll('[data-submit-claim]').forEach((button) => {
+        button.addEventListener('click', () => openSubmitDialogFromClaim(button.dataset.submitClaim));
       });
     }
 
@@ -724,14 +876,15 @@
       document.getElementById('detail-keep').textContent = task.keep;
       document.getElementById('detail-remove').textContent = task.remove;
       document.getElementById('detail-submit').textContent = task.submit;
-      const audio = document.getElementById('detail-audio');
       const start = document.getElementById('detail-start');
-      audio.href = task.materialLink || '#';
-      audio.hidden = !task.materialLink;
+      renderDetailMaterial(task);
       start.dataset.taskId = task.id;
       start.href = detailStartHref(task);
       start.textContent = detailStartText(task);
       start.setAttribute('aria-disabled', canStartTask(task) ? 'false' : 'true');
+      const submit = document.getElementById('detail-submit-work');
+      submit.hidden = !task.myClaim || !canSubmitClaim(task.myClaim.status);
+      submit.dataset.taskId = task.id;
       const dialog = document.getElementById('task-dialog');
       dialog.classList.add('visible');
       dialog.setAttribute('aria-hidden', 'false');
@@ -761,6 +914,8 @@
         renderMyClaims();
         if (isAutoAudioMaterial(task.materialLink)) {
           location.href = `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(data.claim?.id || task.myClaim?.id || '')}`;
+        } else if (!task.materialLink && noLinkMaterialInfo(task).canOpenEditor) {
+          location.href = '/edit';
         } else {
           closeTaskDialog();
           await loadDispatchTasks();
@@ -787,6 +942,10 @@
       const demand = String(task.demand || '').trim();
       const sections = parseDemand(demand);
       const title = task.title || `接单任务 ${task.id}`;
+      const materialLink = safeMaterialLink(task.materialLink || task.material_link || '');
+      const visibility = task.visibility || 'public';
+      const assigneeLabel = task.assigneeLabel || task.assigneeRefs || '';
+      const displayTask = { ...task, title, demand, materialLink, visibility, assigneeLabel };
       return {
         id: String(task.id),
         title,
@@ -797,8 +956,8 @@
         maxClaims: Number(task.maxClaims || task.max_claims || 5),
         emoji: inferEmoji(title, demand),
         type: task.difficulty || inferType(title, demand),
-        visibility: task.visibility || 'public',
-        assigneeLabel: task.assigneeLabel || task.assigneeRefs || '',
+        visibility,
+        assigneeLabel,
         canClaim: task.canClaim !== false,
         claimBlockedReason: task.claimBlockedReason || '',
         warning: task.visibility === 'assigned' ? `私密单，仅限 ${task.assigneeLabel || '指定学员'} 接单。其他学员可看需求，但不能抢单。` : '',
@@ -806,7 +965,8 @@
         keep: sections.keep || '按任务需求保留核心信息。',
         remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
         submit: sections.submit || sections.ad || '提交前确认符合任务需求，并能顺畅收听。',
-        materialLink: task.materialLink || '',
+        materialLink,
+        materialStatus: buildMaterialStatus(displayTask),
         myClaim: task.myClaim ? normalizeClaim(task.myClaim) : null,
       };
     }
@@ -820,15 +980,35 @@
         claimedAt: claim.claimedAt || claim.claimed_at || '',
         updatedAt: claim.updatedAt || claim.updated_at || '',
         submittedAt: claim.submittedAt || claim.submitted_at || '',
+        reviewNote: claim.reviewNote || claim.review_note || '',
+        externalSubmission: normalizeExternalSubmission(claim.externalSubmission || claim.external_submission),
         task: {
           id: String(task.id || claim.taskId || claim.task_id || ''),
           title: task.title || '',
           budget: task.budget || '',
           demand: task.demand || '',
-          materialLink: task.materialLink || task.material_link || '',
+          materialLink: safeMaterialLink(task.materialLink || task.material_link || ''),
           visibility: task.visibility || 'public',
           assigneeLabel: task.assigneeLabel || task.assignee_refs || '',
         },
+      };
+    }
+
+    function normalizeExternalSubmission(value) {
+      if (!value || typeof value !== 'object') return null;
+      const url = safeExternalUrl(value.url || value.link || '');
+      const description = String(value.description || value.note || '').trim();
+      const tool = String(value.tool || '').trim();
+      if (!url && !description && !tool) return null;
+      return {
+        url,
+        tool,
+        toolLabel: value.toolLabel || value.tool_label || tool,
+        description,
+        durationText: value.durationText || value.duration_text || '',
+        fileName: value.fileName || value.file_name || '',
+        notes: value.notes || '',
+        submittedAt: value.submittedAt || value.submitted_at || '',
       };
     }
 
@@ -856,16 +1036,23 @@
       return `还可抢 ${Math.max(maxClaims - claimCount, 0)} 人`;
     }
 
+    function buildMaterialStatus(task) {
+      if (!task.materialLink) return noLinkMaterialInfo(task).status;
+      if (isAutoAudioMaterial(task.materialLink)) return '素材状态：可试听 / 可下载';
+      return '素材状态：外部链接下载';
+    }
+
     function canStartTask(task) {
       if (task?.canClaim === false) return false;
+      if (!task.materialLink && !noLinkMaterialInfo(task).canOpenEditor) return false;
       if (task.myClaim) return true;
       return Number(task.claimCount || 0) < Number(task.maxClaims || 5);
     }
 
     function detailStartText(task) {
       if (task.canClaim === false) return task.claimBlockedReason || '仅指定学员可接';
-      if (!task.materialLink && task.myClaim) return '已抢单，等待音频';
-      if (!task.materialLink) return '抢单，等待音频';
+      if (!task.materialLink && task.myClaim) return noLinkMaterialInfo(task).claimedStart;
+      if (!task.materialLink) return noLinkMaterialInfo(task).startAction;
       if (!isAutoAudioMaterial(task.materialLink) && task.myClaim) return '已抢单，先下载素材';
       if (!isAutoAudioMaterial(task.materialLink)) return '抢单，先下载素材';
       if (task.myClaim) return '继续剪辑';
@@ -874,15 +1061,36 @@
     }
 
     function detailStartHref(task) {
-      if (!task.materialLink || !task.myClaim) return '#';
+      if (!task.myClaim) return '#';
+      if (!task.materialLink) return noLinkMaterialInfo(task).canOpenEditor ? '/edit' : '#';
       return `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(task.myClaim.id)}`;
     }
 
     function isAutoAudioMaterial(value) {
-      const link = String(value || '').trim();
+      const link = safeMaterialLink(value);
       if (!link) return false;
       if (/^\/api\/orders\/material\//.test(link)) return true;
       return /\.(mp3|m4a|wav|aac|flac)(?:[?#].*)?$/i.test(link);
+    }
+
+    function safeMaterialLink(value) {
+      const link = String(value || '').trim();
+      if (!link) return '';
+      if (/^https?:\/\/\S+$/i.test(link)) return link;
+      if (/^\/api\/orders\/material\/\S+$/.test(link)) return link;
+      if (/^\/uploads\/\S+$/.test(link)) return link;
+      return '';
+    }
+
+    function safeExternalUrl(value) {
+      const link = String(value || '').trim();
+      if (!/^https?:\/\/\S+$/i.test(link)) return '';
+      try {
+        const parsed = new URL(link);
+        return parsed.href;
+      } catch {
+        return '';
+      }
     }
 
     function claimStatusLabel(status) {
@@ -898,7 +1106,9 @@
     function claimStatusHint(claimOrStatus) {
       const claim = typeof claimOrStatus === 'object' ? claimOrStatus : null;
       const status = claim ? claim.status : claimOrStatus;
-      if (claim && !claim.task.materialLink) return '已抢单，等待后台补音频素材。';
+      if (claim?.externalSubmission?.url && status === 'submitted') return '已提交外部成品，等待助教审核。';
+      if (claim?.externalSubmission?.url && status === 'completed') return '这单已采用，可以查看提交链接。';
+      if (claim && !claim.task.materialLink) return noLinkMaterialInfo(claim.task).claimHint;
       if (claim && claim.task.materialLink && !isAutoAudioMaterial(claim.task.materialLink)) return '已抢单，请先打开素材链接下载音频，再去剪辑台上传。';
       const hints = {
         in_progress: '已抢单，可以继续剪辑。',
@@ -915,7 +1125,177 @@
       return '继续剪辑';
     }
 
+    function renderDetailMaterial(task) {
+      const player = document.getElementById('detail-audio-player');
+      const download = document.getElementById('detail-download');
+      const hint = document.getElementById('detail-material-hint');
+      stopDetailAudio();
+      player.hidden = true;
+      download.href = task.materialLink || '#';
+      download.hidden = !task.materialLink;
+      if (!task.materialLink) {
+        const info = noLinkMaterialInfo(task);
+        setDetailMaterialStatus(info.detail);
+        hint.textContent = info.hint;
+        return;
+      }
+      if (isAutoAudioMaterial(task.materialLink)) {
+        player.src = task.materialLink;
+        player.hidden = false;
+        setDetailMaterialStatus('正在准备试听音频…');
+        hint.textContent = '试听可先听内容方向；正式制作前建议也下载素材确认。';
+        return;
+      }
+      setDetailMaterialStatus('这是外部素材链接，请打开下载后再上传剪辑台。');
+      hint.textContent = '外部链接不一定能在网页内试听，优先下载到本机。';
+    }
+
+    function noLinkMaterialInfo(task = {}) {
+      const sourceText = `${task.title || ''}\n${task.demand || ''}`;
+      if (/自备|自带|自己有|自己手里|学员自有|本地音频/.test(sourceText)) {
+        return {
+          status: '素材状态：指定学员自备',
+          detail: '这条任务的音频由指定学员自己准备，不需要后台补素材。',
+          hint: '指定学员用自己手里的音频去剪辑台上传即可；其他学员只能看需求，不能接。',
+          startAction: '抢单，用自备素材剪',
+          claimedStart: '已抢单，用自备素材剪',
+          claimAction: '去剪辑台上传',
+          claimHint: '已抢单，请用你自己手里的音频去剪辑台上传。',
+          canOpenEditor: true,
+        };
+      }
+      if (/群里|群内|微信群|课程群|发到群|发在群|群公告/.test(sourceText)) {
+        return {
+          status: '素材状态：素材在群里',
+          detail: '这单没有站内音频链接，素材已在群里，请按群内说明下载后上传剪辑台。',
+          hint: '这类任务不需要等后台补素材，先去群里拿素材。',
+          startAction: '抢单，按群内素材剪',
+          claimedStart: '已抢单，按群内素材剪',
+          claimAction: '去剪辑台上传',
+          claimHint: '已抢单，请先去群里下载素材，再上传到剪辑台。',
+          canOpenEditor: true,
+        };
+      }
+      return {
+        status: '素材状态：来源待确认',
+        detail: '这单没有站内试听/下载链接，也没有写清楚素材是在学员手里、群里，还是需要另发。',
+        hint: '不是所有素材都会放在网站里；请先按群内说明或问助教确认来源。',
+        startAction: '抢单前先确认素材',
+        claimedStart: '已抢单，先确认素材',
+        claimAction: '素材来源待确认',
+        claimHint: '已抢单，但任务里没有写清楚素材在哪里，请先问助教确认。',
+        canOpenEditor: false,
+      };
+    }
+
+    function renderClaimPrimaryActions(claim) {
+      if (claim.externalSubmission?.url && ['submitted', 'completed'].includes(claim.status)) {
+        return `<a class="path-btn primary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`;
+      }
+      if (isAutoAudioMaterial(claim.task.materialLink)) {
+        return `<a class="path-btn primary" href="/edit?task=${encodeURIComponent(claim.taskId)}&claim=${encodeURIComponent(claim.id)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`;
+      }
+      if (claim.task.materialLink) {
+        return `<a class="path-btn primary" href="${escapeAttr(claim.task.materialLink)}" target="_blank" rel="noopener">下载素材</a><a class="path-btn secondary" href="/edit">去剪辑台上传</a>`;
+      }
+      const info = noLinkMaterialInfo(claim.task);
+      if (info.canOpenEditor) {
+        return `<a class="path-btn primary" href="/edit">${escapeHtml(info.claimAction)}</a>`;
+      }
+      return `<button class="path-btn primary" type="button" disabled>${escapeHtml(info.claimAction)}</button>`;
+    }
+
+    function setDetailMaterialStatus(text) {
+      const el = document.getElementById('detail-material-status');
+      if (el) el.textContent = text;
+    }
+
+    function openSubmitDialogFromTask() {
+      const taskId = document.getElementById('detail-submit-work')?.dataset.taskId;
+      const task = dispatchTasks.find((item) => String(item.id) === String(taskId));
+      if (!task?.myClaim || !canSubmitClaim(task.myClaim.status)) return;
+      openSubmitDialog(task.myClaim);
+    }
+
+    function openSubmitDialogFromClaim(claimId) {
+      const claim = dispatchClaims.find((item) => String(item.id) === String(claimId));
+      if (!claim || !canSubmitClaim(claim.status)) return;
+      openSubmitDialog(claim);
+    }
+
+    function openSubmitDialog(claim) {
+      activeSubmitContext = claim;
+      const external = claim.externalSubmission || {};
+      document.getElementById('submit-title').textContent = '提交成品';
+      document.getElementById('submit-meta').textContent = `派单 #${claim.taskId} · ${claim.task.title || '未命名任务'}`;
+      document.getElementById('submit-tool').value = external.tool || '';
+      document.getElementById('submit-link').value = external.url || '';
+      document.getElementById('submit-note').value = external.description || '';
+      setSubmitError('');
+      setSubmitSuccess('');
+      const dialog = document.getElementById('submit-dialog');
+      dialog.classList.add('visible');
+      dialog.setAttribute('aria-hidden', 'false');
+    }
+
+    async function handleSubmitShell() {
+      if (!activeSubmitContext) return;
+      const toolEl = document.getElementById('submit-tool');
+      const tool = toolEl.value.trim();
+      const toolLabel = toolEl.selectedOptions?.[0]?.textContent?.trim() || tool;
+      const link = document.getElementById('submit-link').value.trim();
+      const note = document.getElementById('submit-note').value.trim();
+      if (!tool) return setSubmitError('请选择这单使用的工具。');
+      if (!/^https?:\/\/\S+\.\S+/.test(link)) return setSubmitError('请粘贴一个能打开的 http 或 https 成品链接。');
+      if (note.length < 8) return setSubmitError('文字说明至少写 8 个字，方便助教知道重点听哪里。');
+      setSubmitError('');
+      setSubmitSuccess('正在提交给助教…');
+      const button = document.getElementById('submit-save');
+      const previousText = button.textContent;
+      button.disabled = true;
+      button.textContent = '提交中…';
+      try {
+        const data = await apiJson(`/api/orders/claims/${encodeURIComponent(activeSubmitContext.id)}/external-submission`, {
+          method: 'POST',
+          body: JSON.stringify({ tool, toolLabel, url: link, description: note }),
+        });
+        if (data.claim) {
+          const nextClaim = normalizeClaim(data.claim);
+          dispatchClaims = mergeClaim(dispatchClaims, nextClaim);
+          dispatchTasks = dispatchTasks.map((task) => String(task.id) === String(nextClaim.taskId)
+            ? { ...task, myClaim: nextClaim }
+            : task);
+          activeSubmitContext = nextClaim;
+        }
+        renderMyClaims();
+        setSubmitSuccess('已提交给助教审核。现在这单是待审核状态，不会挡住你接下一单。');
+        setTimeout(closeSubmitDialog, 700);
+      } catch (error) {
+        setSubmitError(error?.message || '提交失败，请刷新后重试。');
+      } finally {
+        button.disabled = false;
+        button.textContent = previousText;
+      }
+    }
+
+    function setSubmitError(message) {
+      const el = document.getElementById('submit-error');
+      el.textContent = message;
+      el.classList.toggle('visible', Boolean(message));
+      if (message) setSubmitSuccess('');
+    }
+
+    function setSubmitSuccess(message) {
+      const el = document.getElementById('submit-success');
+      el.textContent = message;
+      el.classList.toggle('visible', Boolean(message));
+    }
+
     function canAbandonClaim(status) {
+      return status === 'in_progress' || status === 'returned';
+    }
+
+    function canSubmitClaim(status) {
       return status === 'in_progress' || status === 'returned';
     }
 
@@ -968,9 +1348,25 @@
     }
 
     function closeTaskDialog() {
+      stopDetailAudio();
       const dialog = document.getElementById('task-dialog');
       dialog.classList.remove('visible');
       dialog.setAttribute('aria-hidden', 'true');
+    }
+
+    function stopDetailAudio() {
+      const player = document.getElementById('detail-audio-player');
+      if (!player) return;
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+    }
+
+    function closeSubmitDialog() {
+      const dialog = document.getElementById('submit-dialog');
+      dialog.classList.remove('visible');
+      dialog.setAttribute('aria-hidden', 'true');
+      activeSubmitContext = null;
     }
 
     function escapeHtml(value) {
