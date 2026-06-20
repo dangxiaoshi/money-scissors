@@ -446,6 +446,16 @@ const statements = {
     FROM dispatch_claims
     WHERE id = @id AND user_id = @user_id
   `),
+  findEditableDispatchClaimForSubmit: db.prepare(`
+    SELECT *
+    FROM dispatch_claims
+    WHERE task_id = @task_id
+      AND user_id = @user_id
+      AND status IN ('in_progress', 'returned')
+      AND (@id = 0 OR id = @id)
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+  `),
   findActiveDispatchClaimByUser: db.prepare(`
     SELECT c.*, t.title AS task_title
     FROM dispatch_claims c
@@ -521,9 +531,10 @@ const statements = {
         external_submission_url = '',
         external_tool = '',
         external_submitted_at = NULL
-    WHERE task_id = @task_id
+    WHERE id = @id
+      AND task_id = @task_id
       AND user_id = @user_id
-      AND status != 'abandoned'
+      AND status IN ('in_progress', 'returned')
   `),
   saveExternalDispatchSubmission: db.prepare(`
     UPDATE dispatch_claims
@@ -553,6 +564,15 @@ const statements = {
   markDispatchClaimReturned: db.prepare(`
     UPDATE dispatch_claims
     SET status = 'returned',
+        reviewed_at = @reviewed_at,
+        updated_at = @updated_at,
+        review_note = @review_note
+    WHERE id = @id
+      AND status != 'abandoned'
+  `),
+  markDispatchClaimRejected: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'rejected',
         reviewed_at = @reviewed_at,
         updated_at = @updated_at,
         review_note = @review_note
@@ -1084,7 +1104,7 @@ function publicDispatchClaim(row, taskRow = null) {
 function publicDispatchReviewClaim(row) {
   const snapshotStatus = row.snapshot_status || '';
   const visibleStatus = snapshotStatus === 'rejected'
-    ? 'returned'
+    ? (row.status === 'rejected' ? 'rejected' : 'returned')
     : snapshotStatus === 'approved'
       ? 'completed'
       : row.status || 'in_progress';
@@ -1146,6 +1166,12 @@ function readDispatchTaskIdFromPayload(payload) {
   const raw = payload?.dispatchTask?.id;
   const taskId = Number(raw);
   return Number.isFinite(taskId) && taskId > 0 ? taskId : 0;
+}
+
+function readDispatchClaimIdFromPayload(payload) {
+  const raw = payload?.dispatchTask?.claimId;
+  const claimId = Number(raw);
+  return Number.isFinite(claimId) && claimId > 0 ? claimId : 0;
 }
 
 function dispatchRowToBody(row) {
@@ -1543,9 +1569,10 @@ async function handleDispatchTasks(req, res, url) {
     const body = await readJson(req);
     const action = String(body.status || body.action || '').trim();
     const approved = action === 'approved' || action === 'completed' || action === 'approve';
-    const returned = action === 'rejected' || action === 'returned' || action === 'reject';
-    if (!approved && !returned) {
-      sendJson(res, 400, { error: 'invalid_status', message: '订单审核状态只能是通过或打回。' });
+    const returned = action === 'returned' || action === 'return';
+    const rejected = action === 'rejected' || action === 'reject';
+    if (!approved && !returned && !rejected) {
+      sendJson(res, 400, { error: 'invalid_status', message: '订单审核状态只能是通过、打回或未采用。' });
       return;
     }
     const now = new Date().toISOString();
@@ -1564,6 +1591,7 @@ async function handleDispatchTasks(req, res, url) {
         updated_at: now,
       });
     }
+    const claimReviewStatus = approved ? 'completed' : rejected ? 'rejected' : 'returned';
     if (approved) {
       statements.markDispatchClaimApproved.run({
         id: claimId,
@@ -1572,8 +1600,15 @@ async function handleDispatchTasks(req, res, url) {
         updated_at: now,
         review_note: note,
       });
-    } else {
+    } else if (returned) {
       statements.markDispatchClaimReturned.run({
+        id: claimId,
+        reviewed_at: now,
+        updated_at: now,
+        review_note: note,
+      });
+    } else {
+      statements.markDispatchClaimRejected.run({
         id: claimId,
         reviewed_at: now,
         updated_at: now,
@@ -1590,7 +1625,7 @@ async function handleDispatchTasks(req, res, url) {
         reviewNote: note,
         dispatchReview: {
           claimId,
-          status: approved ? 'completed' : 'returned',
+          status: claimReviewStatus,
           reviewedAt: now,
           reviewedBy: admin.id,
           note,
@@ -1865,6 +1900,22 @@ async function handleProjects(req, res, url) {
     const metrics = readProjectMetrics(payload, body.metrics);
     const fileName = cleanTitle(body.fileName || payload.fileName || project.row.file_name || '未命名音频', 180);
     const audioUrl = String(body.audioUrl || payload.audioUrl || project.row.audio_url || '').trim();
+    const dispatchTaskId = readDispatchTaskIdFromPayload(payload);
+    let dispatchClaim = null;
+    if (dispatchTaskId) {
+      dispatchClaim = statements.findEditableDispatchClaimForSubmit.get({
+        id: readDispatchClaimIdFromPayload(payload),
+        task_id: dispatchTaskId,
+        user_id: project.row.user_id,
+      });
+      if (!dispatchClaim) {
+        sendJson(res, 409, {
+          error: 'dispatch_claim_not_editable',
+          message: '这单当前不能重复提交或已经结束，请回接单台查看状态。',
+        });
+        return;
+      }
+    }
     const snapshotId = buildPublicId('snap');
     const dataPath = path.join(SNAPSHOT_DATA_ROOT, `${snapshotId}.json`);
 
@@ -1905,9 +1956,9 @@ async function handleProjects(req, res, url) {
       updated_at: now,
       exported_at: now,
     });
-    const dispatchTaskId = readDispatchTaskIdFromPayload(payload);
-    if (dispatchTaskId) {
+    if (dispatchTaskId && dispatchClaim) {
       statements.markDispatchClaimSubmitted.run({
+        id: dispatchClaim.id,
         task_id: dispatchTaskId,
         user_id: project.row.user_id,
         submitted_at: now,

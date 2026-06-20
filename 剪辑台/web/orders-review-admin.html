@@ -750,6 +750,7 @@
         const hasSnapshot = Boolean(claim.snapshotId);
         const hasExternal = Boolean(claim.externalSubmission?.url);
         const hasSubmission = hasSnapshot || hasExternal;
+        const canReview = isReviewing && hasSubmission;
         const external = claim.externalSubmission || {};
         return `
           <article class="submission">
@@ -780,9 +781,9 @@
             <div class="submission-actions">
               ${hasExternal ? `<a class="btn secondary" href="${escapeAttr(external.url)}" target="_blank" rel="noopener">打开成品</a>` : '<button class="btn secondary" type="button" disabled>试听成品</button>'}
               ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : (!hasExternal ? '<button class="btn secondary" type="button" disabled>未提交</button>' : '')}
-              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${hasSubmission ? '' : 'disabled'}>采用这个</button>
-              <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${hasSubmission ? '' : 'disabled'}>打回修改</button>
-              <button class="btn secondary" type="button">标记未采用</button>
+              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${canReview ? '' : 'disabled'}>采用这个</button>
+              <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="returned" ${canReview ? '' : 'disabled'}>打回修改</button>
+              <button class="btn secondary" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${canReview ? '' : 'disabled'}>标记未采用</button>
             </div>
           </article>
         `;
@@ -795,8 +796,13 @@
 
     async function reviewClaim(claimId, status) {
       if (!claimId || !status) return;
-      const isReject = status === 'rejected';
-      const note = isReject ? window.prompt('打回原因（可选，学员会看到这条状态）', '') : '';
+      const isReturned = status === 'returned';
+      const isRejected = status === 'rejected';
+      const note = isReturned
+        ? window.prompt('打回原因（可选，学员会看到这条状态）', '')
+        : isRejected
+          ? window.prompt('未采用原因（可选，学员会看到这条状态）', '')
+          : '';
       if (note === null) return;
       const buttons = els.submissionStack.querySelectorAll(`[data-review-claim="${CSS.escape(claimId)}"]`);
       buttons.forEach((button) => { button.disabled = true; });

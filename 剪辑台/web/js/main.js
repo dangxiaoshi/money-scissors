@@ -18,6 +18,14 @@ const PRACTICE_MATERIAL = {
   audioUrl: 'http://8.136.133.196/uploads/practice/kaiying-live-20260612.m4a',
 };
 
+function isAutoAudioMaterial(value) {
+  const link = String(value || '').trim();
+  if (!link) return false;
+  if (/^\/api\/orders\/material\//.test(link)) return true;
+  if (/^\/uploads\/\S+\.(mp3|m4a|wav|aac|flac)(?:[?#].*)?$/i.test(link)) return true;
+  return /\.(mp3|m4a|wav|aac|flac)(?:[?#].*)?$/i.test(link);
+}
+
 const state = {
   files: [],
   remoteTask: null,
@@ -92,18 +100,24 @@ function loadPracticeMaterial() {
 }
 
 async function loadTaskFromQuery() {
-  const taskId = new URLSearchParams(location.search).get('task');
+  const params = new URLSearchParams(location.search);
+  const taskId = params.get('task');
+  const claimId = params.get('claim') || '';
   if (!taskId) return;
   try {
     const data = await apiJson('/api/orders/tasks');
     const task = (Array.isArray(data.tasks) ? data.tasks : []).find((item) => String(item.id) === String(taskId));
     if (!task) throw new Error('这条接单任务不存在，或还没有发布。');
-    if (!task.materialLink) throw new Error('这条接单任务还没有上传音频素材。');
+    const materialLink = String(task.materialLink || task.material_link || '').trim();
+    const autoAudio = isAutoAudioMaterial(materialLink);
     state.remoteTask = {
       id: task.id,
+      claimId,
       title: task.title || `接单任务 ${task.id}`,
       demand: task.demand || '',
-      audioUrl: task.materialLink,
+      audioUrl: autoAudio ? materialLink : '',
+      materialLink,
+      manualUpload: !autoAudio,
     };
     if (els.practiceCard) els.practiceCard.hidden = true;
     renderRemoteTask();
@@ -117,14 +131,24 @@ function renderRemoteTask() {
   els.taskBanner.classList.add('visible');
   if (els.taskTitle) els.taskTitle.textContent = `已载入：${state.remoteTask.title}`;
   if (els.taskDemand) {
+    const manualHint = state.remoteTask.manualUpload
+      ? '这单需要你先下载/准备素材，再在下面上传音频；提交审核会自动绑定到这条接单。\n\n'
+      : '';
     els.taskDemand.textContent = state.remoteTask.demand
-      ? `任务需求：${state.remoteTask.demand}`
-      : '任务需求：后台暂时没有填写，按音频内容先完成基础剪辑。';
+      ? `${manualHint}任务需求：${state.remoteTask.demand}`
+      : `${manualHint}任务需求：后台暂时没有填写，按音频内容先完成基础剪辑。`;
   }
-  if (els.taskAudioLink) els.taskAudioLink.href = state.remoteTask.audioUrl;
-  if (els.uploadLabel) els.uploadLabel.textContent = '任务音频';
+  if (els.taskAudioLink) {
+    const link = state.remoteTask.materialLink || state.remoteTask.audioUrl || '';
+    els.taskAudioLink.hidden = !link;
+    if (link) {
+      els.taskAudioLink.href = link;
+      els.taskAudioLink.textContent = state.remoteTask.manualUpload ? '打开素材链接' : '听原始音频';
+    }
+  }
+  if (els.uploadLabel) els.uploadLabel.textContent = state.remoteTask.manualUpload ? '上传这单音频' : '任务音频';
   if (els.uploadZone) {
-    els.uploadZone.classList.add('is-hidden');
+    els.uploadZone.classList.toggle('is-hidden', !state.remoteTask.manualUpload);
   }
 }
 
@@ -414,9 +438,10 @@ async function runPipeline() {
       subtitlesWords,
     });
     payload = applyAnalysisToReviewPayload(payload, analysis);
-    if (usingRemoteTask) {
+    if (state.remoteTask?.id) {
       payload.dispatchTask = {
         id: state.remoteTask.id,
+        claimId: state.remoteTask.claimId || '',
         title: state.remoteTask.title,
         demand: state.remoteTask.demand,
       };

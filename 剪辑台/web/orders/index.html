@@ -913,9 +913,9 @@
         }
         renderMyClaims();
         if (isAutoAudioMaterial(task.materialLink)) {
-          location.href = `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(data.claim?.id || task.myClaim?.id || '')}`;
+          location.href = buildEditHref(task, data.claim || task.myClaim);
         } else if (!task.materialLink && noLinkMaterialInfo(task).canOpenEditor) {
-          location.href = '/edit';
+          location.href = buildEditHref(task, data.claim || task.myClaim);
         } else {
           closeTaskDialog();
           await loadDispatchTasks();
@@ -1062,8 +1062,8 @@
 
     function detailStartHref(task) {
       if (!task.myClaim) return '#';
-      if (!task.materialLink) return noLinkMaterialInfo(task).canOpenEditor ? '/edit' : '#';
-      return `/edit?task=${encodeURIComponent(task.id)}&claim=${encodeURIComponent(task.myClaim.id)}`;
+      if (!task.materialLink) return noLinkMaterialInfo(task).canOpenEditor ? buildEditHref(task, task.myClaim) : '#';
+      return buildEditHref(task, task.myClaim);
     }
 
     function isAutoAudioMaterial(value) {
@@ -1099,6 +1099,7 @@
         returned: '打回修改',
         submitted: '待审核',
         completed: '已完成',
+        rejected: '未采用',
       };
       return labels[status] || '制作中';
     }
@@ -1108,6 +1109,9 @@
       const status = claim ? claim.status : claimOrStatus;
       if (claim?.externalSubmission?.url && status === 'submitted') return '已提交外部成品，等待助教审核。';
       if (claim?.externalSubmission?.url && status === 'completed') return '这单已采用，可以查看提交链接。';
+      if (claim?.externalSubmission?.url && status === 'rejected') return '这份成品未采用，可以查看原提交链接。';
+      if (status === 'completed') return '这单已经结束。';
+      if (status === 'rejected') return '这份成品未采用，这单已经结束。';
       if (claim && !claim.task.materialLink) return noLinkMaterialInfo(claim.task).claimHint;
       if (claim && claim.task.materialLink && !isAutoAudioMaterial(claim.task.materialLink)) return '已抢单，请先打开素材链接下载音频，再去剪辑台上传。';
       const hints = {
@@ -1115,6 +1119,7 @@
         returned: '按助教意见修改后重新提交。',
         submitted: '已提交，之后可以抢下一单。',
         completed: '这单已经结束。',
+        rejected: '这份成品未采用，这单已经结束。',
       };
       return hints[status] || hints.in_progress;
     }
@@ -1122,6 +1127,7 @@
     function claimPrimaryAction(status) {
       if (status === 'submitted') return '查看项目';
       if (status === 'completed') return '查看结果';
+      if (status === 'rejected') return '未采用';
       return '继续剪辑';
     }
 
@@ -1189,20 +1195,34 @@
     }
 
     function renderClaimPrimaryActions(claim) {
-      if (claim.externalSubmission?.url && ['submitted', 'completed'].includes(claim.status)) {
+      if (claim.externalSubmission?.url && ['submitted', 'completed', 'rejected'].includes(claim.status)) {
         return `<a class="path-btn primary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`;
       }
+      if (claim.status === 'rejected') {
+        return '<button class="path-btn primary" type="button" disabled>未采用</button>';
+      }
+      const editHref = buildEditHref(claim.task || { id: claim.taskId }, claim);
       if (isAutoAudioMaterial(claim.task.materialLink)) {
-        return `<a class="path-btn primary" href="/edit?task=${encodeURIComponent(claim.taskId)}&claim=${encodeURIComponent(claim.id)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`;
+        return `<a class="path-btn primary" href="${escapeAttr(editHref)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`;
       }
       if (claim.task.materialLink) {
-        return `<a class="path-btn primary" href="${escapeAttr(claim.task.materialLink)}" target="_blank" rel="noopener">下载素材</a><a class="path-btn secondary" href="/edit">去剪辑台上传</a>`;
+        return `<a class="path-btn primary" href="${escapeAttr(claim.task.materialLink)}" target="_blank" rel="noopener">下载素材</a><a class="path-btn secondary" href="${escapeAttr(editHref)}">去剪辑台上传</a>`;
       }
       const info = noLinkMaterialInfo(claim.task);
       if (info.canOpenEditor) {
-        return `<a class="path-btn primary" href="/edit">${escapeHtml(info.claimAction)}</a>`;
+        return `<a class="path-btn primary" href="${escapeAttr(editHref)}">${escapeHtml(info.claimAction)}</a>`;
       }
       return `<button class="path-btn primary" type="button" disabled>${escapeHtml(info.claimAction)}</button>`;
+    }
+
+    function buildEditHref(task = {}, claim = {}) {
+      const taskId = task.id || task.taskId || claim.taskId || claim.task_id || '';
+      const claimId = claim.id || task.claimId || '';
+      const params = new URLSearchParams();
+      if (taskId) params.set('task', String(taskId));
+      if (claimId) params.set('claim', String(claimId));
+      const query = params.toString();
+      return query ? `/edit?${query}` : '/edit';
     }
 
     function setDetailMaterialStatus(text) {

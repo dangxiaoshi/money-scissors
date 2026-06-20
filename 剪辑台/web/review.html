@@ -1160,6 +1160,11 @@ body.readonly .star { display: none; }
 .toast.vis { opacity:1; }
 
 @media(max-width:960px) {
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar .proj,
+  .topbar .goldbtn { display: none; }
+  .topbar .backupbtn,
+  .topbar .expbtn { padding: 8px 10px; font-size: 13px; }
   .layout { flex-direction:column; }
   .sidebar { width:100%; position:relative; height:auto; border-right:none; border-bottom:1px solid var(--hairline); }
   .splitter { display:none; }
@@ -1226,6 +1231,7 @@ body.readonly .star { display: none; }
   <button class="iconbtn" id="redo-btn" onclick="kpRedo()" title="前进">↪️</button>
   <button class="gearbtn" id="gearbtn" onclick="toggleGear()" title="工具">⚙️</button>
   <button class="snapshot-cutbtn" id="snapshot-cut-btn" onclick="downloadSnapshotCut()" hidden>下载审核 MP3</button>
+  <button class="backupbtn" id="top-cut-btn" onclick="doExport({next:'cut'})" title="生成并下载 MP3，去外部软件继续精修">导出 MP3</button>
   <button class="expbtn" id="submit-review-btn" onclick="doExport()">提交审核</button>
 </div>
 

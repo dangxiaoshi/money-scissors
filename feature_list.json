@@ -1,0 +1,223 @@
+{
+  "_meta": {
+    "项目": "金钱剪刀",
+    "用途": "给 AI agent（尤其 Hermes 夜间循环）看的任务状态机，不是给人看的待办散文。人看的全景在 Obsidian 任务地图 / 开发执行单。",
+    "更新": "2026-06-20",
+    "状态词": {
+      "not_started": "还没开始",
+      "in_progress": "正在做（同一时间只允许一个）",
+      "blocked": "被外部卡住（等报备/等当当/人工台），别碰",
+      "passing_test": "测试站已做并自验，等当当真机验收后升正式",
+      "done": "已上正式或已得出结论，收工"
+    },
+    "两条铁律": [
+      "同一时间最多一个任务是 in_progress，禁止同时开多个坑。",
+      "没有 evidence（跑过什么命令/验收结果）就不准把 status 改成 passing_test 或 done。"
+    ],
+    "夜间围栏": {
+      "说明": "Hermes 夜间无人值守时，只允许挑 night_safe=true 且 status 为 not_started/in_progress 的任务。其余一律不碰。",
+      "phase1": "当前阶段：night_safe 只给 研究/文档/只读 类任务。会改代码、碰 server.cjs/.env/数据库/正式站/SSH 的，一律 night_safe=false，留给有人看着的窗口或当当。",
+      "升级条件": "等当当连续几天看过夜间产出、确认它守规矩后，再把『测试站前端类』任务逐个翻成 night_safe=true。"
+    }
+  },
+
+  "features": [
+    {
+      "id": "oss-watch-checklist",
+      "title": "写《OSS观察期盯防清单》",
+      "status": "not_started",
+      "night_safe": true,
+      "requires_human": "",
+      "files": ["Obsidian: 需求讨论/20260619_OSS观察期盯防清单.md"],
+      "definition_of_done": [
+        "列清观察期每天要盯什么：上传 storage=oss、转写、生成MP3、下载、ECS带宽、签名链接过期、RAM key 无 delete 权限",
+        "每项写：怎么查、正常长什么样、异常找谁、兜底动作",
+        "只写 Obsidian 文档，不改代码"
+      ],
+      "evidence": [],
+      "notes": "昨天 Hermes 研究任务的一部分。纯文档，最适合夜间先跑。"
+    },
+    {
+      "id": "deepen-design-docs",
+      "title": "把三份后端方案做深做细",
+      "status": "not_started",
+      "night_safe": true,
+      "requires_human": "",
+      "files": [
+        "Obsidian: 需求讨论/20260619_问题反馈入口后端方案.md",
+        "Obsidian: 需求讨论/20260619_外部工具成品提交入口后端方案.md",
+        "Obsidian: 需求讨论/20260619_Day1作业AI反馈与助教确认方案.md"
+      ],
+      "definition_of_done": [
+        "每份补：要改哪些文件、加哪个接口、数据存哪、最小版怎么做、完成标准、测试方法、Plan B、明确不做什么",
+        "三份都给出『代码窗口执行顺序』，方便有人看着的窗口直接照做",
+        "只写 Obsidian 文档，不改代码"
+      ],
+      "evidence": [],
+      "notes": "夜间研究类。做深后，白天的代码窗口可以直接照着实现。"
+    },
+    {
+      "id": "live-dispatch-cards-20260620",
+      "title": "从 2026-06-20 播客主剪辑手对接直播稿整理派单卡草稿",
+      "status": "done",
+      "night_safe": true,
+      "requires_human": "当当确认预算、联系方式、哪些单可直接发接单台",
+      "files": [
+        "Obsidian: 剪辑营/2026-06-20 播客主剪辑手对接.md",
+        "Obsidian: 剪辑营/2026-06-20_派单卡草稿_播客主剪辑手对接.md"
+      ],
+      "definition_of_done": [
+        "从直播逐字稿提取播客主需求，整理为派单卡草稿",
+        "不确定信息标待确认，不自行脑补",
+        "只写 Obsidian 文档，不改代码、不碰正式站"
+      ],
+      "evidence": [
+        "2026-06-20 21:30 已产出 Obsidian 派单卡草稿：剪辑营/2026-06-20_派单卡草稿_播客主剪辑手对接.md；覆盖叶青、彤彤、熊豆芽、圆子姐 4 张派单卡；未改业务代码、未碰正式站"
+      ],
+      "notes": "这是直播稿 -> 派单草稿的首个样例。后续可复制成夜间安全任务，但当前仍以 oss-prod-watch 为唯一 in_progress。"
+    },
+
+    {
+      "id": "review-dispatch-requirement",
+      "title": "剪辑页常驻『本单需求』入口",
+      "status": "passing_test",
+      "night_safe": false,
+      "requires_human": "当当真账号真音频在 8090 验收，绿了升正式",
+      "files": ["剪辑台/web/review.html"],
+      "definition_of_done": [
+        "从接单任务进剪辑页能一键看到当前订单需求（目标时长/必须保留/必须删除/开头结尾/交付格式）",
+        "刷新后仍在",
+        "不影响审稿、删减、导出、提交审核"
+      ],
+      "evidence": [
+        "8090 验收：页面无脚本错误；本单需求解析样例正确；20次连续删除重画约22ms",
+        "备份 /root/nginx-backups/money-scissors-test-review-deep-parsefix-20260619-133953/",
+        "本地=测试站=公网8090 sha256 一致；正式站未动"
+      ],
+      "notes": "已在测试站做好并自验。等当当真机验收后才升正式。Hermes 夜间不要碰。"
+    },
+    {
+      "id": "orders-frontend-polish",
+      "title": "接单页前端打磨（试听下载/提交成品壳/任务卡）",
+      "status": "passing_test",
+      "night_safe": false,
+      "requires_human": "当当 8090 真账号验收，绿了升正式",
+      "files": ["剪辑台/web/orders/index.html"],
+      "definition_of_done": [
+        "接单详情有素材试听+下载，状态清楚",
+        "『提交成品』前端壳：工具选择+链接+说明+前端校验，后端 TODO 留给有人看的窗口",
+        "任务卡：派单编号/价格/私密单/无素材状态清楚"
+      ],
+      "evidence": [
+        "8090 health 200；任务 API 覆盖外部素材/站内素材/私密单/无素材单",
+        "本地=测试站=公网8090 md5 一致 99f1c2cc…；正式站未动",
+        "备份 /root/nginx-backups/money-scissors-test-orders-frontend-polish-20260619-132931/"
+      ],
+      "notes": "前端壳完成在测试站。后端接口未做（见 external-submission-backend）。Hermes 夜间不要碰。"
+    },
+
+    {
+      "id": "feedback-entry",
+      "title": "训练台统一问题反馈入口",
+      "status": "not_started",
+      "night_safe": false,
+      "requires_human": "代码窗口实现 + 当当验收升正式",
+      "files": ["剪辑台/web/training/path.html", "剪辑台/web/training/feedback.html(新)", "剪辑台/web/server.cjs"],
+      "definition_of_done": [
+        "训练台加统一反馈入口 + 新 feedback.html，学员选训练台/剪辑台/接单台并填页面、项目名/订单号、描述",
+        "新增 feedback_reports 表 + 学员提交接口 + 管理员列表/状态接口",
+        "第一版不做大文件上传"
+      ],
+      "evidence": [],
+      "notes": "方案已写（20260619_问题反馈入口后端方案.md）。碰 server.cjs+训练台页，必须有人看着，night_safe=false。"
+    },
+    {
+      "id": "external-submission-backend",
+      "title": "外部工具成品提交（后端）",
+      "status": "not_started",
+      "night_safe": false,
+      "requires_human": "代码窗口实现 + 当当验收升正式",
+      "files": ["剪辑台/web/server.cjs", "剪辑台/web/orders/index.html"],
+      "definition_of_done": [
+        "挂到现有 dispatch_claims，新增外部链接/工具/说明字段",
+        "学员提交后 claim 进 submitted，订单审核后台沿用现有采用/打回",
+        "第一版不做大文件上传、不自动下载外部链接"
+      ],
+      "evidence": [],
+      "notes": "方案已写。前端壳已在测试站（orders-frontend-polish）。碰 server.cjs，night_safe=false。"
+    },
+    {
+      "id": "day1-ai-feedback",
+      "title": "Day1 作业 AI 反馈 + 助教确认",
+      "status": "not_started",
+      "night_safe": false,
+      "requires_human": "代码窗口实现 + 当当验收",
+      "files": ["剪辑台/web/server.cjs", "剪辑台/web/admin.html", "剪辑台/web/js/admin.js"],
+      "definition_of_done": [
+        "AI 反馈只做『助教草稿』，不自动发学员",
+        "新增 day1_feedbacks 表，用 intro_hash 区分作业版本",
+        "DeepSeek 失败不影响 Day1 解锁，AI 反馈不作为接单资格"
+      ],
+      "evidence": [],
+      "notes": "P2。方案已写。碰 server.cjs+后台，night_safe=false。"
+    },
+
+    {
+      "id": "h2-sms",
+      "title": "H2 真短信 + 删除验证码后门",
+      "status": "blocked",
+      "night_safe": false,
+      "requires_human": "等运营商报备 + 当当配合控制台",
+      "files": ["剪辑台/web/server.cjs", "剪辑台/web/.env"],
+      "definition_of_done": [
+        "真机收码成功",
+        "页面/接口不再返回明文验证码（删 devCode 后门）"
+      ],
+      "evidence": [],
+      "notes": "卡运营商报备，任何人都别动。报备过了先配测试站真机收码再推正式。"
+    },
+    {
+      "id": "t1-prod-cron",
+      "title": "T1 自动清理正式站 cron",
+      "status": "blocked",
+      "night_safe": false,
+      "requires_human": "当当判断（观察几天磁盘趋势后再开，半夜别直接开）",
+      "files": ["服务器 crontab"],
+      "definition_of_done": [
+        "正式站加保守清理 cron，uploads 仍 dry-run，只清 refine/cut 临时文件",
+        "先观察磁盘趋势正常再开"
+      ],
+      "evidence": ["测试站已配 04:20 dry-run cron 观察中"],
+      "notes": "需当当拍板时机。night_safe=false。"
+    },
+    {
+      "id": "police-filing",
+      "title": "公安备案状态盯防",
+      "status": "blocked",
+      "night_safe": false,
+      "requires_human": "人工/控制台，非开发任务",
+      "files": [],
+      "definition_of_done": ["查到通过/待审/退回三种结果之一", "号下来后页脚加川公网安备号"],
+      "evidence": [],
+      "notes": "锦江区网安大队待审。主体可能个人 vs 公司不一致需重报。人工台任务。"
+    },
+    {
+      "id": "oss-prod-watch",
+      "title": "OSS 正式灰度观察期盯防",
+      "status": "in_progress",
+      "night_safe": true,
+      "requires_human": "异常时当当决定是否回退 local",
+      "files": ["只读：health / 上传冒烟 / 签名下载"],
+      "definition_of_done": [
+        "观察 1-2 天：上传 storage=oss、转写、生成MP3、下载、ECS 带宽均正常",
+        "异常记录到 OSS 盯防清单，不擅自切回"
+      ],
+      "evidence": [
+        "6/19 灰度：正式 storage=oss、prod/uploads、签名下载200、ffmpeg可解码",
+        "已知：RAM key 无 delete 权限，测试对象暂留 prod/uploads",
+        "2026-06-20 16:16 夜间只读观察：./init.sh 通过（server.cjs 语法 OK，正式/测试 health 200）；正式 HTTPS /api/health、/、/review.html 均 200；未做上传/转写/生成MP3写入冒烟，因夜间围栏禁止写正式站/数据库/上传；产出 Obsidian 需求讨论/20260620_OSS正式灰度观察记录.md"
+      ],
+      "notes": "只读盯防 night_safe=true，但任何切换/回退动作必须当当点头。"
+    }
+  ]
+}
