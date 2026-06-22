@@ -134,6 +134,7 @@ function renderLockedPage(user, step = 'day1', active = 'orders') {
 
 function renderUserMenu(user) {
   const name = displayName(user);
+  const feedbackHref = buildFeedbackHref();
   return `
     <details class="station-menu">
       <summary class="station-user" title="${escapeAttr(name)}">
@@ -141,12 +142,29 @@ function renderUserMenu(user) {
         <span class="station-caret">⌄</span>
       </summary>
       <div class="station-menu-pop">
+        <a href="${feedbackHref}">问题反馈</a>
         <a href="${scopedPath('/projects')}">我的项目</a>
         ${user?.isAdmin ? `<a href="${scopedPath('/orders-admin.html')}">接单后台</a><a href="${scopedPath('/admin')}">系统后台</a>` : ''}
         <button type="button" data-station-logout>退出登录</button>
       </div>
     </details>
   `;
+}
+
+function buildFeedbackHref() {
+  const station = feedbackStationFromPath(location.pathname);
+  const source = `${location.pathname || ''}${location.search || ''}`;
+  const page = [document.title || '', source].filter(Boolean).join(' · ');
+  return scopedPath(`/training/feedback.html?station=${encodeURIComponent(station)}&page=${encodeURIComponent(page)}`);
+}
+
+function feedbackStationFromPath(pathname) {
+  const path = String(pathname || '');
+  if (path.includes('/orders')) return 'orders';
+  if (path.includes('/training')) return 'training';
+  if (path.includes('/login')) return 'login';
+  if (path.includes('/edit') || path.includes('/review') || path.includes('/cut') || path.includes('/projects')) return 'editor';
+  return 'other';
 }
 
 function bindUserMenu(root) {

@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-06-21 下午
+> 更新：2026-06-22 深夜
 
 ---
 
@@ -49,7 +49,7 @@
 | A | 🔴 派单需求在剪辑页常驻可见 | 学员从接单任务进剪辑页后容易忘甲方需求。要做：剪辑页一键打开当前订单需求（目标时长/必须保留/必须删除/开头结尾/交付格式）。属剪辑台 `review.html`（+ 可能 `server.cjs` 读订单需求）。**只剩的真 P0。** |
 | B | 🔴 磁吸复查 | 学员仍报"字删了、听起来还在"。先纯调查出结论：已收口 / 部分收口 / 未收口，要修只动 `review.html`。 |
 | B | 🔴 问题反馈入口 | 审稿页加反馈入口，自动带项目名/页面名/用户信息+可上传截图。`review.html` + `server.cjs` 端点。 |
-| B | 🔴 外部工具成品提交入口 | 接单页/订单加"粘贴链接+文字说明"最小提交，关联订单和学员。短期仍可微信兜底，故 B。 |
+| B | ✅ 外部工具成品提交入口 | 2026-06-22 已修复粗剪后补交链路：接单提交粗剪进入待审核后，仍可补交/修改外部工具成品链接；粗剪快照和外部成品链接可同时保留，助教后台可同时看。Codex 复查发现“粗剪被打回后再补交外部成品，后台可能仍显示打回”的状态坑，已补修。 |
 | B | 🟡 技术债剩余闸门 | T1 自动清理正式 cron（观察磁盘几天后再开，半夜别直接开）；T4/T5 删除段格式归一+后端校验**测试站小闸门已就绪，正式上线需真机双项目试听验收 + 当当拍板**。 |
 | B | 🔴 公安备案盯防 | 金钱剪刀、传家宝、主体已提交锦江区网安大队待审。风险：公安主体个人 vs ICP 公司，可能退回重报。号下来后页脚加川公网安备号。属人工/控制台，非开发窗口。 |
 | B | GitHub 恢复点 | day7 已推。后续每个大收口继续留恢复点。 |
@@ -70,6 +70,10 @@
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-06-23 | 接单台转录失败全量回归收口 | 在 6/22 修复基础上，补测所有已知风险入口并确认正式站可用：老本地素材任务 2/6/7/11 全部转录 `SUCCEEDED`，阿里云收到的地址均已从 `/uploads/...` 变成 `https://bokejianji.cn/uploads/2026-06-21/...`；OSS 素材任务 12/13 也转录 `SUCCEEDED`，确认 `/api/orders/material/prod...` 仍走 OSS 签名，没有被相对路径修复误伤。回归 task_id：2=`7739f95c-71f1-4c3c-9694-705d99b029eb`，6=`bfa08db8-264b-4b87-8ded-c0eb6ba9a043`，7=`de12c24d-5f21-4fb9-a17b-f3ef7dbe6bfb`，11=`dc2be318-fdf1-4692-bb59-3f66b649495b`，12=`e66075b2-26b8-4230-8bd4-d7f6c2f3a329`，13=`0a9455d1-e587-4e67-858b-c94557ccaf1a`。经验沉淀已写入 Obsidian `项目/金钱剪刀/需求讨论/反馈与错误沉淀台账.md`，完成标准：代码上线、配置生效、测试/正式健康检查、老本地素材与 OSS 素材真转录成功、文档与日记留证。 |
+| 2026-06-22 | 接单台老本地素材阿里云转录失败修复 | 学员反馈接单台任务音频导入逐字稿失败，截图显示 DashScope `subtask_status: FAILED` 且 `file_url` 是 `/uploads/2026-06-21/dispatch-order-live-20260615.m4a` 相对路径。确认根因：任务 2/6/7/11 是 6/21 挂上的老本地素材，前端从接单台带入剪辑台时传 `/uploads/...`，后端提交给阿里云前未补公网域名；阿里云无法拉取音频。已白名单同步测试站和正式站 `server.cjs`、`js/transcribe.js`，并把测试 `.env PUBLIC_BASE_URL` 改为 `http://8.136.133.196:8090`、正式改为 `https://bokejianji.cn`。修复：后端统一规范化 DashScope 音频地址，`/uploads/...` 自动补公网 URL，`/api/orders/material/...` 继续走 OSS 签名；前端失败提示不再裸露阿里云 JSON。验证：本地语法检查通过；Codex 复查指出 PUBLIC_BASE_URL 优先级问题，已补修；正式站小音频转录 `SUCCEEDED`，任务 6 大音频转录 `SUCCEEDED`，阿里云看到的 `file_url=https://bokejianji.cn/uploads/2026-06-21/dispatch-order-live-20260615.m4a`；测试/正式 health 200。最终 sha256：`server.cjs`=`a28f63135e0ab02d716bf62f9121d526c7324bc63cd6c2da679af7f7755edd47`，`js/transcribe.js`=`6865779b88a52dcd8fe04c2a1e6a375cede1790f87e7f9849b204c8657d17037`。备份：测试 `/root/nginx-backups/money-scissors-test-transcribe-url-fix-20260622-235220/`、`/root/nginx-backups/money-scissors-test-transcribe-url-fix2-20260623-000142/`；正式 `/root/nginx-backups/money-scissors-prod-transcribe-url-fix-20260622-235417/`、`/root/nginx-backups/money-scissors-prod-transcribe-url-fix2-20260623-000203/`。沉淀文档：Obsidian `项目/金钱剪刀/需求讨论/反馈与错误沉淀台账.md`。 |
+| 2026-06-22 | 说话人身份纠正上线 | 学员反馈“瑶瑶是嘉宾”，截图显示播客主/嘉宾默认身份可能标反。确认根因：旧规则容易按说话人顺序默认命名，遇到“某某你好/欢迎某某”等开场会把打招呼者和被问候者弄反。已白名单同步测试站和正式站 `js/main.js`、`review.html`：新上传项目会优先根据开场问候线索判断播客主/嘉宾；无法判断时显示“说话人1/2”而不是硬猜；已生成的老项目首次打开时也会在用户未手动改名的前提下按开场问候矫正显示名；剪辑分析提示词禁止按顺序猜身份；审稿页左侧说话人列表新增“点名字改名”入口，顶部和左侧改名共用保存逻辑。验证：本地 `node --check js/main.js`、`npm run check`、审稿页内联脚本解析通过；模拟“瑶瑶你好”映射为打招呼的人=播客主、回应者=瑶瑶；测试/正式 health 200，本地/服务器/公网两文件 sha256 一致。最终 sha256：`main.js`=`939c735492df5da62bf1df3f6d9dc420410503348bdafcc8e87950c5adf7914e`，`review.html`=`c4af81f7aec2c0a8d42a8ac436ed3799d28c4d54c265e8a02c16e24079728f2e`。备份：测试 `/root/nginx-backups/money-scissors-test-speaker-role-20260622-204933/`；正式 `/root/nginx-backups/money-scissors-prod-speaker-role-20260622-205011/`。 |
+| 2026-06-22 | 接单台粗剪后补交外部成品入口修复 | 学员反馈“只提交粗剪后没有提交成品入口”。确认根因：接单状态进入 `submitted/待审核` 后，旧规则隐藏外部成品入口，且粗剪快照与外部成品链接会互相覆盖。已白名单同步测试站和正式站 `server.cjs`、`orders/index.html`，重启 `money-scissors-test` / `money-scissors-m2`；现在待审核订单仍显示“补交成品/修改成品提交”，保存时不再清掉粗剪或外部链接。Codex 复查后补修：粗剪被打回后再补交外部成品，助教后台按接单新状态显示待审核，不再被旧粗剪快照的打回状态压回去。测试/正式 health 200；本地/测试/正式两文件 sha256 一致。备份：测试 `/root/nginx-backups/money-scissors-test-order-final-submit-20260622-173053/`、`/root/nginx-backups/money-scissors-test-order-final-submit-reviewfix-20260622-175525/`；正式 `/root/nginx-backups/money-scissors-prod-order-final-submit-20260622-173135/`、`/root/nginx-backups/money-scissors-prod-order-final-submit-reviewfix-20260622-175544/`。 |
 | 2026-06-21 | 四场直播课派单素材补齐 | 正式站只更新数据和素材，未改代码、未重启服务。已上传开营直播、派单直播、复盘直播、对接直播 4 个 m4a 到 `/uploads/2026-06-21/`，sha256 与本地一致；派单页 #2 开营直播、#6 派单直播、#7 复盘直播均改为直连音频，新增 #11 对接直播订单｜播客主剪辑手对接。四个下载链接均 HTTP 200，学员端 `/api/orders/tasks` 用真实 Day2 账号口径读到 4 条；正式 health 200。数据库备份：`/root/nginx-backups/money-scissors-prod-live-audio-links-20260621-181736/`。 |
 | 2026-06-19 | 训练台作业 + OSS 灰度 + 故障弹窗 + 技术债 T1/T2/T3/T6 一批上线 | PDCA 复盘作业卡、剪辑师简历模板（均可填写提交，助教后台多 `PDCA`/`简历` 列）、训练素材包（FAQ/视频转 MP3）推正式；复盘直播改 B 站回放。OSS 正式站灰度切换（`STORAGE_BACKEND=oss/OSS_PREFIX=prod`，上传 storage=oss、签名下载 200，观察 1-2 天，RAM key 无 delete 权限）。服务器故障弹窗推正式（`js/api.js`+`server-trouble.jpg`，断网才弹）。审核后台序号乱+打回跳转 bug 修复推正式。技术债：T1 自动清理脚本（上两站，手动真清理正式回收 1.65GB，仅测试站配 dry-run cron）、T2 ffmpeg/ffprobe 硬超时、T3 任务中断 410 提示、T6 自动哨兵脚本（均上两站）；T4/T5 删除段归一+后端校验仅测试站小闸门。备份见各日记条目。 |
 | 2026-06-19 | 接单台五条派单 + 订单审核 P0 推正式站 | 已将 8090 验收通过的接单台 P0 推正式站，只同步 `server.cjs`、`orders/index.html`、`orders-admin.html`、`orders-review-admin.html`、`lib/oss.cjs`，并备份正式代码与 `users.db` 到 `/root/nginx-backups/money-scissors-prod-dispatch-p0-20260619-085725/`。正式库原本只有 #1-#5，新五条显式落为 #6 第二课、#7 第三课、#8 墨十三私密单、#9 Elainmmm 私密单、#10 熊豆芽公开单；第三课与熊豆芽素材已放正式站 `/uploads/2026-06-19/`，第二课挂腾讯会议链接。正式 health 200，PM2 `money-scissors-m2` online，unstable restarts=0；本地/正式 5 文件 sha256 一致。 |

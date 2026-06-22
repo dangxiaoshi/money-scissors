@@ -7,6 +7,7 @@ const SHOW_AI_REVIEW = false;
 const els = {};
 let users = [];
 let snapshots = [];
+let feedbackReports = [];
 let filter = 'all';
 let view = 'users';
 let modalUserId = null;
@@ -26,9 +27,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     filters: Array.from(document.querySelectorAll('[data-filter]')),
     views: Array.from(document.querySelectorAll('[data-view]')),
     exportBtn: document.getElementById('export-btn'),
+    feedbackCopyBtn: document.getElementById('feedback-copy-btn'),
     homeLink: document.getElementById('home-link'),
     usersPanel: document.getElementById('users-panel'),
     snapshotsPanel: document.getElementById('snapshots-panel'),
+    feedbackPanel: document.getElementById('feedback-panel'),
+    feedbackSummary: document.getElementById('feedback-summary'),
+    feedbackDigest: document.getElementById('feedback-digest'),
+    feedbackTbody: document.getElementById('feedback-table-body'),
     userFilterRow: document.getElementById('user-filter-row'),
     modalMask: document.getElementById('modal-mask'),
     modalTitle: document.getElementById('modal-title'),
@@ -42,9 +48,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindFilters();
   bindModal();
   els.exportBtn.addEventListener('click', exportCsv);
+  els.feedbackCopyBtn?.addEventListener('click', copyFeedbackDigest);
 
   await loadUsers();
   await loadSnapshots();
+  await loadFeedbackReports();
 });
 
 async function loadUsers() {
@@ -62,6 +70,16 @@ async function loadSnapshots() {
     const data = await apiJson('/api/admin/snapshots');
     snapshots = data.snapshots || [];
     renderSnapshots();
+  } catch (error) {
+    showError(error.message || String(error));
+  }
+}
+
+async function loadFeedbackReports() {
+  try {
+    const data = await apiJson('/api/admin/feedback/reports?limit=200');
+    feedbackReports = data.reports || [];
+    renderFeedbackReports();
   } catch (error) {
     showError(error.message || String(error));
   }
@@ -89,11 +107,15 @@ function bindFilters() {
 
 function renderView() {
   const isSnapshots = view === 'snapshots';
-  els.usersPanel.hidden = isSnapshots;
+  const isFeedback = view === 'feedback';
+  els.usersPanel.hidden = isSnapshots || isFeedback;
   els.snapshotsPanel.hidden = !isSnapshots;
-  els.userFilterRow.hidden = isSnapshots;
-  els.exportBtn.hidden = isSnapshots;
+  els.feedbackPanel.hidden = !isFeedback;
+  els.userFilterRow.hidden = isSnapshots || isFeedback;
+  els.exportBtn.hidden = isSnapshots || isFeedback;
+  if (els.feedbackCopyBtn) els.feedbackCopyBtn.hidden = !isFeedback;
   if (isSnapshots) renderSnapshots();
+  else if (isFeedback) renderFeedbackReports();
   else renderRows();
 }
 
@@ -197,6 +219,177 @@ function renderSnapshots() {
   els.snapshotTbody.querySelectorAll('[data-ai-review]').forEach((button) => {
     button.addEventListener('click', () => onAiReview(button));
   });
+}
+
+function renderFeedbackReports() {
+  renderFeedbackSummary();
+  if (!feedbackReports.length) {
+    els.feedbackTbody.innerHTML = '<tr><td colspan="5">还没有学员提交问题反馈。</td></tr>';
+    return;
+  }
+  els.feedbackTbody.innerHTML = feedbackReports.map((report) => {
+    const sourceUrl = safeFeedbackSourceUrl(report.pageUrl || report.context?.currentUrl || '');
+    const sourceLink = sourceUrl ? `<a class="cell-link" href="${escapeAttr(sourceUrl)}" target="_blank">打开页面</a>` : '<span class="cell-muted">—</span>';
+    return `
+      <tr data-feedback-id="${escapeAttr(report.id)}">
+        <td>
+          <div class="feedback-title">${escapeHtml(report.title || '(未写标题)')}</div>
+          <div class="feedback-desc">${escapeHtml(report.description || '—')}</div>
+          <div class="feedback-meta">${escapeHtml(formatDate(report.createdAt))}${report.severity === 'blocking' ? ' · 卡住了' : ''}</div>
+        </td>
+        <td>
+          <div>${escapeHtml(stationLabel(report.station))} · ${escapeHtml(report.page || '未填写')}</div>
+          <div class="feedback-meta">
+            ${report.projectId ? `项目 ${escapeHtml(report.projectId)}<br>` : ''}
+            ${report.dispatchTaskId ? `订单 #${escapeHtml(report.dispatchTaskId)}<br>` : ''}
+            ${sourceLink}
+          </div>
+        </td>
+        <td>
+          <div>${escapeHtml(report.userName || report.userPhone || '-')}</div>
+          <div class="feedback-meta">${report.userPhone ? escapeHtml(report.userPhone) : ''}</div>
+        </td>
+        <td><span class="feedback-status ${escapeAttr(report.status)}">${escapeHtml(feedbackStatusLabel(report.status))}</span></td>
+        <td>
+          <div class="feedback-actions">
+            ${feedbackActionButtons(report)}
+          </div>
+          <input class="table-input feedback-note" data-feedback-note value="${escapeAttr(report.adminNote || '')}" placeholder="处理备注">
+        </td>
+      </tr>
+    `;
+  }).join('');
+  els.feedbackTbody.querySelectorAll('[data-feedback-status]').forEach((button) => {
+    button.addEventListener('click', () => updateFeedbackStatus(button));
+  });
+}
+
+function renderFeedbackSummary() {
+  const today = feedbackReports.filter((report) => isToday(report.createdAt));
+  const openToday = today.filter((report) => report.status === 'open');
+  const blockingToday = today.filter((report) => report.severity === 'blocking');
+  const resolvedToday = today.filter((report) => report.status === 'resolved');
+  els.feedbackSummary.innerHTML = [
+    ['今日反馈', today.length],
+    ['今日待处理', openToday.length],
+    ['今日卡住', blockingToday.length],
+    ['今日解决', resolvedToday.length],
+  ].map(([label, value]) => `
+    <div class="feedback-card">
+      <div class="feedback-num">${value}</div>
+      <div class="feedback-label">${label}</div>
+    </div>
+  `).join('');
+  els.feedbackDigest.innerHTML = `<div class="feedback-title">今日晨报</div>${escapeHtml(buildFeedbackDigestText()).replace(/\n/g, '<br>')}`;
+}
+
+function feedbackActionButtons(report) {
+  const id = escapeAttr(report.id);
+  const buttons = [];
+  if (report.status !== 'triaged') buttons.push(`<button class="secondary-btn mini-btn" data-feedback-status="triaged" data-feedback-id="${id}" type="button">处理中</button>`);
+  if (report.status !== 'resolved') buttons.push(`<button class="secondary-btn mini-btn" data-feedback-status="resolved" data-feedback-id="${id}" type="button">解决</button>`);
+  if (report.status !== 'ignored') buttons.push(`<button class="secondary-btn mini-btn" data-feedback-status="ignored" data-feedback-id="${id}" type="button">忽略</button>`);
+  if (report.status !== 'open') buttons.push(`<button class="secondary-btn mini-btn" data-feedback-status="open" data-feedback-id="${id}" type="button">重开</button>`);
+  return buttons.join('');
+}
+
+async function updateFeedbackStatus(button) {
+  const id = button.dataset.feedbackId;
+  const status = button.dataset.feedbackStatus;
+  const row = button.closest('tr');
+  const adminNote = row?.querySelector('[data-feedback-note]')?.value || '';
+  if (!id || !status) return;
+  try {
+    button.disabled = true;
+    await apiJson(`/api/admin/feedback/reports/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, adminNote }),
+    });
+    await loadFeedbackReports();
+    hideError();
+  } catch (error) {
+    showError(error.message || String(error));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function buildFeedbackDigestText() {
+  const today = feedbackReports.filter((report) => isToday(report.createdAt));
+  if (!today.length) return '今天暂时没有新的问题反馈。';
+  const blocking = today.filter((report) => report.severity === 'blocking');
+  const open = today.filter((report) => report.status === 'open');
+  const byStation = topCounts(today.map((report) => stationLabel(report.station))).slice(0, 3);
+  const topPages = topCounts(today.map((report) => report.page || '未填页面')).slice(0, 3);
+  const lines = [
+    `今天新增 ${today.length} 条反馈，其中 ${blocking.length} 条卡住了，${open.length} 条还待处理。`,
+    byStation.length ? `集中位置：${byStation.map(([name, count]) => `${name} ${count}条`).join('、')}。` : '',
+    topPages.length ? `高频页面/步骤：${topPages.map(([name, count]) => `${name} ${count}条`).join('、')}。` : '',
+  ].filter(Boolean);
+  const urgent = today
+    .filter((report) => report.status === 'open' || report.severity === 'blocking')
+    .slice(0, 5);
+  if (urgent.length) {
+    lines.push('优先看：');
+    urgent.forEach((report, index) => {
+      const label = report.severity === 'blocking' ? '卡住' : feedbackStatusLabel(report.status);
+      lines.push(`${index + 1}. [${label}] ${stationLabel(report.station)} / ${report.page || '未填页面'}：${report.title || report.description || '未写标题'}`);
+    });
+  }
+  return lines.join('\n');
+}
+
+function copyFeedbackDigest() {
+  const text = buildFeedbackDigestText();
+  const copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
+    ? navigator.clipboard.writeText(text)
+    : Promise.reject(new Error('clipboard_unavailable'));
+  copy
+    .then(() => {
+      if (els.feedbackCopyBtn) els.feedbackCopyBtn.textContent = '已复制';
+      setTimeout(() => { if (els.feedbackCopyBtn) els.feedbackCopyBtn.textContent = '复制今日晨报'; }, 1200);
+    })
+    .catch(() => showError('复制失败，请手动选中今日晨报。'));
+}
+
+function topCounts(values) {
+  const counts = new Map();
+  values.filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+function isToday(value) {
+  const date = new Date(value || '');
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+}
+
+function stationLabel(value) {
+  return {
+    training: '训练台',
+    editor: '剪辑台',
+    orders: '接单台',
+    login: '登录',
+    other: '其他',
+  }[value] || '其他';
+}
+
+function feedbackStatusLabel(value) {
+  return {
+    open: '待处理',
+    triaged: '处理中',
+    resolved: '已解决',
+    ignored: '已忽略',
+  }[value] || '待处理';
+}
+
+function safeFeedbackSourceUrl(value) {
+  const text = String(value || '').trim();
+  if (!text.startsWith('/') || text.startsWith('//')) return '';
+  return text.slice(0, 500);
 }
 
 async function onAiReview(button) {

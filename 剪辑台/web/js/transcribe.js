@@ -30,7 +30,8 @@ export async function transcribeWithFunASR(audioSource, speakerCount, { onStatus
     }
 
     if (status === 'FAILED') {
-      throw new Error(`阿里云转录失败：${JSON.stringify(data)}`);
+      console.error('[transcribe] DashScope task failed', data);
+      throw new Error(formatTranscriptionFailure(data));
     }
   }
 
@@ -46,6 +47,12 @@ function normalizeAudioSource(source) {
     };
   }
   return { audioUrl: String(source || ''), storage: '', objectKey: '' };
+}
+
+function formatTranscriptionFailure(data) {
+  const taskId = data?.output?.task_id || data?.request_id || '';
+  const suffix = taskId ? `（错误编号：${taskId}）` : '';
+  return `音频导入失败，可能是素材地址临时不可用或阿里云没有拉到音频。请先重试一次；如果还失败，先下载音频后手动上传。${suffix}`;
 }
 
 async function submitTask(source, speakerCount) {

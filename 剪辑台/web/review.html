@@ -317,7 +317,13 @@ body.resizing-sidebar {
 
 /* Speakers */
 .sp-legend { display:flex; flex-direction:column; gap: 10px; }
-.sp-row { display:flex; align-items:center; gap: 10px; }
+.sp-edit-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.sp-row {
+  display:flex; align-items:center; gap: 10px;
+  width: 100%; border: 0; background: transparent; padding: 0;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.sp-row:hover .sp-name { color: var(--accent-deep); }
 .sp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink:0; }
 .sp-name { font-size: 14px; font-weight: 600; color: var(--ink); flex:1; }
 .sp-val { font-family: "SF Mono", monospace; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1540,6 +1546,69 @@ const spDisplayNames = {}; // original name → display name
 function displaySp(name) {
   return spDisplayNames[name] || name;
 }
+function applyOpeningSpeakerDisplayHints(){
+  if (Object.keys(spDisplayNames).length || spList.length <= 1) return;
+  const opening = S.slice(0, 18).map((x, order) => ({
+    order,
+    speaker: x.sp,
+    text: String(x.t || '').trim(),
+  })).filter(x => x.speaker && x.text);
+  for (let i = 0; i < opening.length; i++) {
+    const item = opening[i];
+    const guestName = detectAddressedGuestName(item.text);
+    if (!guestName && !hasHostOpeningCue(item.text)) continue;
+    const guestSpeaker = guestName ? findLikelyGuestSpeaker(opening, i, item.speaker) : '';
+    applySpeakerRoleHints(item.speaker, guestSpeaker, guestName);
+    return;
+  }
+}
+function detectAddressedGuestName(text){
+  const compact = String(text || '').replace(/\s+/g, '');
+  const patterns = [
+    /([\u4e00-\u9fa5]{1,5})(?:老师|同学)?[，,、。！？!?\s]*(?:你好|您好)/,
+    /(?:欢迎|邀请|有请|请到)(?:我们的|咱们的)?([\u4e00-\u9fa5]{1,5})(?:老师|同学)?/,
+  ];
+  for (const pattern of patterns) {
+    const match = compact.match(pattern);
+    const name = normalizeAddressedName(match && match[1]);
+    if (name) return name;
+  }
+  return '';
+}
+function normalizeAddressedName(value){
+  const name = String(value || '')
+    .replace(/^(哎|诶|欸|啊|嗯|呃)+/, '')
+    .replace(/(老师|同学|嘉宾|主播|播客主)$/g, '')
+    .trim();
+  const generic = new Set(['大家','各位','老师','同学','朋友','我们','你们','这个','那个']);
+  if (name.length < 2 || name.length > 4 || generic.has(name)) return '';
+  return name;
+}
+function hasHostOpeningCue(text){
+  return /欢迎|今天请|今天邀请|先介绍一下|自我介绍一下|能听清吗|可以开始|我们开始|正式开始/.test(String(text || ''));
+}
+function findLikelyGuestSpeaker(opening, cueIndex, hostSpeaker){
+  const replyPattern = /^(啊|嗯|呃|哎|诶|欸|好|可以|那个|这个)?[，,、\s]*(你好|您好|大家好|可以|能听清|听得到|我是|我是说|对)/;
+  for (let i = cueIndex + 1; i < Math.min(opening.length, cueIndex + 6); i++) {
+    const item = opening[i];
+    if (item.speaker !== hostSpeaker && replyPattern.test(item.text)) return item.speaker;
+  }
+  const nextDifferent = opening.slice(cueIndex + 1, cueIndex + 6).find(item => item.speaker !== hostSpeaker);
+  return nextDifferent ? nextDifferent.speaker : '';
+}
+function applySpeakerRoleHints(hostSpeaker, namedGuestSpeaker, namedGuestName){
+  let guestIndex = 1;
+  spList.forEach(sp => {
+    if (sp === hostSpeaker) {
+      spDisplayNames[sp] = '播客主';
+    } else if (namedGuestSpeaker && sp === namedGuestSpeaker && namedGuestName) {
+      spDisplayNames[sp] = namedGuestName;
+    } else {
+      spDisplayNames[sp] = `嘉宾${guestIndex}`;
+      guestIndex += 1;
+    }
+  });
+}
 S.forEach(x=>{ if(x.ai) del.add(x.idx); if(x.sug) del.add(x.idx); });
 
 if (window.__READ_ONLY) {
@@ -1563,6 +1632,10 @@ let refineSettings = loadRefineSettings();
 
 function fm(s){ if(s<0)s=0; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=Math.floor(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${m}:${String(sc).padStart(2,'0')}`; }
 function esc(t){ return String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function attrJsString(value){ return esc(JSON.stringify(String(value ?? ''))); }
+function speakerNameId(prefix, name){
+  return `${prefix}-${String(name ?? '').split('').map(ch => /[a-zA-Z0-9_-]/.test(ch) ? ch : '_' + ch.charCodeAt(0).toString(16)).join('')}`;
+}
 
 function loadRefineSettings(){
   try {
@@ -2079,12 +2152,7 @@ function renderSidebar() {
 
   // Speaker legend
   const en=spList.filter(sp=>sd[sp]>0).map(sp=>({n:sp,d:sd[sp]||0}));
-  if (en.length) {
-    document.getElementById('spleg').innerHTML = en.map(e => {
-      const p = Math.round(e.d / rc * 100);
-      return `<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${esc(displaySp(e.n))}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
-    }).join('');
-  }
+  renderSpeakerLegend(en, rc);
 
   // Ensure decision sections populated
   if (!decisionSections.length && DECISION_REPORT) {
@@ -2132,6 +2200,24 @@ function renderSidebar() {
   }).join('');
 
   renderDurInfo();
+}
+
+function renderSpeakerLegend(entries, roughcutDuration) {
+  const legend = document.getElementById('spleg');
+  if (!legend) return;
+  if (!entries.length) {
+    legend.innerHTML = '';
+    return;
+  }
+  const rows = entries.map(e => {
+    const p = roughcutDuration > 0 ? Math.round(e.d / roughcutDuration * 100) : 0;
+    const nameId = speakerNameId('spleg', e.n);
+    return `<button type="button" class="sp-row" onclick="startRenameSp(${attrJsString(e.n)}, ${attrJsString(nameId)})" title="点击改名"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name" id="${esc(nameId)}">${esc(displaySp(e.n))}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></button>`;
+  });
+  legend.innerHTML = [
+    '<div class="sp-edit-hint">说话人标错了？点名字改成“播客主”或“瑶瑶”。</div>',
+    ...rows,
+  ].join('');
 }
 
 function switchSidebarTab() { /* tabs removed — sidebar is now single panel */ }
@@ -2593,17 +2679,18 @@ function renderDurInfo() {
   const { rc, sd } = currentStats();
   let html = '';
   spList.filter(sp => sd[sp] > 0).forEach(sp => {
-    const pct = Math.round(sd[sp] / rc * 100);
+    const pct = rc > 0 ? Math.round(sd[sp] / rc * 100) : 0;
     const color = spCMap[sp] || '#888';
     const dName = displaySp(sp);
-    html += `<span class="sp-chip" onclick="startRenameSp('${esc(sp)}')" title="点击改名"><span class="sp-chip-dot" style="background:${color}"></span><span class="sp-chip-name" id="spchip-${esc(sp)}">${esc(dName)}</span><span class="sp-chip-pct">${pct}%</span></span>`;
+    const nameId = speakerNameId('spchip', sp);
+    html += `<span class="sp-chip" onclick="startRenameSp(${attrJsString(sp)}, ${attrJsString(nameId)})" title="点击改名"><span class="sp-chip-dot" style="background:${color}"></span><span class="sp-chip-name" id="${esc(nameId)}">${esc(dName)}</span><span class="sp-chip-pct">${pct}%</span></span>`;
   });
   bar.innerHTML = html;
 }
 
-function startRenameSp(origName) {
+function startRenameSp(origName, nameElementId) {
   if (window.__READ_ONLY) return;
-  const nameEl = document.getElementById('spchip-' + origName);
+  const nameEl = document.getElementById(nameElementId || speakerNameId('spchip', origName));
   if (!nameEl) return;
   const current = displaySp(origName);
   const input = document.createElement('input');
@@ -2618,15 +2705,7 @@ function startRenameSp(origName) {
     if (newName) spDisplayNames[origName] = newName;
     renderDurInfo();
     renderTx();
-    // update sidebar speaker legend
-    const { rc, sd } = computeStats();
-    const en = spList.filter(sp => sd[sp] > 0).map(sp => ({ n: sp, d: sd[sp] || 0 }));
-    if (en.length) {
-      document.getElementById('spleg').innerHTML = en.map(e => {
-        const p = Math.round(e.d / rc * 100);
-        return `<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${esc(displaySp(e.n))}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
-      }).join('');
-    }
+    renderSidebar();
     sv();
   };
   input.addEventListener('blur', commit);
@@ -3671,7 +3750,7 @@ window.addEventListener('pagehide', () => {
 });
 function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
 
-rs();renderAll();initRefineBar();initSidebarResize();kpRenderLib();initOrderRequirements();
+rs();applyOpeningSpeakerDisplayHints();renderAll();initRefineBar();initSidebarResize();kpRenderLib();initOrderRequirements();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
 
 </script>

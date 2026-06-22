@@ -451,7 +451,7 @@ const statements = {
     FROM dispatch_claims
     WHERE task_id = @task_id
       AND user_id = @user_id
-      AND status IN ('in_progress', 'returned')
+      AND status IN ('in_progress', 'returned', 'submitted')
       AND (@id = 0 OR id = @id)
     ORDER BY updated_at DESC, id DESC
     LIMIT 1
@@ -526,15 +526,11 @@ const statements = {
         submitted_at = @submitted_at,
         updated_at = @updated_at,
         project_id = @project_id,
-        snapshot_id = @snapshot_id,
-        external_submission_json = '',
-        external_submission_url = '',
-        external_tool = '',
-        external_submitted_at = NULL
+        snapshot_id = @snapshot_id
     WHERE id = @id
       AND task_id = @task_id
       AND user_id = @user_id
-      AND status IN ('in_progress', 'returned')
+      AND status IN ('in_progress', 'returned', 'submitted')
   `),
   saveExternalDispatchSubmission: db.prepare(`
     UPDATE dispatch_claims
@@ -544,12 +540,10 @@ const statements = {
         external_submitted_at = @external_submitted_at,
         external_submission_url = @external_submission_url,
         external_tool = @external_tool,
-        external_submission_json = @external_submission_json,
-        project_id = '',
-        snapshot_id = ''
+        external_submission_json = @external_submission_json
     WHERE id = @id
       AND user_id = @user_id
-      AND status IN ('in_progress', 'returned')
+      AND status IN ('in_progress', 'returned', 'submitted')
   `),
   markDispatchClaimApproved: db.prepare(`
     UPDATE dispatch_claims
@@ -1103,11 +1097,13 @@ function publicDispatchClaim(row, taskRow = null) {
 
 function publicDispatchReviewClaim(row) {
   const snapshotStatus = row.snapshot_status || '';
-  const visibleStatus = snapshotStatus === 'rejected'
-    ? (row.status === 'rejected' ? 'rejected' : 'returned')
-    : snapshotStatus === 'approved'
-      ? 'completed'
-      : row.status || 'in_progress';
+  const visibleStatus = row.status === 'submitted'
+    ? 'submitted'
+    : snapshotStatus === 'rejected'
+      ? (row.status === 'rejected' ? 'rejected' : 'returned')
+      : snapshotStatus === 'approved'
+        ? 'completed'
+        : row.status || 'in_progress';
   return {
     id: Number(row.id || 0),
     taskId: Number(row.task_id || 0),
@@ -1470,7 +1466,7 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
       return;
     }
-    if (!['in_progress', 'returned'].includes(claim.status)) {
+    if (!['in_progress', 'returned', 'submitted'].includes(claim.status)) {
       sendJson(res, 409, { error: 'claim_not_editable', message: '这单当前不能重复提交。' });
       return;
     }
@@ -2362,6 +2358,15 @@ async function handleDashScope(req, res, url) {
       sendJson(res, 400, { error: 'missing_audioUrl' });
       return;
     }
+    try {
+      fileUrl = normalizeDashScopeAudioUrl(fileUrl, req);
+    } catch (error) {
+      sendJson(res, error.statusCode || 400, {
+        error: 'invalid_audio_url',
+        message: error.message || '音频地址无效，请下载音频后重新上传。',
+      });
+      return;
+    }
 
     recordUsage(user.id, 'transcribe');
     await proxyJson(res, SUBMIT_URL, {
@@ -2403,6 +2408,63 @@ async function handleDashScope(req, res, url) {
   }
 
   sendJson(res, 404, { error: 'not_found' });
+}
+
+function normalizeDashScopeAudioUrl(value, req) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\/uploads\/\S+/i.test(raw)) {
+    const baseUrl = requestPublicBaseUrl(req);
+    if (!baseUrl) {
+      const error = new Error('音频地址缺少公网域名，请下载音频后重新上传。');
+      error.statusCode = 400;
+      throw error;
+    }
+    return new URL(raw, baseUrl).toString();
+  }
+  if (/^\//.test(raw)) {
+    const error = new Error('音频地址无效，请下载音频后重新上传。');
+    error.statusCode = 400;
+    throw error;
+  }
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    const error = new Error('音频地址无效，请下载音频后重新上传。');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!/^https?:$/.test(parsed.protocol)) {
+    const error = new Error('音频地址无效，请下载音频后重新上传。');
+    error.statusCode = 400;
+    throw error;
+  }
+  return parsed.toString();
+}
+
+function requestPublicBaseUrl(req) {
+  const configuredBaseUrl = normalizeHttpBaseUrl(PUBLIC_BASE_URL);
+  if (configuredBaseUrl) return configuredBaseUrl;
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const host = forwardedHost || String(req.headers.host || '').split(',')[0].trim();
+  if (host) {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const proto = forwardedProto || (/^(www\.)?bokejianji\.cn(?::\d+)?$/i.test(host) ? 'https' : 'http');
+    return normalizeHttpBaseUrl(`${proto}://${host}`);
+  }
+  return '';
+}
+
+function normalizeHttpBaseUrl(value) {
+  if (!value) return '';
+  try {
+    const parsed = new URL(String(value));
+    if (!/^https?:$/.test(parsed.protocol)) return '';
+    return parsed.origin.replace(/\/+$/g, '');
+  } catch {
+    return '';
+  }
 }
 
 async function handleUpload(req, res, url) {

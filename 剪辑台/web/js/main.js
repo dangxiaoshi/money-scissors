@@ -5,6 +5,7 @@ import { apiJson, ensureLoggedIn, postUsage, setupSessionChrome } from './api.js
 import {
   buildReviewPayload,
   buildSpeakerGroups,
+  getAliyunSentences,
   generateSentences,
   generateSubtitlesWords,
 } from './transcript.js?v=20260618-oss-1';
@@ -608,16 +609,101 @@ function sleep(ms) {
 
 function buildDefaultSpeakerMapping(transcription) {
   const groups = buildSpeakerGroups(transcription);
-  const defaultNames = buildDefaultSpeakerNames(groups);
+  const inferred = inferOpeningSpeakerMapping(transcription, groups);
+  if (inferred) return inferred;
+  const defaultNames = buildNeutralSpeakerNames(groups);
   return groups.reduce((mapping, group, index) => {
     mapping[group.speakerId] = defaultNames[index] || `说话人${index + 1}`;
     return mapping;
   }, {});
 }
 
-function buildDefaultSpeakerNames(groups) {
+function buildNeutralSpeakerNames(groups) {
   if (groups.length <= 1) return ['播客主'];
-  return groups.map((_, index) => (index === 0 ? '播客主' : `嘉宾${index}`));
+  return groups.map((_, index) => `说话人${index + 1}`);
+}
+
+function inferOpeningSpeakerMapping(transcription, groups) {
+  if (!Array.isArray(groups) || groups.length <= 1) return null;
+  let sentences = [];
+  try {
+    sentences = getAliyunSentences(transcription);
+  } catch (_) {
+    return null;
+  }
+
+  const opening = sentences.slice(0, 18).map((sentence, order) => ({
+    order,
+    speakerId: String(sentence.speaker_id ?? '0'),
+    text: readRawSentenceText(sentence),
+  })).filter((item) => item.text);
+
+  for (let i = 0; i < opening.length; i += 1) {
+    const item = opening[i];
+    const guestName = detectAddressedGuestName(item.text);
+    if (guestName || hasHostOpeningCue(item.text)) {
+      const guestId = guestName ? findLikelyGuestReply(opening, i, item.speakerId) : '';
+      return buildRoleSpeakerMapping(groups, item.speakerId, guestId, guestName);
+    }
+  }
+  return null;
+}
+
+function readRawSentenceText(sentence) {
+  return String(sentence?.text || sentence?.words?.map((word) => `${word.text || ''}${word.punctuation || ''}`).join('') || '').trim();
+}
+
+function detectAddressedGuestName(text) {
+  const compact = String(text || '').replace(/\s+/g, '');
+  const patterns = [
+    /([\u4e00-\u9fa5]{1,5})(?:老师|同学)?[，,、。！？!?\s]*(?:你好|您好)/,
+    /(?:欢迎|邀请|有请|请到)(?:我们的|咱们的)?([\u4e00-\u9fa5]{1,5})(?:老师|同学)?/,
+  ];
+  for (const pattern of patterns) {
+    const match = compact.match(pattern);
+    const name = normalizeAddressedName(match?.[1]);
+    if (name) return name;
+  }
+  return '';
+}
+
+function normalizeAddressedName(value) {
+  let name = String(value || '')
+    .replace(/^(哎|诶|欸|啊|嗯|呃)+/, '')
+    .replace(/(老师|同学|嘉宾|主播|播客主)$/g, '')
+    .trim();
+  const generic = new Set(['大家', '各位', '老师', '同学', '朋友', '我们', '你们', '这个', '那个']);
+  if (name.length < 2 || name.length > 4 || generic.has(name)) return '';
+  return name;
+}
+
+function hasHostOpeningCue(text) {
+  return /欢迎|今天请|今天邀请|先介绍一下|自我介绍一下|能听清吗|可以开始|我们开始|正式开始/.test(String(text || ''));
+}
+
+function findLikelyGuestReply(opening, cueIndex, hostId) {
+  const replyPattern = /^(啊|嗯|呃|哎|诶|欸|好|可以|那个|这个)?[，,、\s]*(你好|您好|大家好|可以|能听清|听得到|我是|我是说|对)/;
+  for (let i = cueIndex + 1; i < Math.min(opening.length, cueIndex + 6); i += 1) {
+    const item = opening[i];
+    if (item.speakerId !== hostId && replyPattern.test(item.text)) return item.speakerId;
+  }
+  const nextDifferent = opening.slice(cueIndex + 1, cueIndex + 6).find((item) => item.speakerId !== hostId);
+  return nextDifferent?.speakerId || '';
+}
+
+function buildRoleSpeakerMapping(groups, hostId, namedGuestId, namedGuestName) {
+  let guestIndex = 1;
+  return groups.reduce((mapping, group) => {
+    if (group.speakerId === hostId) {
+      mapping[group.speakerId] = '播客主';
+    } else if (namedGuestId && group.speakerId === namedGuestId && namedGuestName) {
+      mapping[group.speakerId] = namedGuestName;
+    } else {
+      mapping[group.speakerId] = `嘉宾${guestIndex}`;
+      guestIndex += 1;
+    }
+    return mapping;
+  }, {});
 }
 
 function updateProcess(title) {
@@ -711,6 +797,8 @@ const ANALYSIS_PROMPT = `你是一个做了十年内容营销的播客剪辑顾�
 语气要求：说人话，别用书面语，别用AI味的词，不要用书名号，不要用「」这种括号，写出来要像跟朋友聊天一样。
 
 用户会给你带句子编号的播客逐字稿。你直接分析，别问东问西，有什么就分析什么。
+
+说话人身份规则：不要因为某个说话人排在前面就认定他是播客主。只有从原文里能看出来，比如某人说“某某你好”“欢迎某某”“请你介绍一下自己”，才判断谁是播客主、谁是嘉宾。被点名问候的人通常是嘉宾。如果听不出来，就写不明确，不要硬猜。
 
 你必须把整期内容拆成 4 个折叠块：
 1. 前情总览
