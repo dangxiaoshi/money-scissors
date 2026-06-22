@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-06-19 下午
+> 更新：2026-06-21 下午
 
 ---
 
@@ -22,7 +22,7 @@
 | 剪辑台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web` | 核心，全栈都在这里 |
 | 训练台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web/training` | 正式训练台：课表、SOP、Day1 自我介绍 |
 | 接单台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web/orders` | 正式接单台：接单大厅、排行榜、派单 |
-| 旧资料 | `/Users/dang/Desktop/金钱剪刀_旧资料_待整理_20260610/三台独立旧版_20260612` | 旧独立 `训练台/`、`接单台/` 已移走，别当现状 |
+| 旧资料 | `/Users/dang/Desktop/金钱剪刀/金钱剪刀_旧资料_待整理_20260610/` | 旧独立 `训练台/`、`接单台/` 与历史剪辑音频留档，别当现状 |
 
 ## 服务器和入口
 
@@ -70,6 +70,7 @@
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-06-21 | 四场直播课派单素材补齐 | 正式站只更新数据和素材，未改代码、未重启服务。已上传开营直播、派单直播、复盘直播、对接直播 4 个 m4a 到 `/uploads/2026-06-21/`，sha256 与本地一致；派单页 #2 开营直播、#6 派单直播、#7 复盘直播均改为直连音频，新增 #11 对接直播订单｜播客主剪辑手对接。四个下载链接均 HTTP 200，学员端 `/api/orders/tasks` 用真实 Day2 账号口径读到 4 条；正式 health 200。数据库备份：`/root/nginx-backups/money-scissors-prod-live-audio-links-20260621-181736/`。 |
 | 2026-06-19 | 训练台作业 + OSS 灰度 + 故障弹窗 + 技术债 T1/T2/T3/T6 一批上线 | PDCA 复盘作业卡、剪辑师简历模板（均可填写提交，助教后台多 `PDCA`/`简历` 列）、训练素材包（FAQ/视频转 MP3）推正式；复盘直播改 B 站回放。OSS 正式站灰度切换（`STORAGE_BACKEND=oss/OSS_PREFIX=prod`，上传 storage=oss、签名下载 200，观察 1-2 天，RAM key 无 delete 权限）。服务器故障弹窗推正式（`js/api.js`+`server-trouble.jpg`，断网才弹）。审核后台序号乱+打回跳转 bug 修复推正式。技术债：T1 自动清理脚本（上两站，手动真清理正式回收 1.65GB，仅测试站配 dry-run cron）、T2 ffmpeg/ffprobe 硬超时、T3 任务中断 410 提示、T6 自动哨兵脚本（均上两站）；T4/T5 删除段归一+后端校验仅测试站小闸门。备份见各日记条目。 |
 | 2026-06-19 | 接单台五条派单 + 订单审核 P0 推正式站 | 已将 8090 验收通过的接单台 P0 推正式站，只同步 `server.cjs`、`orders/index.html`、`orders-admin.html`、`orders-review-admin.html`、`lib/oss.cjs`，并备份正式代码与 `users.db` 到 `/root/nginx-backups/money-scissors-prod-dispatch-p0-20260619-085725/`。正式库原本只有 #1-#5，新五条显式落为 #6 第二课、#7 第三课、#8 墨十三私密单、#9 Elainmmm 私密单、#10 熊豆芽公开单；第三课与熊豆芽素材已放正式站 `/uploads/2026-06-19/`，第二课挂腾讯会议链接。正式 health 200，PM2 `money-scissors-m2` online，unstable restarts=0；本地/正式 5 文件 sha256 一致。 |
 | 2026-06-18 | OSS 下载阻断方案推测试站（正式站未动） | 接手另一窗口 token 中断后的 OSS 迁移，补齐前端最小 `storage/objectKey` 传递并修复 `/codex review` 指出的问题：不同 cut 任务不再错接、`money-scissors-private/` 和 `web/data/cut-jobs/` 已 gitignore、旧 OSS 项目重开会重新签播放链接、OSS 上传流边传边限 500MB、本地多音频不再被误判成 OSS、接单任务 OSS 素材改为稳定入口。测试站备份：`/root/nginx-backups/money-scissors-test-oss-frontend-20260618-203001`、`/root/nginx-backups/money-scissors-test-oss-fix-20260618-204812`、`/root/nginx-backups/money-scissors-test-oss-order-material-20260618-212324`。真接口回归通过：上传 objectKey=`test/uploads/...`，转写 `SUCCEEDED`，旧项目重开返回新 OSS 签名链接，重复 cut 续接同 job，不同 cut 返回 `cut_user_busy`，下载 302 到 `test/cut/...` 且 OSS HTTP 200；接单任务材料入口 `/api/orders/material/...` 可 302 到 OSS、DashScope 转写成功、备用 MP3 生成后下载 302 到 `test/cut/...`。测试/正式 health 均 200；正式 `.env` 无 `STORAGE_BACKEND/OSS_PREFIX`。 |

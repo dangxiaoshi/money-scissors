@@ -854,7 +854,7 @@
           <span class="claim-status">${escapeHtml(claimStatusHint(claim))}</span>
           <div class="task-actions">
             ${renderClaimPrimaryActions(claim)}
-            <button class="path-btn secondary" type="button" data-submit-claim="${escapeAttr(claim.id)}" ${canSubmitClaim(claim.status) ? '' : 'hidden'}>提交成品</button>
+            <button class="path-btn secondary" type="button" data-submit-claim="${escapeAttr(claim.id)}" ${canSubmitClaim(claim.status) ? '' : 'hidden'}>${escapeHtml(claimSubmitAction(claim))}</button>
             <button class="path-btn secondary" type="button" data-abandon-claim="${escapeAttr(claim.id)}" ${canAbandonClaim(claim.status) ? '' : 'hidden'}>放弃此单</button>
           </div>
         </article>`).join('');
@@ -884,6 +884,7 @@
       start.setAttribute('aria-disabled', canStartTask(task) ? 'false' : 'true');
       const submit = document.getElementById('detail-submit-work');
       submit.hidden = !task.myClaim || !canSubmitClaim(task.myClaim.status);
+      submit.textContent = task.myClaim ? claimSubmitAction(task.myClaim) : '提交成品';
       submit.dataset.taskId = task.id;
       const dialog = document.getElementById('task-dialog');
       dialog.classList.add('visible');
@@ -981,6 +982,8 @@
         updatedAt: claim.updatedAt || claim.updated_at || '',
         submittedAt: claim.submittedAt || claim.submitted_at || '',
         reviewNote: claim.reviewNote || claim.review_note || '',
+        projectId: claim.projectId || claim.project_id || '',
+        snapshotId: claim.snapshotId || claim.snapshot_id || '',
         externalSubmission: normalizeExternalSubmission(claim.externalSubmission || claim.external_submission),
         task: {
           id: String(task.id || claim.taskId || claim.task_id || ''),
@@ -1107,9 +1110,11 @@
     function claimStatusHint(claimOrStatus) {
       const claim = typeof claimOrStatus === 'object' ? claimOrStatus : null;
       const status = claim ? claim.status : claimOrStatus;
+      if (claim?.projectId && claim?.externalSubmission?.url && status === 'submitted') return '已提交粗剪和外部成品，等待助教审核。';
       if (claim?.externalSubmission?.url && status === 'submitted') return '已提交外部成品，等待助教审核。';
       if (claim?.externalSubmission?.url && status === 'completed') return '这单已采用，可以查看提交链接。';
       if (claim?.externalSubmission?.url && status === 'rejected') return '这份成品未采用，可以查看原提交链接。';
+      if (claim?.projectId && status === 'submitted') return '已提交粗剪给助教，也可以继续补交外部精修成品链接。';
       if (status === 'completed') return '这单已经结束。';
       if (status === 'rejected') return '这份成品未采用，这单已经结束。';
       if (claim && !claim.task.materialLink) return noLinkMaterialInfo(claim.task).claimHint;
@@ -1125,10 +1130,16 @@
     }
 
     function claimPrimaryAction(status) {
-      if (status === 'submitted') return '查看项目';
+      if (status === 'submitted') return '查看已提交成品';
       if (status === 'completed') return '查看结果';
       if (status === 'rejected') return '未采用';
       return '继续剪辑';
+    }
+
+    function claimSubmitAction(claim) {
+      if (claim?.externalSubmission?.url) return '修改成品提交';
+      if (claim?.status === 'submitted') return '补交成品';
+      return '提交成品';
     }
 
     function renderDetailMaterial(task) {
@@ -1195,13 +1206,19 @@
     }
 
     function renderClaimPrimaryActions(claim) {
+      const editHref = buildEditHref(claim.task || { id: claim.taskId }, claim);
+      if (claim.projectId && claim.externalSubmission?.url && ['submitted', 'completed', 'rejected'].includes(claim.status)) {
+        return `<a class="path-btn primary" href="${escapeAttr(editHref)}">查看粗剪</a><a class="path-btn primary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`;
+      }
       if (claim.externalSubmission?.url && ['submitted', 'completed', 'rejected'].includes(claim.status)) {
         return `<a class="path-btn primary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`;
+      }
+      if (claim.projectId && ['submitted', 'completed', 'rejected', 'returned'].includes(claim.status)) {
+        return `<a class="path-btn primary" href="${escapeAttr(editHref)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`;
       }
       if (claim.status === 'rejected') {
         return '<button class="path-btn primary" type="button" disabled>未采用</button>';
       }
-      const editHref = buildEditHref(claim.task || { id: claim.taskId }, claim);
       if (isAutoAudioMaterial(claim.task.materialLink)) {
         return `<a class="path-btn primary" href="${escapeAttr(editHref)}">${escapeHtml(claimPrimaryAction(claim.status))}</a>`;
       }
@@ -1216,6 +1233,8 @@
     }
 
     function buildEditHref(task = {}, claim = {}) {
+      const projectId = claim.projectId || claim.project_id || task.projectId || task.project_id || '';
+      if (projectId) return `/review.html?project=${encodeURIComponent(projectId)}`;
       const taskId = task.id || task.taskId || claim.taskId || claim.task_id || '';
       const claimId = claim.id || task.claimId || '';
       const params = new URLSearchParams();
@@ -1316,7 +1335,7 @@
     }
 
     function canSubmitClaim(status) {
-      return status === 'in_progress' || status === 'returned';
+      return status === 'in_progress' || status === 'returned' || status === 'submitted';
     }
 
     function formatClaimTime(value) {
