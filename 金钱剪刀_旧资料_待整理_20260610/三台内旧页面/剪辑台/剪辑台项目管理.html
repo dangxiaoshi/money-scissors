@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 - 播客剪辑工作台</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #c8952a;
+  --gold-dark: #b8821e;
+  --gold-light: #f5d06a;
+  --main-bg: #ede8e0;
+  --sidebar-bg: #f5f0e8;
+  --card-bg: #FFFFFF;
+  --border: rgba(200,149,42,0.15);
+  --text-1: #1a1209;
+  --text-2: #5a4a2a;
+  --text-3: #9a8a6a;
+  --shadow-xs: 0 1px 3px rgba(200,149,42,0.08);
+  --shadow-sm: 0 2px 8px rgba(200,149,42,0.1);
+  --shadow-md: 0 4px 18px rgba(200,149,42,0.13);
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+}
+
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--main-bg);
+  color: var(--text-1);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════ */
+.sidebar {
+  width: 228px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.logo-area {
+  padding: 22px 18px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(145deg, #f5d06a, #b8821e);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(212,160,21,0.35);
+}
+
+.logo-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-1);
+  letter-spacing: 0.2px;
+}
+
+.logo-tagline {
+  font-size: 11px;
+  color: var(--text-3);
+  padding-left: 46px;
+}
+
+.nav {
+  flex: 1;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.nav::-webkit-scrollbar { width: 0; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.nav-item:hover { background: rgba(0,0,0,0.042); color: var(--text-1); }
+
+.nav-item.active {
+  background: rgba(212,160,21,0.12);
+  color: #A87410;
+  font-weight: 600;
+}
+
+.nav-chevron {
+  margin-left: auto;
+  font-size: 11px;
+  transition: transform 0.2s;
+  opacity: 0.5;
+}
+.nav-item.has-sub.open .nav-chevron { transform: rotate(90deg); }
+
+.nav-sub {
+  display: none;
+  flex-direction: column;
+  padding-left: 14px;
+  gap: 1px;
+}
+.nav-sub.open { display: flex; }
+
+.nav-sub-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.nav-sub-item:hover { background: rgba(0,0,0,0.042); color: var(--text-1); }
+
+/* Sidebar footer */
+.sidebar-footer {
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pro-card {
+  background: linear-gradient(145deg, #FFFCEF, #FFF6D6);
+  border: 1px solid rgba(212,160,21,0.2);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.pro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #f5d06a, #c8952a);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 30px;
+  margin-bottom: 5px;
+}
+
+.pro-expire {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+.storage-label {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 5px;
+}
+
+.progress {
+  height: 4px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 9px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 78%;
+  background: linear-gradient(90deg, #f5d06a, #c8952a);
+  border-radius: 2px;
+}
+
+.upgrade-btn {
+  width: 100%;
+  padding: 8px;
+  background: linear-gradient(135deg, #f5d06a, #c8952a);
+  color: white;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  transition: opacity 0.18s;
+}
+
+.upgrade-btn:hover { opacity: 0.88; }
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 4px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.user-row:hover { background: rgba(0,0,0,0.04); }
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #8B78F5, #5E4CE0);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-meta { flex: 1; min-width: 0; }
+.user-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.user-role { font-size: 11px; color: var(--text-3); }
+
+/* ═══════════════════════════════════════
+   MAIN
+═══════════════════════════════════════ */
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, #F4F1EA 0%, #EAE6DD 100%);
+}
+
+/* Decorative background glow */
+.bg-glow {
+  position: absolute;
+  top: -90px;
+  right: -100px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(248,205,60,0.16) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-glow-2 {
+  position: absolute;
+  top: 80px;
+  right: 60px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(255,180,30,0.1) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 28px 28px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.greeting h1 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin-bottom: 5px;
+  color: var(--text-1);
+}
+
+.greeting p {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 3px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  width: 236px;
+  box-shadow: var(--shadow-xs);
+  cursor: text;
+}
+
+.search-bar input {
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13px;
+  color: var(--text-3);
+  font-family: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-kbd {
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.new-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #f5d06a, #c8952a);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(212,160,21,0.38);
+  font-family: inherit;
+  transition: opacity 0.18s;
+  white-space: nowrap;
+}
+
+.new-btn:hover { opacity: 0.88; }
+
+.bell-btn {
+  width: 38px;
+  height: 38px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+/* Scroll container */
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 28px 28px;
+  position: relative;
+  z-index: 1;
+}
+
+.scroll-area::-webkit-scrollbar { width: 5px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+.scroll-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.section-link {
+  font-size: 13px;
+  color: var(--gold);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  text-decoration: none;
+}
+
+/* Quick Start */
+.quick-start-card {
+  background: white;
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.q-card {
+  background: #FAFAF7;
+  border: 1px solid rgba(0,0,0,0.048);
+  border-radius: var(--r-md);
+  padding: 18px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.q-card:hover {
+  background: rgba(247,202,69,0.07);
+  border-color: rgba(212,160,21,0.25);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.q-icon {
+  width: 46px;
+  height: 46px;
+  background: white;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  color: #c8952a;
+  flex-shrink: 0;
+}
+
+.q-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.q-desc {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+/* Projects */
+.projects-card {
+  background: white;
+  border-radius: var(--r-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: var(--r-sm);
+}
+
+.proj-row:first-child { padding-top: 4px; }
+.proj-row:last-child { border-bottom: none; padding-bottom: 2px; }
+
+.proj-row:hover {
+  background: rgba(0,0,0,0.02);
+  padding-left: 8px;
+  padding-right: 8px;
+  margin: 0 -8px;
+}
+
+.thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 6px 7px;
+  overflow: hidden;
+  position: relative;
+}
+
+.thumb-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: white;
+  line-height: 1.25;
+  text-align: left;
+  position: relative;
+  z-index: 1;
+}
+
+.thumb-mic {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.proj-info { flex: 1; min-width: 0; }
+
+.proj-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.proj-date {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.waveform {
+  width: 130px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.proj-dur {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.more {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  flex-shrink: 0;
+  font-size: 15px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.more:hover { background: rgba(0,0,0,0.06); }
+
+.view-all-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+.view-all-link {
+  font-size: 13px;
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════
+   RIGHT PANEL
+═══════════════════════════════════════ */
+.right-panel {
+  width: 272px;
+  flex-shrink: 0;
+  padding: 28px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.right-panel::-webkit-scrollbar { width: 0; }
+
+.r-card {
+  background: white;
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.r-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.r-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.period-sel {
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Stats */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 10px;
+}
+
+.stat-label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-bottom: 3px;
+}
+
+.stat-val {
+  font-size: 23px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+}
+
+.stat-val small {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.stat-change {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.stat-change .up { color: #22C55E; }
+
+/* AI Card */
+.ai-card {
+  background: linear-gradient(140deg, #FFFDF3, #FFF8E2);
+  border: 1px solid rgba(212,160,21,0.15);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-glow {
+  position: absolute;
+  right: -30px;
+  top: -25px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(251,210,60,0.9), rgba(232,148,10,0.6) 55%, transparent 78%);
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.ai-glow-inner {
+  position: absolute;
+  right: 0px;
+  top: 5px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(255,230,100,0.95), rgba(240,170,20,0.7) 60%, transparent 80%);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.ai-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+  color: var(--text-1);
+}
+
+.ai-card-desc {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.7;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+  max-width: 160px;
+}
+
+.ai-try-btn {
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--gold-dark);
+  border: 1.5px solid var(--gold);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
+}
+
+.ai-try-btn:hover { background: var(--gold); color: white; }
+
+/* Quick publish */
+.qp-desc {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-bottom: 11px;
+}
+
+.platforms {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.plat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+  transition: transform 0.18s;
+  overflow: hidden;
+}
+
+.plat-icon:hover { transform: scale(1.1); }
+
+.plat-name {
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Waveform bars */
+.wv-bar {
+  display: inline-block;
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(180,155,100,0.3);
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══ LEFT SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="logo-area">
+    <div class="logo-row">
+      <div class="logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="6" cy="6" r="2.5" fill="white"/>
+          <circle cx="6" cy="18" r="2.5" fill="white"/>
+          <path d="M8.5 6.5 L20 12 L8.5 17.5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      <span class="logo-name">金钱剪刀</span>
+    </div>
+    <div class="logo-tagline">播客剪辑工作台</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-item active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      首页
+    </div>
+    <div class="nav-item" onclick="location.href='web/index.html'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+      项目
+    </div>
+    <div class="nav-item" onclick="location.href='web/index.html'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="5" rx="1"/><rect x="2" y="10" width="20" height="5" rx="1"/><rect x="2" y="17" width="20" height="5" rx="1"/>
+      </svg>
+      素材库
+    </div>
+    <div class="nav-item has-sub" id="aiToolsNav" onclick="toggleAiTools()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      AI 工具
+      <span class="nav-chevron">›</span>
+    </div>
+    <div class="nav-sub" id="aiToolsSub">
+      <div class="nav-sub-item" onclick="location.href='剪辑台当小时声音克隆.html'">🎙 声音克隆</div>
+      <div class="nav-sub-item" onclick="location.href='剪辑台旁白生成.html'">✍️ 旁白生成</div>
+      <div class="nav-sub-item" onclick="location.href='剪辑台播客小红书推广卡片.html'">📱 推广卡片</div>
+      <div class="nav-sub-item" onclick="location.href='http://8.136.133.196/refine'">🎛️ 音频精修</div>
+    </div>
+    <div class="nav-item" onclick="location.href='web/cut.html'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      导出记录
+    </div>
+    <div class="nav-item" onclick="location.href='web/admin.html'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      团队协作
+    </div>
+    <div class="nav-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      设置
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="pro-card">
+      <div class="pro-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        专业版
+      </div>
+      <div class="pro-expire">有效期至 2025-12-31</div>
+      <div class="storage-label">78% 存储已使用</div>
+      <div class="progress"><div class="progress-fill"></div></div>
+      <button class="upgrade-btn">升级套餐</button>
+    </div>
+    <div class="user-row">
+      <div class="user-avatar">M</div>
+      <div class="user-meta">
+        <div class="user-name">MoneyMaker</div>
+        <div class="user-role">播客主·自媒体创业者</div>
+      </div>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+  <div class="bg-glow"></div>
+  <div class="bg-glow-2"></div>
+
+  <div class="header">
+    <div class="greeting">
+      <h1>上午好，创作者 👋</h1>
+      <p>今天想剪辑点什么？让我们把每一段声音，都变得更有价值。</p>
+    </div>
+    <div class="header-actions">
+      <div class="search-bar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2.2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" placeholder="搜索项目、素材、功能...">
+        <span class="search-kbd">⌘ K</span>
+      </div>
+      <button class="new-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        新建项目
+      </button>
+      <div class="bell-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-area">
+    <!-- Quick Start -->
+    <div class="quick-start-card">
+      <div class="section-header">
+        <span class="section-title">快速开始</span>
+      </div>
+      <div class="quick-grid">
+        <div class="q-card">
+          <div class="q-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <div class="q-label">导入音频</div>
+          <div class="q-desc">支持多种格式</div>
+        </div>
+        <div class="q-card">
+          <div class="q-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <div class="q-label">AI 智能剪辑</div>
+          <div class="q-desc">一键优化节目</div>
+        </div>
+        <div class="q-card">
+          <div class="q-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+          <div class="q-label">智能降噪</div>
+          <div class="q-desc">提升人声清晰度</div>
+        </div>
+        <div class="q-card">
+          <div class="q-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <div class="q-label">添加片头片尾</div>
+          <div class="q-desc">丰富节目内容</div>
+        </div>
+        <div class="q-card">
+          <div class="q-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="q-label">导出发布</div>
+          <div class="q-desc">一键发布各平台</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Projects -->
+    <div class="projects-card">
+      <div class="section-header">
+        <span class="section-title">最近项目</span>
+        <a class="section-link" href="#">全部项目 ›</a>
+      </div>
+      <div id="projectList">
+        <!-- Generated by JS -->
+      </div>
+      <div class="view-all-row">
+        <a class="view-all-link" href="#">查看全部项目</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ RIGHT PANEL ═══ -->
+<aside class="right-panel">
+
+  <!-- Stats Card -->
+  <div class="r-card">
+    <div class="r-header">
+      <span class="r-title">本月剪辑数据</span>
+      <span class="period-sel">本月 ▾</span>
+    </div>
+    <div class="stats-grid">
+      <div>
+        <div class="stat-label">剪辑时长</div>
+        <div class="stat-val">28<small>h</small> 36<small>m</small></div>
+        <div class="stat-change">较上月 <span class="up">↑ 32%</span></div>
+      </div>
+      <div>
+        <div class="stat-label">导出节目</div>
+        <div class="stat-val">24</div>
+        <div class="stat-change">较上月 <span class="up">↑ 26%</span></div>
+      </div>
+      <div>
+        <div class="stat-label">素材使用</div>
+        <div class="stat-val">132</div>
+        <div class="stat-change">较上月 <span class="up">↑ 18%</span></div>
+      </div>
+      <div>
+        <div class="stat-label">发布平台</div>
+        <div class="stat-val">5</div>
+        <div class="stat-change">较上月 <span class="flat">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Assistant Card -->
+  <div class="ai-card">
+    <div class="ai-glow"></div>
+    <div class="ai-glow-inner"></div>
+    <div class="ai-card-title">AI 智能助手</div>
+    <div class="ai-card-desc">我可以帮你智能剪辑、提取要点、生成shownotes，让你的创作更高效。</div>
+    <button class="ai-try-btn">立即体验</button>
+  </div>
+
+  <!-- Quick Publish Card -->
+  <div class="r-card">
+    <div class="r-header">
+      <span class="r-title">快捷发布</span>
+    </div>
+    <div class="qp-desc">一键发布到你的常用平台</div>
+    <div class="platforms">
+      <div class="plat">
+        <div class="plat-icon" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">🪐</div>
+        <div class="plat-name">小宇宙</div>
+      </div>
+      <div class="plat">
+        <div class="plat-icon" style="background:linear-gradient(135deg,#EF4444,#B91C1C)">🏔</div>
+        <div class="plat-name">喜马拉雅</div>
+      </div>
+      <div class="plat">
+        <div class="plat-icon" style="background:linear-gradient(135deg,#A855F7,#7C3AED)">🎙</div>
+        <div class="plat-name">Apple<br>Podcast</div>
+      </div>
+      <div class="plat">
+        <div class="plat-icon" style="background:linear-gradient(135deg,#22C55E,#15803D)">🎵</div>
+        <div class="plat-name">Spotify</div>
+      </div>
+      <div class="plat">
+        <div class="plat-icon" style="background:linear-gradient(135deg,#EF4444,#991B1B)">☁️</div>
+        <div class="plat-name">网易云<br>音乐</div>
+      </div>
+      <div class="plat">
+        <div class="plat-icon" style="background:#F3F4F6;color:#666;font-size:14px;font-weight:700">···</div>
+        <div class="plat-name">更多</div>
+      </div>
+    </div>
+  </div>
+
+</aside>
+</div>
+
+<script>
+// Seeded pseudo-random number generator for consistent waveforms
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = Math.imul(1664525, s) + 1013904223 | 0;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+function buildWaveform(el, seed) {
+  const rng = makeRng(seed);
+  const count = 34;
+  for (let i = 0; i < count; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'wv-bar';
+    const pos = i / count;
+    const envelope = Math.sin(pos * Math.PI) * 0.55 + 0.35;
+    const h = Math.max(3, (envelope + rng() * 0.5 - 0.08) * 30);
+    bar.style.height = h + 'px';
+    el.appendChild(bar);
+  }
+}
+
+// Project data
+const projects = [
+  {
+    id: 1,
+    name: '金钱思维',
+    bg: 'linear-gradient(145deg,#0F2A2A,#1A4A3A)',
+    title: 'E29 | 如何打造个人品牌并实现商业变现',
+    date: '2024-05-20 14:30',
+    dur: '42:18',
+    seed: 42
+  },
+  {
+    id: 2,
+    name: '创业访谈录',
+    bg: 'linear-gradient(145deg,#3A2010,#7A4A28)',
+    title: 'E15 | 对话百万博主：内容创业的底层逻辑',
+    date: '2024-05-18 10:15',
+    dur: '56:42',
+    seed: 137
+  },
+  {
+    id: 3,
+    name: '搞钱日记',
+    bg: 'linear-gradient(145deg,#2D1060,#5E2DA0)',
+    title: 'E08 | 我的第一桶金：从0到1的经验分享',
+    date: '2024-05-15 09:45',
+    dur: '38:56',
+    seed: 255
+  },
+  {
+    id: 4,
+    name: '流量密码',
+    bg: 'linear-gradient(145deg,#101828,#1E3A5A)',
+    title: 'E12 | 播客如何获取精准流量和长期增长',
+    date: '2024-05-12 16:20',
+    dur: '47:33',
+    seed: 99
+  }
+];
+
+const list = document.getElementById('projectList');
+
+projects.forEach(p => {
+  const row = document.createElement('div');
+  row.className = 'proj-row';
+  row.innerHTML = `
+    <div class="thumb" style="background:${p.bg}">
+      <span class="thumb-label">${p.name}</span>
+      <span class="thumb-mic">🎙</span>
+    </div>
+    <div class="proj-info">
+      <div class="proj-title">${p.title}</div>
+      <div class="proj-date">${p.date}</div>
+    </div>
+    <div class="waveform" id="wv-${p.id}"></div>
+    <div class="proj-dur">${p.dur}</div>
+    <div class="more">···</div>
+  `;
+  list.appendChild(row);
+  buildWaveform(document.getElementById('wv-' + p.id), p.seed);
+});
+
+function toggleAiTools() {
+  const nav = document.getElementById('aiToolsNav');
+  const sub = document.getElementById('aiToolsSub');
+  nav.classList.toggle('open');
+  sub.classList.toggle('open');
+}
+</script>
+</body>
+</html>

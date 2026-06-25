@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>21天首页 · 原型</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(165deg,#f4ecce 0%,#e9d9a4 55%,#ddc98c 100%);color:#3c3422;min-height:100vh;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 30px 50px;}
+
+  /* ===== 统一顶栏：三台 ===== */
+  .topnav{display:flex;align-items:center;gap:26px;padding:12px 30px;
+    background:rgba(255,255,255,.5);backdrop-filter:blur(6px);
+    position:sticky;top:0;z-index:30;border-bottom:1px solid rgba(180,150,80,.18);}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo .ic{width:36px;height:36px;border-radius:11px;background:linear-gradient(150deg,#f0cf6a,#e0a93f);
+    display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 2px 6px rgba(180,140,40,.3);}
+  .logo .lt b{font-size:15px;color:#4a3c1d;display:block;line-height:1.2;}
+  .logo .lt span{font-size:10.5px;color:#9a895c;}
+  .stations{display:flex;gap:8px;}
+  .st{display:flex;align-items:center;gap:5px;padding:8px 18px;border-radius:10px;font-size:14.5px;font-weight:700;cursor:pointer;color:#8a784c;background:rgba(255,255,255,.0);}
+  .st.on{background:#fff;color:#3c3422;box-shadow:0 2px 7px rgba(150,110,40,.16);}
+  .st.lock{color:#b3a884;cursor:pointer;}
+  .login{margin-left:auto;font-size:13px;color:#7c6c43;border:1px solid #cdb877;padding:6px 16px;border-radius:18px;cursor:pointer;background:rgba(255,255,255,.4);}
+
+  /* 子标签 */
+  .subnav{display:flex;gap:24px;padding:11px 30px 0;}
+  .subtab{font-size:14px;font-weight:600;color:#9a895c;cursor:pointer;padding-bottom:8px;position:relative;}
+  .subtab.on{color:#c77b2a;}
+  .subtab.on::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:#e8902f;border-radius:2px;}
+
+  .head{padding:20px 0 10px;}
+  .head h1{font-size:30px;font-weight:800;color:#4a3c1d;letter-spacing:1px;}
+  .head p{font-size:13px;color:#8a7a55;margin-top:5px;}
+
+  /* ===== 极细栏：只有数字 ===== */
+  .strip{display:flex;align-items:center;gap:0;overflow-x:auto;padding:6px 2px;margin-bottom:18px;}
+  .strip::-webkit-scrollbar{height:0;}
+  .dot{width:24px;height:24px;flex-shrink:0;border-radius:50%;border:1.5px solid #cdb877;background:rgba(255,255,255,.4);
+    display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#9a8454;cursor:pointer;transition:.12s;}
+  .dot.on{background:linear-gradient(150deg,#f0cf6a,#e0a93f);color:#fff;border-color:#e0a93f;box-shadow:0 2px 6px rgba(220,150,40,.4);}
+  .dot.dead{opacity:.35;cursor:default;}
+  .dline{flex:1;min-width:10px;height:1.5px;background:#cdb877;opacity:.5;}
+
+  /* ===== 顶部放大条（点开详情显示在这）===== */
+  .hero{background:#fdf7e6;border:2px solid #efcd8e;border-radius:14px;padding:12px 22px;margin-bottom:22px;
+    box-shadow:0 6px 16px rgba(180,140,60,.16);display:flex;align-items:center;gap:16px;min-height:64px;position:relative;}
+  .hero .badge{position:absolute;top:-10px;left:18px;background:#e8902f;color:#fff;font-size:11px;font-weight:700;padding:2px 10px;border-radius:7px;}
+  .hero .info{flex:1;display:flex;align-items:center;gap:13px;}
+  .hero .bemoji{font-size:27px;flex-shrink:0;}
+  .hero .txt{display:flex;flex-direction:column;gap:3px;}
+  .hero .l1{display:flex;align-items:center;gap:9px;}
+  .hero .bmeta{font-size:12px;color:#a3926a;}
+  .hero .btitle{font-size:19px;font-weight:800;color:#352f20;}
+  .hero .goal{font-size:13px;color:#8a7a55;line-height:1.4;}
+  .tag{border:1px solid #f0b27a;color:#e07d2c;font-weight:700;padding:1px 8px;border-radius:6px;font-size:11px;}
+  .hero .actions{display:flex;gap:10px;flex-shrink:0;}
+  .btn{padding:10px 18px;border-radius:10px;font-size:14.5px;font-weight:700;border:none;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .btn-pri{background:#ef8a2c;color:#fff;box-shadow:0 4px 10px rgba(239,138,44,.3);}
+  .btn-sec{background:#fff1df;color:#e07d2c;font-size:13.5px;}
+  .btn-ph{background:#f3edda;color:#a3926a;border:1px dashed #cdb877;font-size:13.5px;}
+
+  /* ===== 网格 ===== */
+  .week{display:grid;grid-template-columns:84px repeat(4,1fr);gap:13px;margin-bottom:13px;align-items:start;}
+  .wlabel{padding-top:8px;}
+  .wlabel .pill{display:inline-block;background:#d8c489;color:#5f5230;font-size:13px;font-weight:700;padding:4px 11px;border-radius:8px;margin-bottom:8px;}
+  .wlabel .tags{font-size:12px;color:#897748;line-height:1.75;}
+  .card{background:#fdf7e6;border-radius:13px;padding:12px 13px;cursor:pointer;box-shadow:0 2px 6px rgba(140,110,40,.10);
+    border:2px solid transparent;transition:transform .12s,box-shadow .12s;min-height:92px;display:flex;flex-direction:column;}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(140,110,40,.18);}
+  .card.on{border-color:#e8902f;background:#fffaf0;box-shadow:0 8px 18px rgba(232,144,47,.24);}
+  .card .ch{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:#a3926a;margin-bottom:6px;min-height:16px;}
+  .card .emoji{font-size:23px;margin-bottom:4px;}
+  .card .ct{font-size:15px;font-weight:800;color:#352f20;}
+  .hint{text-align:center;color:#897748;font-size:12.5px;margin-top:16px;}
+
+  /* 锁提示 toast */
+  #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-12px);
+    background:#3c3422;color:#fff;font-size:13.5px;padding:11px 20px;border-radius:11px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s;z-index:50;}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="logo"><div class="ic">✂️</div><div class="lt"><b>金钱剪刀</b><span>播客剪辑训练营</span></div></div>
+  <div class="stations">
+    <div class="st on">训练台</div>
+    <div class="st lock" data-lock="先完成第一天的作业（自我介绍），才能解锁剪辑台">🔒 剪辑台</div>
+    <div class="st lock" data-lock="先完成第二天的作业（提交剪辑练习），才能解锁接单台">🔒 接单台</div>
+  </div>
+  <div class="login">登录</div>
+</div>
+<div class="subnav"><div class="subtab on">21天路径</div><div class="subtab">剪辑课件</div></div>
+
+<div class="wrap">
+  <div class="hero" id="hero" style="margin-top:22px;"></div>
+  <div id="grid"></div>
+  <div class="hint">细栏 / 网格点哪天 → 大方块显示那天；再点同一张回 Day1。点锁住的台会提示先做哪天作业。</div>
+</div>
+<div id="toast"></div>
+
+<script>
+const CURRENT='D1';
+const DAY1={id:'D1',range:'D1',date:'6/12',live:true,homework:1,emoji:'📺',title:'开营直播',goal:'当众说出目标，写下计划，知道怎么把学费赚回来'};
+const GRID=[
+ {w:1,id:'D2',range:'D2–3',date:'6/13',homework:1,emoji:'⚙️',title:'配工具跑流程',goal:'配好工具跑通剪辑流程，快的话直接开始接单',days:[2,3]},
+ {w:1,id:'D4',range:'D4',date:'6/15',live:1,emoji:'📺',title:'派单直播',goal:'领第一单，搞清楚每条剪辑值多少钱',days:[4]},
+ {w:1,id:'D5',range:'D5–6',date:'6/16',emoji:'✂️',title:'接单剪辑',goal:'接单→剪辑→提交审核，审完再接下一条',days:[5,6],cta:{label:'去接单台',act:'jiedan'}},
+ {w:1,id:'D7',range:'D7',date:'6/18',live:1,emoji:'📺',title:'复盘直播',goal:'说说做了什么、卡在哪，老师逐人给建议',days:[7]},
+ {w:2,id:'D8',range:'D8',date:'6/19',emoji:'💼',title:'报价+简历',goal:'把报价想清楚，开始整理剪辑简历',days:[8],cta:{label:'领取模版',act:'tpl'}},
+ {w:2,id:'D9',range:'D9',date:'6/20',live:1,emoji:'📺',title:'腾讯对接直播',goal:'和播客主面对面，现场谈单，谈成直接拿长期甲方',days:[9]},
+ {w:2,id:'D10',range:'D10–13',date:'6/21',emoji:'📣',title:'简历推广',goal:'优化简历，发出去让外面的人知道你',days:[10,11,12,13],cta:{label:'领取模版',act:'tpl'}},
+ {w:2,id:'D14',range:'D14',date:'6/25',live:1,emoji:'📺',title:'复盘直播',goal:'答疑复盘，定第三周冲刺目标',days:[14]},
+ {w:3,id:'D15',range:'D15–17',date:'6/26',emoji:'📁',title:'接单+作品集',goal:'继续接单剪辑，整理作品集传上去',days:[15,16,17,18],cta:{label:'领取模版',act:'tpl'}},
+ {w:3,id:'D19',range:'D19',date:'6/30',live:1,emoji:'📺',title:'点评答疑',goal:'如何剪得又快又好，卡点突破，老师帮你看清',days:[19]},
+ {w:3,id:'D20',range:'D20',date:'7/1',emoji:'💰',title:'算账+建议',goal:'算清这21天的账，老师逐人给下一步建议',days:[20],cta:{label:'提交账本 + 提问',act:'ask'}},
+ {w:3,id:'D21',range:'D21',date:'7/2',tagText:'㊙️ 揭晓',emoji:'🎉',title:'结营',goal:'公布接单情况和返现名单，颁发结业证书（微信群文字直播）',days:[21]},
+];
+const WEEKS={1:{t:'第一周',tags:'工具熟悉<br>第一单<br>第一笔钱'},2:{t:'第二周',tags:'认识甲方<br>接单资产<br>主动出击'},3:{t:'第三周',tags:'作品集<br>挂牌<br>收尾'}};
+let viewing='D1';
+function renderHero(d){
+  const tag=d.tagText?`<span class="tag">${d.tagText}</span>`:(d.live?'<span class="tag">直播</span>':'');
+  let btns='';
+  if(d.homework)btns+=`<button class="btn btn-sec" onclick="toast('打开当天作业')">👋 做当天作业</button>`;
+  if(d.live)btns+=`<button class="btn btn-pri" onclick="toast('进入直播（接现有直播链接）')">▶ 进入直播</button>`;
+  if(d.cta&&d.cta.act==='jiedan')btns+=`<button class="btn btn-pri" onclick="toast('→ 跳转接单台')">${d.cta.label} →</button>`;
+  if(d.cta&&d.cta.act==='tpl')btns+=`<button class="btn btn-ph" onclick="toast('🚧 领取模版：功能还没做，先占位')">📄 ${d.cta.label}</button>`;
+  if(d.cta&&d.cta.act==='ask')btns+=`<button class="btn btn-ph" onclick="toast('🚧 提交账本+提问：功能还没做，先占位')">💬 ${d.cta.label}</button>`;
+  document.getElementById('hero').innerHTML=`
+    ${d.id===CURRENT?'<span class="badge">📍 今天</span>':''}
+    <div class="info"><span class="bemoji">${d.emoji}</span>
+      <div class="txt">
+        <div class="l1"><span class="bmeta">${d.range} · ${d.date}</span>${tag}<span class="btitle">${d.title}</span></div>
+        <div class="goal">${d.goal||''}</div>
+      </div></div>
+    <div class="actions">${btns}</div>`;
+}
+function renderGrid(){
+  let h='';
+  [1,2,3].forEach(w=>{
+    h+=`<div class="week"><div class="wlabel"><span class="pill">${WEEKS[w].t}</span><div class="tags">${WEEKS[w].tags}</div></div>`;
+    GRID.filter(d=>d.w===w).forEach(d=>{
+      h+=`<div class="card${viewing===d.id?' on':''}" data-id="${d.id}"><div class="ch"><span>${d.range} · ${d.date}</span>${d.tagText?`<span class="tag">${d.tagText}</span>`:(d.live?'<span class="tag">直播</span>':'<span></span>')}</div>
+        <div class="emoji">${d.emoji}</div><div class="ct">${d.title}</div></div>`;
+    });
+    h+='</div>';
+  });
+  document.getElementById('grid').innerHTML=h;
+  document.querySelectorAll('.card').forEach(c=>c.onclick=()=>select(c.dataset.id));
+}
+function select(id){
+  viewing=(viewing===id)?'D1':id;
+  renderHero(viewing==='D1'?DAY1:GRID.find(x=>x.id===viewing));
+  renderGrid();
+}
+let tt;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+document.querySelectorAll('.st.lock').forEach(s=>s.onclick=()=>toast('🔒 '+s.dataset.lock));
+
+renderHero(DAY1);renderGrid();
+</script>
+</body>
+</html>

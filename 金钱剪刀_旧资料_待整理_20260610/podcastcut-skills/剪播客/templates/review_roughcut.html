@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITLE__</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&display=swap');
+
+:root {
+  /* Fig Mint — 暖奶油 + 纯黑，零彩色 */
+  --sage: #EFECE6;           /* 主背景：暖奶油，如 Fig Mint */
+  --sage-light: #F7F5F0;     /* 侧边栏：略浅奶油 */
+  --sage-dark: #DDD8D0;      /* 边框 */
+  --sage-deep: #CEC8BD;      /* hover */
+  --black: #1A1A1A;          /* 正文黑 */
+  --dark: #2D2D2D;
+  --mid: #4A4A4A;
+  --muted: #6E6E6E;
+  --light: #9A9A9A;
+  --faint: #F2EFEA;
+  --white: #FAFAF7;
+  --gold: #1A1A1A;           /* 强调色 = 黑色本身 */
+  --gold-light: #4A4A4A;
+  --gold-dim: #F2EFEA;
+  --gold-dark: #1A1A1A;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: var(--sage);
+  color: var(--black);
+  -webkit-font-smoothing: antialiased;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.serif {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, "Times New Roman", serif;
+}
+
+.mono {
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+}
+
+/* ===== TOP BAR ===== */
+.topbar {
+  position: fixed; top:0; left:0; right:0; z-index:1000;
+  background: #1A1A1A;
+  height: 48px;
+  display: flex; align-items: center;
+  padding: 0 32px; gap: 24px;
+}
+.topbar .brand {
+  font-family: "Noto Serif SC", serif;
+  font-size: 16px; font-weight: 900; color: #EFECE6;
+  letter-spacing: 2px;
+}
+.topbar .proj { font-size: 13px; color: var(--light); letter-spacing: 1px; }
+.topbar .fill { flex:1; }
+.topbar .status { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; font-family: "SF Mono", monospace; }
+.topbar .expbtn {
+  background: #EFECE6; color: #1A1A1A; border: none;
+  padding: 8px 24px; font-size: 13px; font-weight: 700;
+  letter-spacing: 2px; cursor: pointer; transition: all .12s; border-radius: 4px;
+}
+.topbar .expbtn:hover { background: #FFF; }
+
+/* ===== LAYOUT ===== */
+.layout {
+  display: flex;
+  margin-top: 48px;
+  margin-bottom: 72px;
+}
+
+/* --- SIDEBAR --- */
+.sidebar {
+  width: 360px; flex-shrink:0;
+  background: var(--sage-light);
+  border-right: 1px solid var(--sage-dark);
+  box-shadow: 2px 0 12px rgba(0,0,0,.04);
+  position: sticky; top: 48px;
+  height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 36px 28px;
+  display: flex; flex-direction: column; gap: 32px;
+}
+
+.section-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--mid); margin-bottom: 16px;
+  font-family: "SF Mono", monospace;
+}
+
+/* Duration */
+.dur-block { padding-bottom: 28px; border-bottom: 1px solid var(--sage-dark); }
+
+.dur-main {
+  display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px;
+}
+.dur-from {
+  font-family: "Noto Serif SC", serif;
+  font-size: 24px; font-weight: 600;
+  color: var(--light); text-decoration: line-through; text-decoration-color: var(--sage-dark);
+}
+.dur-arrow { font-size: 20px; color: var(--sage-dark); }
+.dur-to {
+  font-family: "Noto Serif SC", serif;
+  font-size: 40px; font-weight: 900; color: var(--black);
+  line-height: 1.1;
+}
+.dur-meta { font-size: 15px; color: var(--mid); }
+.dur-meta strong { font-weight: 700; color: var(--gold); }
+
+/* Summary */
+.summary-text {
+  font-size: 15px; line-height: 1.9; color: var(--mid);
+  border-left: 3px solid var(--gold-light); padding-left: 16px;
+}
+
+/* Speakers */
+/* pie chart removed */
+.sp-legend { display:flex; flex-direction:column; gap: 8px; }
+.sp-row { display:flex; align-items:center; gap: 10px; }
+.sp-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink:0; }
+.sp-name { font-size: 16px; font-weight: 700; color: var(--dark); flex:1; }
+.sp-val { font-family: "SF Mono", monospace; font-size: 14px; color: var(--muted); }
+
+/* Navigator — editorial numbered list */
+.nav-section { flex:1; min-height:0; display:flex; flex-direction:column; }
+.nav-list { display:flex; flex-direction:column; gap:4px; overflow-y:auto; flex:1; }
+
+.nav-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 12px; border-radius: 6px;
+  cursor: pointer; transition: all .12s;
+  border-left: 3px solid transparent;
+}
+.nav-item:hover { background: var(--sage); }
+.nav-item.active { background: var(--sage); border-left-color: var(--black); }
+
+.nav-num {
+  font-family: "SF Mono", monospace;
+  font-size: 13px; color: var(--muted);
+  min-width: 22px; padding-top: 3px;
+}
+.nav-item.active .nav-num { color: var(--dark); }
+
+.nav-body { flex:1; }
+.nav-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 17px; font-weight: 700; color: var(--black);
+  line-height: 1.4; margin-bottom: 2px;
+}
+.nav-item.active .nav-title { text-decoration: underline; text-underline-offset: 3px; }
+
+.nav-ts {
+  font-family: "SF Mono", monospace;
+  font-size: 12px; color: var(--muted);
+}
+
+/* --- MAIN --- */
+.main { flex:1; min-width:0; padding: 40px 52px; }
+
+.main-hdr {
+  position: sticky; top: 48px; z-index: 99;
+  background: var(--sage);
+  padding: 24px 0 0;
+  margin: -24px -52px 0; padding-left: 52px; padding-right: 52px;
+  border-bottom: 1px solid var(--sage-dark);
+}
+
+.main-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 48px; font-weight: 900; color: var(--black);
+  line-height: 1.2; margin-bottom: 8px;
+}
+
+.main-sub {
+  font-size: 17px; color: var(--mid); line-height: 1.7; margin-bottom: 20px;
+}
+/* Preview mode toggle — prominent */
+.mode-bar {
+  display: flex; align-items: center; gap: 16px;
+  padding-bottom: 16px;
+}
+.mode-toggle {
+  display: flex; background: var(--sage-dark); border-radius: 10px; overflow: hidden;
+  padding: 4px;
+}
+.mode-btn {
+  padding: 12px 28px; font-size: 16px; font-weight: 700;
+  color: var(--muted); cursor: pointer; border: none; background: none;
+  transition: all .15s; letter-spacing: 0.3px; border-radius: 7px;
+}
+.mode-btn.active {
+  background: var(--gold-dark); color: white;
+  box-shadow: 0 2px 8px rgba(43,65,98,.25);
+}
+.mode-btn:hover:not(.active) { color: var(--dark); background: var(--sage-deep); }
+
+/* Preview mode: smooth transitions */
+.row.del, .blk, .sug-reason {
+  transition: opacity .3s ease, max-height .3s ease, padding .3s ease, margin .3s ease;
+  overflow: hidden;
+}
+
+body.preview .row.del {
+  opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin: 0;
+  pointer-events: none;
+}
+body.preview .blk {
+  opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin: 0;
+  pointer-events: none;
+}
+body.preview .sug-reason { opacity: 0; }
+
+/* Mode transition overlay */
+.mode-transition {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--sage);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s ease;
+}
+.mode-transition.active {
+  opacity: 1; pointer-events: auto;
+}
+.mode-transition .mt-graphic {
+  margin-bottom: 24px;
+}
+.mode-transition .mt-label {
+  font-family: "Noto Serif SC", serif;
+  font-size: 22px; font-weight: 700; color: var(--black);
+  letter-spacing: 1px;
+}
+
+/* Cassette tape animation */
+.cassette { width: 120px; height: 80px; position: relative; }
+.cassette-body {
+  width: 120px; height: 72px; border: 2.5px solid var(--black);
+  border-radius: 8px; position: absolute; bottom: 0;
+  background: var(--faint);
+}
+.cassette-window {
+  position: absolute; top: 16px; left: 20px; right: 20px; height: 28px;
+  border: 2px solid var(--black); border-radius: 4px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 10px;
+  background: var(--sage);
+}
+.cassette-reel {
+  width: 20px; height: 20px; border: 2px solid var(--black); border-radius: 50%;
+  position: relative;
+}
+.cassette-reel::before {
+  content: ''; position: absolute;
+  top: 3px; left: 50%; width: 2px; height: 6px;
+  background: var(--black); transform: translateX(-50%);
+}
+.cassette-reel::after {
+  content: ''; position: absolute;
+  top: 50%; left: 3px; width: 6px; height: 2px;
+  background: var(--black); transform: translateY(-50%);
+}
+.mode-transition.active .cassette-reel {
+  animation: spin .4s linear infinite;
+}
+.cassette-label {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-family: "SF Mono", monospace; font-size: 8px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase;
+}
+.cassette-holes {
+  position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 24px;
+}
+.cassette-hole {
+  width: 6px; height: 6px; border: 1.5px solid var(--black); border-radius: 50%;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Pencil wiggle for edit mode */
+.pencil-wrap { display: inline-block; }
+.mode-transition.active .pencil-wrap {
+  animation: wiggle .6s ease-in-out;
+}
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-12deg); }
+  40% { transform: rotate(10deg); }
+  60% { transform: rotate(-8deg); }
+  80% { transform: rotate(5deg); }
+}
+
+.pencil-svg { width: 64px; height: 64px; }
+
+/* Toggle slider animation */
+.mode-toggle {
+  position: relative;
+}
+.mode-slider {
+  position: absolute;
+  top: 4px; left: 4px;
+  height: calc(100% - 8px);
+  border-radius: 7px;
+  background: var(--black);
+  transition: transform .25s cubic-bezier(.4, 0, .2, 1), width .25s cubic-bezier(.4, 0, .2, 1);
+  z-index: 0;
+}
+.mode-btn { position: relative; z-index: 1; }
+
+.hint-tag {
+  display: inline-block; background: var(--faint); color: var(--dark);
+  padding: 2px 10px; border-radius: 3px; font-size: 14px; font-weight: 600;
+}
+
+/* Block header */
+/* Chapter header — content section divider */
+.chap-hdr {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 20px 16px 10px; margin: 32px 0 8px;
+  border-bottom: 1px solid var(--sage-dark);
+}
+.chap-num {
+  font-family: "SF Mono", monospace;
+  font-size: 13px; color: var(--light); min-width: 24px;
+}
+.chap-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 22px; font-weight: 700; color: var(--black);
+}
+.chap-desc {
+  font-size: 13px; color: var(--muted); margin-left: auto;
+}
+
+/* Block header — deleted section */
+.blk {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; margin: 24px 0 6px;
+  background: var(--sage-dark);
+  border-left: 3px solid var(--gold-light);
+  border-radius: 0 6px 6px 0;
+}
+.blk-tag {
+  font-size: 12px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--gold);
+}
+.blk-rsn { color: var(--mid); font-size: 15px; flex:1; }
+.blk-dur { font-family: "SF Mono", monospace; font-size: 13px; color: var(--muted); }
+
+/* Toggle */
+.chk {
+  width: 22px; height: 22px; border: 2px solid var(--sage-dark); border-radius: 4px;
+  cursor: pointer; display:flex; align-items:center; justify-content:center;
+  font-size: 13px; color: transparent; transition: all .1s; flex-shrink:0;
+  background: var(--sage-light);
+}
+.chk:hover { border-color: var(--mid); }
+.chk.on { border-color: var(--dark); background: var(--dark); color: var(--sage-light); }
+
+/* Sentence row */
+.row {
+  display: flex; align-items: flex-start;
+  padding: 12px 16px; border-radius: 6px; margin-bottom: 2px;
+  cursor: pointer; transition: background .08s;
+  border-left: 3px solid transparent;
+}
+.row:hover { background: var(--sage-light); }
+.row.act { background: var(--sage-light); border-left-color: var(--black); }
+.row.del { opacity: .55; }
+.row.del:hover { opacity: .7; }
+.row.del .r-txt { text-decoration: line-through; text-decoration-color: var(--mid); color: var(--muted); }
+.row.sug { border-left: 3px dashed var(--gold-light); }
+.row.sug .r-txt { text-decoration-style: dashed; }
+.sug-reason {
+  display: inline-block; margin-left: 8px;
+  font-size: 12px; color: var(--gold-dark); font-weight: 600;
+  background: var(--gold-dim); padding: 1px 8px; border-radius: 3px;
+  vertical-align: middle;
+}
+
+.r-chk { margin-right: 12px; padding-top: 3px; }
+.r-sp { font-size: 16px; font-weight: 800; min-width: 56px; flex-shrink:0; margin-right: 14px; padding-top: 4px; color: var(--dark); }
+.r-tm { font-family:"SF Mono",monospace; font-size: 15px; color: var(--light); min-width: 52px; flex-shrink:0; margin-right: 16px; padding-top: 5px; cursor:pointer; }
+.r-tm:hover { color: var(--gold); }
+.r-txt { font-size: 18px; line-height: 1.9; color: var(--black); flex:1; min-width:0; }
+/* 句子序号列 */
+.r-num { font-family:"SF Mono",monospace; font-size: 12px; color: var(--light); min-width: 34px; flex-shrink:0; margin-right: 10px; padding-top: 7px; text-align:right; user-select:none; }
+/* 半句删除：字符级划线（点击可恢复）。删除线颜色/粗细与整句删除(.row.del .r-txt)保持一致 */
+.r-txt .pd { text-decoration: line-through; text-decoration-color: var(--mid); color: var(--muted); background: var(--gold-dim); cursor: pointer; border-radius: 2px; }
+/* 选区浮动删除按钮 */
+#selbtn { position: fixed; z-index: 9999; display:none; background: var(--black); color:#fff; font-size: 13px; font-weight:600; padding: 6px 12px; border-radius: 6px; cursor:pointer; box-shadow: 0 3px 12px rgba(0,0,0,.25); user-select:none; }
+#selbtn:hover { background: var(--gold-dark); }
+
+/* ===== PLAYER ===== */
+.player {
+  position: fixed; bottom:0; left:0; right:0; z-index:1000;
+  background: #1A1A1A; height: 72px;
+  display: flex; align-items: center; padding: 0 32px; gap: 24px;
+}
+
+.p-time {
+  font-family: "SF Mono", monospace;
+  font-size: 15px; color: var(--sage-light); min-width: 60px;
+}
+.p-total {
+  font-family: "SF Mono", monospace;
+  font-size: 15px; color: var(--muted); min-width: 60px;
+}
+
+.p-track { flex:1; height: 4px; background: var(--dark); cursor:pointer; position:relative; border-radius:2px; }
+.p-fill { height:100%; background: #EFECE6; width:0%; transition:width .05s; border-radius:2px; position:relative; }
+.p-leaf {
+  position:absolute; right:-6px; top:-5px;
+  width:14px; height:14px;
+  background: #EFECE6; border-radius: 50%;
+  transition: right .05s;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+.p-track:active .p-fill { transition:none; }
+.p-track:active .p-leaf { transition:none; }
+
+.p-btn {
+  background: transparent; color: var(--sage-light);
+  border: 1.5px solid var(--muted);
+  padding: 7px 24px; font-size: 12px; font-weight: 700;
+  letter-spacing: 2px; cursor: pointer; transition: all .12s;
+}
+.p-btn:hover { background: var(--sage-light); color: var(--black); border-color: var(--sage-light); }
+
+.p-spd {
+  font-family: "SF Mono", monospace;
+  font-size: 12px; color: var(--muted); background: none;
+  border: none; cursor: pointer; letter-spacing: 1px;
+}
+.p-spd:hover { color: var(--sage-light); }
+
+/* Info icon */
+.info-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--muted); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-style: italic; font-family: Georgia, serif;
+  transition: all .12s;
+}
+.info-icon:hover { border-color: var(--sage-light); color: var(--sage-light); }
+
+/* Info popup */
+.info-popup {
+  position: fixed; top: 56px; right: 20px; z-index: 2001;
+  background: white; border: 1px solid var(--sage-dark);
+  border-radius: 8px; padding: 20px; width: 320px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  font-size: 14px; line-height: 1.7; color: var(--dark);
+  display: none;
+}
+.info-popup.vis { display: block; }
+.info-popup-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; }
+.info-popup p { margin-bottom: 8px; }
+.info-close {
+  margin-top: 8px; padding: 6px 16px; background: var(--dark); color: var(--sage-light);
+  border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* Export success modal */
+.export-modal {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(12,10,9,.6); display: none;
+  align-items: center; justify-content: center;
+}
+.export-modal.vis { display: flex; }
+.export-modal-inner {
+  background: white; border-radius: 12px; padding: 32px;
+  max-width: 440px; width: 90%;
+}
+.export-modal-title {
+  font-family: "Noto Serif SC", serif;
+  font-size: 22px; font-weight: 700; margin-bottom: 20px; color: var(--dark);
+}
+.export-modal-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.export-step {
+  display: flex; align-items: flex-start; gap: 12px;
+  font-size: 15px; line-height: 1.6; color: var(--mid);
+}
+.export-step em { color: var(--gold-dark); font-style: normal; font-weight: 600; }
+.export-step-num {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  background: var(--gold-dim); color: var(--gold-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; margin-top: 2px;
+}
+.export-modal-btn {
+  width: 100%; padding: 10px; background: var(--dark); color: var(--sage-light);
+  border: none; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.export-modal-btn:hover { background: var(--black); }
+
+.toast {
+  position:fixed; top:60px; right:28px; background:var(--black); color:var(--sage-light);
+  padding:12px 24px; font-size:15px; font-weight:600; z-index:2000;
+  opacity:0; transition:opacity .3s; pointer-events:none; border-radius:4px;
+}
+.toast.vis { opacity:1; }
+
+@media(max-width:960px) {
+  .layout { flex-direction:column; }
+  .sidebar { width:100%; position:relative; height:auto; border-right:none; border-bottom:1px solid var(--sage-dark); }
+  .main-title { font-size:32px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">辟客</span>
+  <span class="proj">__PROJECT_NAME__</span>
+  <span class="fill"></span>
+  <span class="status" id="sv">自动保存：已保存</span>
+  <span class="info-icon" onclick="document.getElementById('info-tip').classList.toggle('vis')" title="关于导出">?</span>
+  <button class="expbtn" onclick="doExport()">导出</button>
+</div>
+
+<!-- Info tooltip -->
+<div class="info-popup" id="info-tip">
+  <div class="info-popup-title">导出说明</div>
+  <p>导出的是一份 <strong>delete_segments_edited.json</strong> 文件，包含所有标记删除的时间段。</p>
+  <p>导出后，将文件拖入 Claude Code 对话框，即可执行剪辑生成 MP3 成品，并继续后续的精剪（口癖词、卡顿等）和音质处理。</p>
+  <button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
+</div>
+
+<!-- Export success modal -->
+<div class="export-modal" id="export-modal">
+  <div class="export-modal-inner">
+    <div class="export-modal-title">导出成功</div>
+    <div class="export-modal-steps">
+      <div class="export-step">
+        <span class="export-step-num">1</span>
+        <span>打开 Claude Code，将下载的 <strong>delete_segments_edited.json</strong> 拖入对话框</span>
+      </div>
+      <div class="export-step">
+        <span class="export-step-num">2</span>
+        <span>输入：<em>「用这个文件剪辑音频」</em></span>
+      </div>
+      <div class="export-step">
+        <span class="export-step-num">3</span>
+        <span>Claude 会执行剪辑，然后可以继续精剪口癖词、音质处理、加片头音乐等</span>
+      </div>
+    </div>
+    <button class="export-modal-btn" onclick="document.getElementById('export-modal').classList.remove('vis')">好的</button>
+  </div>
+</div>
+
+<div class="layout">
+<aside class="sidebar">
+
+  <div class="dur-block">
+    <div class="section-label">时长</div>
+    <div class="dur-main">
+      <span class="dur-from serif" id="d-from">0:00</span>
+      <span class="dur-arrow">→</span>
+      <span class="dur-to serif" id="d-to">0:00</span>
+    </div>
+    <div class="dur-meta">删减了 <strong id="d-rm">0:00</strong></div>
+  </div>
+
+  <div>
+    <div class="section-label">删减概要</div>
+    <div class="summary-text" id="summ"></div>
+  </div>
+
+  <div>
+    <div class="section-label">说话人</div>
+    <div class="sp-legend" id="spleg"></div>
+  </div>
+
+  <div class="nav-section">
+    <div class="section-label">章节导航</div>
+    <div class="nav-list" id="nav"></div>
+  </div>
+
+
+</aside>
+
+<main class="main">
+  <div class="main-hdr">
+    <h1 class="main-title">粗剪逐字稿</h1>
+    <p class="main-sub">
+      审阅并编辑你的播客内容。点击句子跳转播放，使用 <span class="hint-tag">☐</span> 删除或恢复段落，所有操作自动保存。
+    </p>
+    <div class="mode-bar">
+      <div class="mode-toggle" id="mode-toggle">
+        <div class="mode-slider" id="mode-slider"></div>
+        <button class="mode-btn active" id="mode-edit" onclick="setMode('edit')">✎ 编辑模式</button>
+        <button class="mode-btn" id="mode-preview" onclick="setMode('preview')">▶ 粗剪预览</button>
+      </div>
+    </div>
+  </div>
+  <div id="tx" style="padding-top:16px"></div>
+</main>
+</div>
+
+<div class="player">
+  <span class="p-time mono" id="ptm">0:00</span>
+  <div class="p-track" id="ptrk" onmousedown="startDrag(event)"><div class="p-fill" id="pfill"><span class="p-leaf"></span></div></div>
+  <span class="p-total mono" id="pdur">0:00</span>
+  <button class="p-btn" id="pbtn" onclick="tgPlay()">播放</button>
+  <button class="p-spd" id="pspd" onclick="cySpd()">1.0×</button>
+</div>
+
+
+<div class="mode-transition" id="mode-trans">
+  <div class="mt-graphic" id="mt-graphic">
+    <!-- Edit mode: pencil -->
+    <div class="pencil-wrap" id="mt-pencil" style="display:none">
+      <svg class="pencil-svg" viewBox="0 0 64 64" fill="none">
+        <path d="M14 50 L44 20 L50 26 L20 56 L12 58 Z" stroke="#1A1A1A" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+        <path d="M44 20 L48 16 C50 14 53 14 55 16 L55 16 C57 18 57 21 55 23 L50 26" stroke="#1A1A1A" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+        <path d="M14 50 L20 56" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="13" cy="57" r="2" fill="#1A1A1A"/>
+      </svg>
+    </div>
+    <!-- Preview mode: cassette tape -->
+    <div class="cassette" id="mt-cassette" style="display:none">
+      <div class="cassette-body">
+        <div class="cassette-window">
+          <div class="cassette-reel"></div>
+          <div class="cassette-reel"></div>
+        </div>
+        <div class="cassette-label">ROUGH CUT</div>
+      </div>
+    </div>
+  </div>
+  <div class="mt-label" id="mt-text">编辑模式</div>
+</div>
+<div class="toast" id="toast"></div>
+<audio id="au" src="__AUDIO_SRC__" preload="auto"></audio>
+
+<script>
+
+const S = __SENTENCES_DATA__;
+const BLK = __BLOCKS_DATA__;
+
+const TL={"pre_show":"录前准备","tech_debug":"技术调试","chit_chat":"闲聊寒暄","repeated_content":"重复内容","production_talk":"制作讨论","privacy":"隐私内容","redundant_viewpoint":"重复观点","over_detail":"过度展开","low_density":"低密度段落","weak_relevance":"弱相关内容"};
+
+// Nav chapters — topic summaries
+const CHAPS = __CHAPTERS_DATA__;
+
+// Speakers — 3 shades of the same warm tone
+const spShades = ['#1A1A1A','#6E6E6E','#4A4A4A'];
+const spList=[], spCMap={};
+S.forEach(x=>{ if(x.sp && !spCMap[x.sp]){ spCMap[x.sp]=spShades[spList.length%3]; spList.push(x.sp); }});
+
+// State
+const del=new Set(), um=new Set();
+// 半句删除：sentenceIdx → [{a,b,s,e}]（a/b=词索引范围，s/e=删除时间段）
+const pdel={};
+let curIdx=-1, curNav=-1;
+S.forEach(x=>{ if(x.ai) del.add(x.idx); if(x.sug) del.add(x.idx); });
+
+function fm(s){ if(s<0)s=0; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=Math.floor(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${m}:${String(sc).padStart(2,'0')}`; }
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 半句删除：字符级渲染。pdel 段用 [cs,ce) 字符区间标记，落在区间内的字符串划线。
+// 字符级（而非整词）才能显示"词内部分删除"，与导出的插值时间一致。
+function txtHtml(x){
+  if(!x.w || !x.w.length) return esc(x.t);  // 兼容无逐词时间的旧数据
+  const full = x.w.map(w=>w.t).join('');
+  const ranges = pdel[x.idx] || [];
+  let html='', i=0;
+  while(i < full.length){
+    const ri = ranges.findIndex(r => i >= r.cs && i < r.ce);
+    if(ri >= 0){
+      html += `<span class="pd" data-ri="${ri}">${esc(full.slice(i, ranges[ri].ce))}</span>`;
+      i = ranges[ri].ce;
+    } else {
+      const starts = ranges.filter(r => r.cs > i).map(r => r.cs);
+      const nx = starts.length ? Math.min(...starts) : full.length;
+      html += esc(full.slice(i, nx));
+      i = nx;
+    }
+  }
+  return html;
+}
+
+// ===== STATS =====
+function computeStats() {
+  const td=S.length?S[S.length-1].e:0; let rd=0; const rbt={}, sd={};
+  S.forEach(x=>{const d=x.e-x.s;if(del.has(x.idx)){rd+=d;rbt[x.dt||'other']=(rbt[x.dt||'other']||0)+d}else if(x.sp){sd[x.sp]=(sd[x.sp]||0)+d}});
+  // 半句删除（仅对未整句删除的句子生效）
+  for(const k in pdel){ const idx=+k; if(del.has(idx))continue; const x=S.find(s=>s.idx===idx); pdel[k].forEach(r=>{const d=r.e-r.s; rd+=d; rbt.partial=(rbt.partial||0)+d; if(x&&x.sp&&sd[x.sp])sd[x.sp]=Math.max(0,sd[x.sp]-d);}); }
+  return {td, rd, rc:td-rd, rbt, sd};
+}
+
+// ===== SIDEBAR =====
+function renderSidebar() {
+  const {td, rd, rc, rbt, sd} = computeStats();
+
+  document.getElementById('d-from').textContent=fm(td);
+  document.getElementById('d-to').textContent=fm(rc);
+  document.getElementById('d-rm').textContent=fm(rd);
+
+  // Summary
+  const fill=['pre_show','tech_debug','production_talk','chit_chat'];
+  let fd=0;const fn=[];const cc=[];
+  for(const[t,d] of Object.entries(rbt)){if(t==='other')continue;if(fill.includes(t)){fd+=d;fn.push(TL[t]||t)}else cc.push({l:TL[t]||t,d})}
+  cc.sort((a,b)=>b.d-a.d);
+  const pts=[];
+  if(fd>0)pts.push(`${Math.round(fd/60)} 分钟${fn.join('、')}`);
+  cc.forEach(c=>pts.push(`${Math.round(c.d/60)} 分钟${c.l}`));
+  // Count suggested deletes
+  const sugCount = S.filter(x => x.sug && del.has(x.idx)).length;
+  let summText = '';
+  if(pts.length) summText += `共删除 ${pts.join('，')}。`;
+  if(sugCount > 0) summText += `另有 ${sugCount} 句建议精简（重复叙述/展开过多），可在右侧逐条恢复。`;
+  if(!summText) summText = '未做任何删减。';
+  document.getElementById('summ').textContent = summText;
+
+  // Speaker legend (no pie chart)
+  const en=spList.filter(sp=>sd[sp]>0).map(sp=>({n:sp,d:sd[sp]||0}));
+  if(en.length){
+    document.getElementById('spleg').innerHTML=en.map(e=>{
+      const p=Math.round(e.d/rc*100);
+      return`<div class="sp-row"><span class="sp-dot" style="background:${spCMap[e.n]}"></span><span class="sp-name">${e.n}</span><span class="sp-val">${p}% · ${fm(e.d)}</span></div>`;
+    }).join('');
+  }
+
+  // Navigator
+  document.getElementById('nav').innerHTML = CHAPS.map((ch,i)=>{
+    return`<div class="nav-item${i===curNav?' active':''}" onclick="navTo(${i})">
+      <span class="nav-num">${String(i+1).padStart(2,'0')}</span>
+      <div class="nav-body">
+        <div class="nav-title">${esc(ch.title)}</div>
+        <div class="nav-ts">${ch.time} · ${esc(ch.desc)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== TRANSCRIPT =====
+function renderTx() {
+  const c=document.getElementById('tx');let h='';
+  // Block map (deleted sections)
+  const bm={};BLK.forEach(b=>{for(let i=b.r[0];i<=b.r[1];i++)bm[i]=b});
+  // Chapter map (content sections)
+  const cm={};CHAPS.forEach((ch,i)=>{if(ch.startIdx!==undefined)cm[ch.startIdx]={...ch,num:i+1}});
+
+  let lb=null;
+  S.forEach(x=>{
+    // Chapter header — content section divider
+    if(cm[x.idx]){
+      const ch=cm[x.idx];
+      h+=`<div class="chap-hdr" id="chap${ch.num}">
+        <span class="chap-num">${String(ch.num).padStart(2,'0')}</span>
+        <span class="chap-title">${esc(ch.title)}</span>
+        <span class="chap-desc">${esc(ch.desc||'')}</span>
+      </div>`;
+    }
+
+    // Block header — deleted section
+    const b=bm[x.idx];
+    if(b&&b!==lb){
+      const ck=isBD(b);
+      h+=`<div class="blk"><div class="chk ${ck?'on':''}" onclick="tgB(${b.id})">✕</div><span class="blk-tag">${TL[b.type]||b.type}</span><span class="blk-rsn">${b.reason}</span><span class="blk-dur mono">${b.dur}</span></div>`;
+      lb=b;
+    }
+
+    // Sentence row
+    const id=del.has(x.idx);
+    const isSug = x.sug && id; // suggested + currently deleted
+    let cl='row';if(id)cl+=' del';if(isSug)cl+=' sug';if(x.idx===curIdx)cl+=' act';
+    const reasonTag = (isSug && x.sugReason) ? `<span class="sug-reason">${esc(x.sugReason)}</span>` : '';
+    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div></div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${x.sp}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x)}${reasonTag}</div></div>`;
+  });
+  c.innerHTML=h;
+}
+
+function isBD(b){for(let i=b.r[0];i<=b.r[1];i++)if(!del.has(i))return false;return true}
+function renderAll(){renderSidebar();renderTx()}
+
+// ===== INTERACTIONS =====
+function tgS(i){del.has(i)?del.delete(i):del.add(i);um.add(i);renderAll();sv()}
+function tgB(id){const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){ad?del.delete(i):del.add(i);um.add(i)}renderAll();sv()}
+
+// ===== 半句删除（选区 → 词 → 时间段）=====
+const selbtn=document.createElement('div');
+selbtn.id='selbtn'; selbtn.textContent='✂ 删除选中';
+selbtn.onmousedown=e=>e.preventDefault();   // 防止点按钮时清空选区
+selbtn.onclick=delSel;
+document.body.appendChild(selbtn);
+function hideSelBtn(){ selbtn.style.display='none'; }
+document.addEventListener('mousedown',e=>{ if(e.target!==selbtn) hideSelBtn(); });
+
+document.getElementById('tx').addEventListener('mouseup',e=>{
+  // 点到已划掉的词 → 恢复该段
+  if(e.target.classList && e.target.classList.contains('pd')){
+    const row=e.target.closest('.row'); if(!row) return;
+    const idx=+row.id.slice(1), ri=+e.target.dataset.ri;
+    if(pdel[idx]){ pdel[idx].splice(ri,1); if(!pdel[idx].length) delete pdel[idx]; }
+    renderTx(); sv(); hideSelBtn(); return;
+  }
+  setTimeout(()=>{
+    const sel=window.getSelection();
+    if(!sel||sel.isCollapsed||!sel.toString().trim()){ hideSelBtn(); return; }
+    const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
+    const txt=el&&el.closest('.r-txt'); if(!txt){ hideSelBtn(); return; }
+    const rect=sel.getRangeAt(0).getBoundingClientRect();
+    selbtn.style.left=Math.max(8,rect.left+rect.width/2-44)+'px';
+    selbtn.style.top=Math.max(8,rect.top-38)+'px';
+    selbtn.style.display='block';
+  },10);
+});
+
+function delSel(){
+  const sel=window.getSelection(); if(!sel||sel.isCollapsed) return;
+  const range=sel.getRangeAt(0);
+  const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
+  const txt=el&&el.closest('.r-txt'); if(!txt){ hideSelBtn(); return; }
+  const idx=+txt.closest('.row').id.slice(1);
+  const x=S.find(s=>s.idx===idx); if(!x||!x.w){ hideSelBtn(); return; }
+  const selText=sel.toString(); if(!selText.trim()){ hideSelBtn(); return; }
+
+  // 精确字符偏移：从 r-txt 起点到选区起点的文本长度（不依赖 indexOf，避免同字误匹配）
+  const pre=document.createRange(); pre.setStart(txt,0); pre.setEnd(range.startContainer, range.startOffset);
+  const pos=pre.toString().length;
+  const wt=x.w.map(w=>w.t); const full=wt.join('');
+  const delEnd=Math.min(pos+selText.length, full.length);
+  if(pos<0 || delEnd<=pos){ hideSelBtn(); return; }
+
+  // 字符区间 [pos,delEnd) → 词 + 词内偏移
+  let cc=0, sW=null, eW=null, sOff=0, eOff=0;
+  for(let i=0;i<wt.length;i++){
+    const wS=cc, wE=cc+wt[i].length;
+    if(sW===null && wE>pos){ sW=i; sOff=pos-wS; }
+    if(wE>=delEnd){ eW=i; eOff=wE-delEnd; break; }
+    cc=wE;
+  }
+  if(sW===null||eW===null){ hideSelBtn(); return; }
+  const sw=x.w[sW], ew=x.w[eW];
+  // 词内按字符比例插值时间（ASR 合词时也能切准）
+  let st=(sOff>0 && wt[sW].length>0) ? sw.s+(sw.e-sw.s)*(sOff/wt[sW].length) : sw.s;
+  let et=(eOff>0 && wt[eW].length>0) ? ew.e-(ew.e-ew.s)*(eOff/wt[eW].length) : ew.e;
+  // 有条件边界扩展（仅当选区正好落在词边界时）：起点 gap<0.2s 前移，终点 gap<2s 延后，吃掉死气间隙
+  if(sOff===0 && sW>0){ const pv=x.w[sW-1]; const g=st-pv.e; if(g>=0&&g<0.20) st=pv.e; }
+  if(eOff===0 && eW<x.w.length-1){ const nx=x.w[eW+1]; const g=nx.s-et; if(g>=0&&g<2.0) et=nx.s; }
+
+  (pdel[idx]=pdel[idx]||[]).push({cs:pos, ce:delEnd, s:Math.round(st*1000)/1000, e:Math.round(et*1000)/1000});
+  um.add(idx);
+  sel.removeAllRanges(); hideSelBtn(); renderTx(); sv();
+}
+
+// 收集所有半句删除时间段（跳过整句已删的句子，避免重复）
+function pdelRanges(){
+  const out=[];
+  for(const k in pdel){ const idx=+k; if(del.has(idx)) continue; pdel[k].forEach(r=>out.push([r.s,r.e])); }
+  return out;
+}
+
+function goTo(idx){
+  curIdx=idx;
+  const x=S.find(s=>s.idx===idx);
+  if(x){sk(x.s);au.play()}
+  document.querySelectorAll('.row.act').forEach(el=>el.classList.remove('act'));
+  const r=document.getElementById('r'+idx);
+  if(r){r.classList.add('act');r.scrollIntoView({behavior:'smooth',block:'center'})}
+  if(x) updateNav(x.s);
+}
+
+function navTo(i){
+  curNav=i;
+  const ch=CHAPS[i];
+  const x=S.find(s=>s.idx===ch.startIdx);
+  if(x){sk(x.s);au.play()}
+  document.querySelectorAll('.nav-item.active').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[i]?.classList.add('active');
+  const r=document.getElementById('r'+ch.startIdx);
+  if(r) r.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function updateNav(time){
+  let active=0;
+  for(let i=CHAPS.length-1;i>=0;i--){
+    const x=S.find(s=>s.idx===CHAPS[i].startIdx);
+    if(x&&time>=x.s){active=i;break}
+  }
+  if(active!==curNav){
+    curNav=active;
+    document.querySelectorAll('.nav-item.active').forEach(el=>el.classList.remove('active'));
+    document.querySelectorAll('.nav-item')[active]?.classList.add('active');
+  }
+}
+
+// ===== MODE SWITCHING =====
+let previewMode = false;
+
+function findVisibleSentenceIdx() {
+  // Find the first non-deleted sentence currently visible in viewport
+  const rows = document.querySelectorAll('.row:not(.del)');
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (rect.top >= 100 && rect.top < window.innerHeight * 0.6) {
+      return parseInt(row.id.replace('r', ''));
+    }
+  }
+  // Fallback: find closest to top
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (rect.bottom > 100) return parseInt(row.id.replace('r', ''));
+  }
+  return -1;
+}
+
+function positionSlider() {
+  const toggle = document.getElementById('mode-toggle');
+  const slider = document.getElementById('mode-slider');
+  const activeBtn = previewMode ? document.getElementById('mode-preview') : document.getElementById('mode-edit');
+  if (!slider || !activeBtn || !toggle) return;
+  const tRect = toggle.getBoundingClientRect();
+  const bRect = activeBtn.getBoundingClientRect();
+  slider.style.width = bRect.width + 'px';
+  slider.style.transform = `translateX(${bRect.left - tRect.left - 4}px)`;
+}
+
+function setMode(mode) {
+  const wasPreview = previewMode;
+  previewMode = (mode === 'preview');
+  if (wasPreview === previewMode) return;
+
+  // 1. Remember scroll position
+  const anchorIdx = findVisibleSentenceIdx();
+
+  // 2. Show transition with cute graphic
+  const trans = document.getElementById('mode-trans');
+  const text = document.getElementById('mt-text');
+  const pencil = document.getElementById('mt-pencil');
+  const cassette = document.getElementById('mt-cassette');
+
+  text.textContent = previewMode ? '粗剪预览' : '编辑模式';
+  pencil.style.display = previewMode ? 'none' : 'block';
+  cassette.style.display = previewMode ? 'block' : 'none';
+  trans.classList.add('active');
+
+  // 3. Apply mode change after graphic plays
+  setTimeout(() => {
+    document.body.classList.toggle('preview', previewMode);
+    document.getElementById('mode-edit').classList.toggle('active', !previewMode);
+    document.getElementById('mode-preview').classList.toggle('active', previewMode);
+    positionSlider();
+
+    renderSidebar();
+    if (typeof updatePlayerDuration === 'function') updatePlayerDuration();
+
+    // 4. Restore scroll position
+    if (anchorIdx >= 0) {
+      const row = document.getElementById('r' + anchorIdx);
+      if (row) row.scrollIntoView({ block: 'start' });
+    }
+
+    // 5. Fade out transition
+    setTimeout(() => trans.classList.remove('active'), 400);
+  }, 900);
+}
+
+// Initialize slider position after first render
+setTimeout(positionSlider, 100);
+window.addEventListener('resize', positionSlider);
+
+// Compute virtual time (rough cut position) from original time
+function originalToVirtual(origTime) {
+  let virtualTime = 0;
+  let lastEnd = 0;
+  // Sort kept segments
+  const kept = [];
+  let segStart = null;
+  S.forEach(x => {
+    if (!del.has(x.idx)) {
+      if (segStart === null) segStart = x.s;
+    } else {
+      if (segStart !== null) {
+        kept.push({ s: segStart, e: x.s });
+        segStart = null;
+      }
+    }
+  });
+  if (segStart !== null) {
+    const lastS = S[S.length - 1];
+    kept.push({ s: segStart, e: lastS.e });
+  }
+
+  for (const seg of kept) {
+    if (origTime <= seg.s) break;
+    if (origTime >= seg.e) {
+      virtualTime += seg.e - seg.s;
+    } else {
+      virtualTime += origTime - seg.s;
+      break;
+    }
+  }
+  return virtualTime;
+}
+
+// ===== AUDIO =====
+const au=document.getElementById('au');let pl=false;
+const spds=[1,1.25,1.5,1.75,2,.75];let si=0;
+function tgPlay(){pl?au.pause():au.play()}
+function sk(t){au.currentTime=t}
+let dragging=false;
+function startDrag(e){
+  dragging=true;
+  seekFromPos(e);
+  const onMove=ev=>{if(dragging)seekFromPos(ev)};
+  const onUp=()=>{dragging=false;document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp)};
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
+function seekFromPos(e){const rc=document.getElementById('ptrk').getBoundingClientRect();const pct=Math.max(0,Math.min(1,(e.clientX-rc.left)/rc.width));if(au.duration){au.currentTime=pct*au.duration;document.getElementById('pfill').style.width=(pct*100)+'%'}}
+function cySpd(){si=(si+1)%spds.length;au.playbackRate=spds[si];document.getElementById('pspd').textContent=spds[si]+'×'}
+
+au.addEventListener('play',()=>{pl=true;document.getElementById('pbtn').textContent='暂停'});
+au.addEventListener('pause',()=>{pl=false;document.getElementById('pbtn').textContent='播放'});
+au.addEventListener('loadedmetadata',()=>{ updatePlayerDuration(); });
+
+function updatePlayerDuration() {
+  if(previewMode) {
+    const stats = computeStats();
+    document.getElementById('pdur').textContent=fm(stats.rc);
+  } else {
+    document.getElementById('pdur').textContent=fm(au.duration||0);
+  }
+}
+
+au.addEventListener('timeupdate',()=>{
+  const t=au.currentTime,d=au.duration||0;
+
+  // Show virtual time in preview mode, original time in edit mode
+  if(previewMode) {
+    const vt = originalToVirtual(t);
+    document.getElementById('ptm').textContent=fm(vt);
+    // Progress bar based on virtual time / rough cut duration
+    const stats = computeStats();
+    if(stats.rc > 0) document.getElementById('pfill').style.width=(vt/stats.rc*100)+'%';
+  } else {
+    document.getElementById('ptm').textContent=fm(t);
+    if(d>0) document.getElementById('pfill').style.width=(t/d*100)+'%';
+  }
+
+  const cur=S.find((x,i)=>{const nx=S[i+1];return t>=x.s&&(!nx||t<nx.s)});
+  if(cur&&cur.idx!==curIdx){
+    curIdx=cur.idx;
+    document.querySelectorAll('.row.act').forEach(el=>el.classList.remove('act'));
+    const r=document.getElementById('r'+cur.idx);
+    if(r){r.classList.add('act');const rc=r.getBoundingClientRect();if(rc.top<60||rc.bottom>window.innerHeight-90)r.scrollIntoView({behavior:'smooth',block:'center'})}
+  }
+  updateNav(t);
+  // Always skip deleted segments during playback (both modes)
+  if(pl)for(const x of S)if(del.has(x.idx)&&t>=x.s&&t<x.e){au.currentTime=x.e+.05;return}
+  if(pl)for(const r of pdelRanges())if(t>=r[0]&&t<r[1]){au.currentTime=r[1]+.02;return}
+});
+
+// ===== EXPORT =====
+function doExport(){
+  // 收集所有删除时间段：整句删除 + 半句删除，排序后合并相邻（间隙<1.5s）
+  let ranges=[];
+  S.forEach(x=>{ if(del.has(x.idx)) ranges.push([x.s,x.e]); });
+  ranges=ranges.concat(pdelRanges());
+  ranges.sort((p,q)=>p[0]-q[0]);
+  const segs=[];let c=null;
+  ranges.forEach(r=>{ if(c&&(r[0]-c.end)<1.5){ if(r[1]>c.end)c.end=r[1]; } else { if(c)segs.push(c); c={start:r[0],end:r[1]}; } });
+  if(c)segs.push(c);
+  // Extend first segment to 0 to avoid opening artifacts
+  if(segs.length>0 && segs[0].start<5) segs[0].start=0;
+
+  const stats = computeStats();
+  const data = {
+    version: "roughcut_v1",
+    exported_at: new Date().toISOString(),
+    original_duration: Math.round(stats.td),
+    roughcut_duration: Math.round(stats.rc),
+    removed_duration: Math.round(stats.rd),
+    segments: segs
+  };
+
+  const bl=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='delete_segments_edited.json';a.click();
+
+  // Show success modal with next steps
+  document.getElementById('export-modal').classList.add('vis');
+}
+
+// Persistence
+// Version key = title + sentence count + delete count, so stale cache is ignored
+const DATA_VER = document.title + '_' + S.length + '_' + S.filter(x=>x.ai||x.sug).length;
+const SK='rc6_'+DATA_VER;
+function sv(){try{localStorage.setItem(SK,JSON.stringify({v:DATA_VER,d:Array.from(del),m:Array.from(um),p:pdel}))}catch(e){}}
+function rs(){try{const r=localStorage.getItem(SK);if(!r)return;const s=JSON.parse(r);if(s.v!==DATA_VER)return;if(s.d){del.clear();s.d.forEach(i=>del.add(i))}if(s.m)s.m.forEach(i=>um.add(i));if(s.p){for(const k in pdel)delete pdel[k];Object.assign(pdel,s.p)}}catch(e){}}
+function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
+
+rs();renderAll();
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
+
+</script>
+</body>
+</html>

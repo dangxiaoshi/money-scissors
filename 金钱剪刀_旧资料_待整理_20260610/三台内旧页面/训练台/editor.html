@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>金钱剪刀 · 课件编辑器</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #f5f0e8;
+      --panel: #fffcf0;
+      --gold: #c8952a;
+      --gold-soft: #f5e8c0;
+      --border: #e8d8b0;
+      --text: #1a1209;
+      --muted: #8f7b58;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+    .top {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      background: rgba(245, 240, 232, 0.96);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+    .status {
+      flex: 1;
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    button, a.btn {
+      border: 1px solid var(--gold);
+      background: var(--gold);
+      color: #1a1209;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    button.secondary, a.secondary {
+      background: var(--panel);
+      color: var(--gold);
+    }
+    .layout {
+      --side-width: 260px;
+      display: grid;
+      grid-template-columns: var(--side-width) 14px minmax(0, 1fr);
+      gap: 10px;
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    .layout.resizing {
+      cursor: col-resize;
+      user-select: none;
+    }
+    .side {
+      position: sticky;
+      top: 68px;
+      align-self: start;
+      max-height: calc(100vh - 88px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .splitter {
+      position: sticky;
+      top: 68px;
+      align-self: stretch;
+      min-height: calc(100vh - 88px);
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      cursor: col-resize;
+      padding: 0;
+    }
+    .splitter::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 100%;
+      min-height: calc(100vh - 88px);
+      margin: 0 auto;
+      border-radius: 999px;
+      background: var(--border);
+      transition: background 0.15s ease, width 0.15s ease;
+    }
+    .splitter:hover::before,
+    .splitter:focus-visible::before,
+    .layout.resizing .splitter::before {
+      width: 6px;
+      background: var(--gold);
+    }
+    .side-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 4px 6px 10px;
+    }
+    .nav-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin: 4px 0;
+      padding: 8px 9px;
+      background: transparent;
+      border: 0;
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: var(--gold-soft);
+      color: var(--gold);
+    }
+    .editor {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      min-width: 0;
+    }
+    .eyebrow {
+      font-size: 12px;
+      color: var(--gold);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 14px 0 6px;
+      font-weight: 700;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fffaf0;
+      color: var(--text);
+      font: inherit;
+      font-size: 15px;
+      line-height: 1.7;
+      padding: 10px 12px;
+      outline: none;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(200, 149, 42, 0.12);
+    }
+    textarea {
+      min-height: 62vh;
+      resize: vertical;
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-top: 10px;
+    }
+    .empty {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .error-card {
+      padding: 28px;
+      border: 1px solid #e0b36b;
+      background: #fff7df;
+      border-radius: 14px;
+      line-height: 1.8;
+    }
+    .error-card h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      color: var(--gold);
+    }
+    .error-card p {
+      margin: 8px 0;
+      color: var(--text);
+    }
+    .error-card code {
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(200, 149, 42, 0.12);
+      color: var(--gold);
+      font-family: inherit;
+      font-weight: 700;
+    }
+    @media (max-width: 780px) {
+      .top { flex-wrap: wrap; }
+      .status { order: 3; flex-basis: 100%; }
+      .layout { grid-template-columns: 1fr; }
+      .splitter { display: none; }
+      .side { position: static; max-height: 260px; }
+      textarea { min-height: 55vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">金钱剪刀课件编辑器</div>
+    <div class="status" id="status">正在读取课件...</div>
+    <button class="secondary" type="button" id="reloadBtn">重新读取</button>
+    <button type="button" id="saveBtn">保存并生成网页</button>
+    <a class="btn secondary" href="/sop.html" target="_blank">预览课件</a>
+  </div>
+
+  <div class="layout" id="layout">
+    <aside class="side">
+      <div class="side-title">点一讲开始编辑</div>
+      <div id="nav"></div>
+    </aside>
+    <button class="splitter" type="button" id="splitter" aria-label="拖动调整目录宽度"></button>
+    <main class="editor" id="editor">
+      <div class="empty">正在加载...</div>
+    </main>
+  </div>
+
+  <script>
+    let course = null;
+    let current = null;
+    let dirty = false;
+
+    const statusEl = document.getElementById('status');
+    const navEl = document.getElementById('nav');
+    const editorEl = document.getElementById('editor');
+    const layoutEl = document.getElementById('layout');
+    const splitterEl = document.getElementById('splitter');
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function markDirty() {
+      dirty = true;
+      setStatus('有未保存修改');
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function setSideWidth(width) {
+      const maxWidth = Math.max(320, Math.min(560, window.innerWidth - 420));
+      const nextWidth = clamp(width, 180, maxWidth);
+      layoutEl.style.setProperty('--side-width', `${nextWidth}px`);
+      localStorage.setItem('jinqian-editor-side-width', String(nextWidth));
+    }
+
+    function setupSplitter() {
+      const savedWidth = Number(localStorage.getItem('jinqian-editor-side-width'));
+      if (savedWidth) setSideWidth(savedWidth);
+
+      splitterEl.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        splitterEl.setPointerCapture(e.pointerId);
+        layoutEl.classList.add('resizing');
+      });
+
+      splitterEl.addEventListener('pointermove', e => {
+        if (!layoutEl.classList.contains('resizing')) return;
+        const left = layoutEl.getBoundingClientRect().left;
+        setSideWidth(e.clientX - left - 18);
+      });
+
+      function stopResize(e) {
+        if (splitterEl.hasPointerCapture(e.pointerId)) splitterEl.releasePointerCapture(e.pointerId);
+        layoutEl.classList.remove('resizing');
+      }
+
+      splitterEl.addEventListener('pointerup', stopResize);
+      splitterEl.addEventListener('pointercancel', stopResize);
+      window.addEventListener('resize', () => {
+        const currentWidth = parseFloat(getComputedStyle(layoutEl).getPropertyValue('--side-width'));
+        setSideWidth(currentWidth);
+      });
+    }
+
+    function getItems() {
+      const items = [];
+      if (course && course.opening) items.push({ type: 'opening', key: 'opening', label: '开营仪式', data: course.opening });
+      for (const mod of course.modules || []) {
+        items.push({ type: 'module', key: mod.id, label: mod.title, data: mod });
+        for (const lecture of mod.lectures || []) {
+          items.push({ type: 'lecture', key: lecture.id, label: lecture.title, data: lecture, module: mod });
+        }
+      }
+      return items;
+    }
+
+    function renderNav() {
+      navEl.innerHTML = getItems().map(item => {
+        const pad = item.type === 'lecture' ? 'padding-left:20px;' : '';
+        const label = item.type === 'module' ? item.label.replace(/^模块.+?：/, '') : item.label;
+        return `<button class="nav-item ${current && current.key === item.key ? 'active' : ''}" style="${pad}" data-key="${item.key}">${label}</button>`;
+      }).join('');
+
+      navEl.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = getItems().find(x => x.key === btn.dataset.key);
+          selectItem(item);
+        });
+      });
+    }
+
+    function selectItem(item) {
+      current = item;
+      renderNav();
+
+      if (item.type === 'module') {
+        editorEl.innerHTML = `
+          <div class="eyebrow">模块标题</div>
+          <label>标题</label>
+          <input id="titleInput" value="${escapeAttr(item.data.title)}">
+          <p class="hint">这里改的是模块名，比如“模块二：内容判断力（核心）”。</p>
+        `;
+        document.getElementById('titleInput').addEventListener('input', e => {
+          item.data.title = e.target.value;
+          item.data.num = e.target.value.split('：')[0] || item.data.num;
+          markDirty();
+          renderNav();
+        });
+        return;
+      }
+
+      editorEl.innerHTML = `
+        <div class="eyebrow">${item.type === 'opening' ? '开营仪式' : '单讲课件'}</div>
+        <label>标题</label>
+        <input id="titleInput" value="${escapeAttr(item.data.title)}">
+        <label>正文</label>
+        <textarea id="contentInput">${escapeHtml(item.data.content || '')}</textarea>
+        <p class="hint">可以保留 Markdown 写法：**加粗**、- 列表、> 引用。保存后会同步到 Obsidian，并重新生成 sop.html。</p>
+      `;
+
+      document.getElementById('titleInput').addEventListener('input', e => {
+        item.data.title = e.target.value;
+        markDirty();
+        renderNav();
+      });
+      document.getElementById('contentInput').addEventListener('input', e => {
+        item.data.content = e.target.value;
+        markDirty();
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/"/g, '&quot;');
+    }
+
+    function showLoadError(err) {
+      const isFile = location.protocol === 'file:';
+      const title = isFile ? '打开方式不对' : '课件服务没连上';
+      const mainTip = isFile
+        ? '你现在直接打开了 editor.html，它只是编辑器外壳，不能自己读取 Obsidian。'
+        : '浏览器打开了，但后面的本地课件服务没有启动，或者已经被关掉了。';
+      setStatus(title);
+      navEl.innerHTML = '';
+      editorEl.innerHTML = `
+        <div class="error-card">
+          <h2>${title}</h2>
+          <p>${mainTip}</p>
+          <p>请回到文件夹 <code>/Users/dangxiaoshi/Desktop/金钱剪刀/训练台</code>，双击 <code>打开课件编辑器.command</code>。</p>
+          <p>如果已经双击过，先关掉旧窗口，再重新双击一次。</p>
+          <p class="hint">原始错误：${escapeHtml(err.message || String(err))}</p>
+        </div>
+      `;
+    }
+
+    async function loadCourse() {
+      setStatus('正在读取课件...');
+      const res = await fetch('/api/course');
+      if (!res.ok) throw new Error('读取失败');
+      course = await res.json();
+      dirty = false;
+      const firstLecture = getItems().find(x => x.type === 'lecture') || getItems()[0];
+      selectItem(firstLecture);
+      setStatus(`已读取：${course.modules.length}个模块，${course.modules.reduce((sum, mod) => sum + mod.lectures.length, 0)}讲`);
+    }
+
+    async function saveCourse() {
+      setStatus('正在保存...');
+      const res = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(course)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '保存失败');
+      dirty = false;
+      setStatus(`已保存：${data.modules}个模块，${data.lectures}讲；sop.html 已更新`);
+    }
+
+    document.getElementById('reloadBtn').addEventListener('click', async () => {
+      if (dirty && !confirm('有未保存修改，确定重新读取吗？')) return;
+      try { await loadCourse(); } catch (err) { showLoadError(err); }
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      try { await saveCourse(); } catch (err) { setStatus(err.message); }
+    });
+
+    window.addEventListener('beforeunload', e => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+
+    setupSplitter();
+    loadCourse().catch(showLoadError);
+  </script>
+</body>
+</html>

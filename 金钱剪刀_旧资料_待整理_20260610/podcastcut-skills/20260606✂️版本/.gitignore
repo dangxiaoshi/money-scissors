@@ -1,0 +1,8 @@
+.env
+node_modules/
+data/*.db
+data/*.db-*
+data/refine-jobs/
+logs/
+uploads/
+public/uploads/

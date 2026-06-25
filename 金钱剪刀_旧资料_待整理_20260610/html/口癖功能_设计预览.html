@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口癖功能 · 设计预览 v2（左栏入口 + 金黄灰色系）</title>
+<style>
+  :root{
+    /* 全局只有金黄一个彩色，其余灰 */
+    --gold:#f2c14e; --gold-bg:#ffeaa8; --gold-deep:#e09a2b;
+    --ink:#2b2b2b; --gray:#9aa0a8; --gray-line:#b6bbc2; --line:#ececec; --bg:#f6f7f9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);}
+  .demo-flag{background:#fff6e5;border-bottom:1px solid #ffe0a3;color:#9a6a00;font-size:13px;padding:8px 16px;text-align:center}
+  .top{display:flex;align-items:center;gap:14px;background:#fff;border-bottom:1px solid var(--line);padding:10px 18px;}
+  .logo{font-weight:700;color:var(--gold-deep)}
+  .proj{color:var(--gray);font-size:14px}
+  .top .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .btn.primary{background:var(--gold-deep);color:#fff;border-color:var(--gold-deep)}
+  .btn.ghost{color:var(--gray)}
+
+  .wrap{display:flex;max-width:1180px;margin:16px auto;gap:16px;padding:0 16px 80px}
+  .left{width:262px;flex:none;display:flex;flex-direction:column;gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+  .left .stat{font-size:13px;color:var(--gray);margin:6px 0}
+  .left .stat b{color:var(--ink);font-size:20px}
+  /* 固定统计条做成一行更省地方 */
+  .statbar{display:flex;gap:18px}
+  .statbar .stat{margin:0}
+  /* Tab 行 */
+  .tabs{display:flex;gap:4px;background:#eef0f3;border-radius:10px;padding:4px}
+  .tab{flex:1;text-align:center;font-size:13px;padding:7px 0;border-radius:7px;cursor:pointer;color:#666;white-space:nowrap}
+  .tab.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .tab.soon{color:#bcc1c9;cursor:default}
+  .tab.soon::after{content:"·即将";font-size:10px}
+  .pane{display:none}
+  .pane.on{display:block}
+  /* 决策/总揽 示例样式 */
+  .declist{font-size:13px;line-height:1.7}
+  .declist .it{padding:8px 0;border-bottom:1px dashed var(--line);color:#555}
+  .declist .it b{color:var(--ink)}
+  .ov h5{margin:10px 0 4px;font-size:13px}
+  .ov p{margin:0 0 8px;font-size:12.5px;color:var(--gray);line-height:1.7}
+  .soonbox{font-size:13px;color:var(--gray);text-align:center;padding:22px 8px;line-height:1.7}
+  /* 概况块 */
+  .bignum{font-size:30px;font-weight:700}
+  .bignum s{color:#b9bcc2;font-weight:400;font-size:20px}
+  .delsum{font-size:13px;color:var(--gray);margin:8px 0 12px}
+  .delsum b{color:var(--gold-deep)}
+  .note{background:#fff8ec;border-left:3px solid var(--gold);border-radius:6px;padding:9px 11px;font-size:12.5px;color:#7a6a45;line-height:1.6;margin-bottom:12px}
+  .spk{font-size:13px;display:flex;align-items:center;gap:6px}
+  .spk .d{width:8px;height:8px;border-radius:50%;background:#333}
+  .spk .pct{margin-left:auto;color:var(--gray);font-size:12.5px}
+  .ohead{color:var(--gold-deep);margin:0 0 6px;font-size:13px}
+
+  /* === 左栏里的「口癖」块：这就是入口，正文上方不加任何框 === */
+  .koupi-card h3{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:6px}
+  .koupi-card .dot{width:18px;height:0;border-top:2px dashed var(--gray-line)}
+  .koupi-card .count{font-size:13px;color:var(--gray);margin-bottom:10px}
+  .koupi-card .count b{color:var(--ink);font-size:18px}
+  .koupi-card .acts{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .nav{display:flex;gap:6px}
+  .nav button{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:15px;color:#555}
+  .full{flex:1;text-align:center;background:#f4f5f7;border:1px solid var(--line);border-radius:8px;padding:7px;font-size:13px;cursor:pointer}
+  .full:hover{background:#eee}
+  .libtoggle{font-size:13px;color:var(--gold-deep);cursor:pointer;border-top:1px dashed var(--line);padding-top:10px;display:flex;justify-content:space-between}
+  .lib{display:none;margin-top:10px}
+  .lib.show{display:block}
+  .lib h4{margin:8px 0 6px;font-size:12px;color:var(--gray);font-weight:600}
+  .words{display:flex;flex-wrap:wrap;gap:6px}
+  .word{font-size:12.5px;border-radius:14px;padding:4px 10px;border:1px solid var(--line);background:#fafafa;cursor:pointer;user-select:none}
+  .word.on{background:var(--gold-bg);border-color:var(--gold);color:#8a5a00;font-weight:600}
+  .lib .add{display:flex;gap:6px;margin-top:8px}
+  .lib .add input{flex:1;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12.5px;min-width:0}
+  .lib .add .go{background:var(--gold-deep);color:#fff;border:none;border-radius:8px;padding:0 12px;font-size:13px;cursor:pointer}
+  .lib .hint{font-size:11.5px;color:var(--gray);margin-top:8px;line-height:1.6}
+
+  .center{flex:1;min-width:0}
+  .modes{display:flex;gap:8px;margin-bottom:14px}
+  .mode{padding:8px 16px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer}
+  .mode.on{background:#111;color:#fff;border-color:#111}
+  .act-h{font-weight:700;margin:18px 0 10px;font-size:15px}
+  .sp{font-size:12px;color:var(--gray);margin:14px 0 6px}
+  .row{display:flex;gap:10px;padding:7px 8px;border-radius:8px;line-height:1.95;font-size:15.5px}
+  .row:hover{background:#fafafa}
+  .row .ck{flex:none;width:16px;height:16px;border:1.5px solid #cfd4dc;border-radius:4px;margin-top:6px}
+
+  /* === 三态：金黄=留，灰色=删 === */
+  .gold{ background:var(--gold-bg); border-bottom:2px solid var(--gold); border-radius:3px; padding:0 2px;}
+  .kp{ text-decoration:underline dashed var(--gray-line); text-underline-offset:3px; text-decoration-thickness:1.5px; cursor:pointer; position:relative; padding:0 1px;}
+  .kp:hover{background:#f0f0f0}
+  .kp .x{display:none;position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#666;color:#fff;font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .kp:hover .x{display:block}
+  .kp.cur{background:#ececec;outline:1px solid #d0d0d0}
+  .kp.killed{ text-decoration:line-through; text-decoration-color:var(--gray-line); color:#bbb;}
+  .del{ text-decoration:line-through; text-decoration-color:var(--gray-line); color:#b9bcc2;}
+
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--gray);margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+
+  .player{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:10px 20px}
+  .play{width:40px;height:40px;border-radius:50%;background:var(--gold-deep);color:#fff;border:none;font-size:16px;cursor:pointer}
+  .bar{flex:1;height:4px;background:#eee;border-radius:2px;position:relative}
+  .bar::after{content:"";position:absolute;left:0;top:0;height:4px;width:18%;background:var(--gold-deep);border-radius:2px}
+  .time{font-size:13px;color:var(--gray)}
+</style>
+</head>
+<body>
+<div class="demo-flag">⚠️ 口癖功能设计预览 v2 · 假数据 · 不接真页面、不动 review.html · 改动：入口收进左栏 / 全局金黄+灰色系 / 口癖=灰色虚线</div>
+
+<div class="top">
+  <span class="logo">金钱剪刀</span>
+  <span class="proj">瑞景新村 4.m4a</span>
+  <div class="right">
+    <span class="btn ghost">自动保存：已保存</span>
+    <span class="btn">生成 MP3</span>
+    <span class="btn primary">提交助教审核</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- 左栏：Tab 切换（总揽/决策/口癖）-->
+  <div class="left">
+    <!-- Tab 行：进度 / 解读 / 口癖 -->
+    <div class="tabs">
+      <div class="tab on" data-tab="ov" onclick="tab('ov')">进度</div>
+      <div class="tab" data-tab="con" onclick="tab('con')">解读</div>
+      <div class="tab" data-tab="kp" onclick="tab('kp')">口癖</div>
+    </div>
+
+    <div class="card">
+      <!-- 概况（默认）：时长 + 删减量 + 说话人占比（= 原"删减概要"）-->
+      <div class="pane on" data-pane="ov">
+        <div class="bignum"><s>1:56</s> → <b>1:30</b></div>
+        <div class="delsum">删减了 <b>0:26</b></div>
+        <div class="note">共删除 0 分钟闲聊寒暄，0 分钟低密度段落。</div>
+        <div class="spk"><span class="d"></span> 播客主 <span class="pct">84% · 1:15</span></div>
+      </div>
+      <!-- 总览：节目概要 + AI 剪辑决策（合并）-->
+      <div class="pane ov" data-pane="con">
+        <h5 class="ohead">节目概要</h5>
+        <p>播客主：不明确（像灵性 / 疗愈类创作者）</p>
+        <p>这期聊了什么：从身体特征切入家族 DNA 与祖先创伤</p>
+        <p>内容侧重：故事 60% / 情绪 30% / 干货 10%</p>
+        <h5 class="ohead" style="margin-top:14px">AI 剪辑决策</h5>
+        <div class="declist">
+          <div class="it">建议删 · <b>孤立反应词</b>「嗯。」第 2 句</div>
+          <div class="it">建议删 · <b>口头确认</b>「对对对」第 9 句</div>
+          <div class="it">建议删 · <b>跑题闲聊</b>第 14–16 句</div>
+        </div>
+      </div>
+      <!-- 口癖 -->
+      <div class="pane koupi-card" data-pane="kp">
+        <div class="count">检测到 <b id="cnt">0</b> 个口癖</div>
+        <div class="acts">
+          <div class="nav">
+            <button onclick="jump(-1)" title="上一个">←</button>
+            <button onclick="jump(1)" title="下一个">→</button>
+          </div>
+          <div class="full" onclick="killAll()">一键全标删</div>
+        </div>
+        <div class="libtoggle" onclick="toggleLib()"><span>词库设置</span><span id="libArrow">▸</span></div>
+        <div class="lib" id="lib">
+          <h4>默认标这些</h4>
+          <div class="words" id="wordsDefault"></div>
+          <h4>默认不标（想标自己点亮）</h4>
+          <div class="words" id="wordsOff"></div>
+          <div class="add">
+            <input id="newWord" placeholder="自定义口癖词" onkeydown="if(event.key==='Enter')addWord()">
+            <button class="go" onclick="addWord()">加</button>
+          </div>
+          <div class="hint">宁可少标别多标：默认只标语气词，不会连「的」都标，免得把话删碎、爆咔哒。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 正文：干净，只有灰色虚线标口癖 -->
+  <div class="center">
+    <div class="modes">
+      <div class="mode on">剪辑模式</div>
+      <div class="mode">粗剪试听</div>
+    </div>
+
+    <div class="card">
+      <div class="act-h">第一幕 · 身体就是家族密码</div>
+
+      <div class="sp">说话人 1</div>
+      <div class="row"><span class="ck"></span><span>那么今天的话题，<span data-kp class="kp">就是<span class="x">删</span></span>想跟大家聊一聊身体跟家族的关系，<span data-kp class="kp">那个<span class="x">删</span></span>话说回来其实挺有意思的。</span></div>
+      <div class="row"><span class="ck"></span><span><span data-kp class="kp">嗯<span class="x">删</span></span>，<span data-kp class="kp">就是<span class="x">删</span></span>种器官的衰退，对或者说疾病。</span></div>
+
+      <div class="sp">说话人 2</div>
+      <div class="row"><span class="ck"></span><span><span class="gold">你的身体，其实就是你整个家族的一本说明书。</span>（金句·金黄底）</span></div>
+
+      <div class="sp">说话人 1</div>
+      <div class="row"><span class="ck"></span><span>对，<span data-kp class="kp">那个<span class="x">删</span></span>你的家族那种核心的外貌有没有大家都是类似的？<span data-kp class="kp">然后<span class="x">删</span></span>有的人是不一样的。</span></div>
+      <div class="row"><span class="ck"></span><span><span class="del">这句是被划线删掉的整句示例，文字保留可还原。</span>（删除·灰实线）</span></div>
+      <div class="row"><span class="ck"></span><span><span data-kp class="kp">嗯<span class="x">删</span></span>，那一些人他可能是抱养来的，<span data-kp class="kp">就是<span class="x">删</span></span>他可能就回答不上来。</span></div>
+      <div class="row"><span class="ck"></span><span>因为我觉得身体反而是很重要的，<span data-kp class="kp">那个<span class="x">删</span></span>它是这个 DNA 的一个载体。</span></div>
+
+      <div class="legend">
+        <span><span class="gold">金句</span> 金黄底 = 要保留</span>
+        <span><span class="kp" style="cursor:default">口癖</span> 灰色虚线 = 建议删</span>
+        <span><span class="del">删除</span> 灰色实线 = 已删</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="player">
+  <button class="play">▶</button>
+  <div class="bar"></div>
+  <span class="time">0:21 / 1:56</span>
+  <span class="btn ghost">1.0x</span>
+</div>
+
+<script>
+  const DEFAULT_ON = ['嗯','啊','呃','那个','就是','然后','这个'];
+  const DEFAULT_OFF = ['的','可能','比较','其实'];
+  let active = new Set(DEFAULT_ON);
+  let curIdx = -1;
+
+  function renderWords(){
+    const on=document.getElementById('wordsDefault'), off=document.getElementById('wordsOff');
+    on.innerHTML=''; off.innerHTML='';
+    DEFAULT_ON.forEach(w=>on.appendChild(mkWord(w)));
+    DEFAULT_OFF.forEach(w=>off.appendChild(mkWord(w)));
+  }
+  function mkWord(w){
+    const el=document.createElement('span');
+    el.className='word'+(active.has(w)?' on':'');
+    el.textContent=w;
+    el.onclick=()=>{ active.has(w)?active.delete(w):active.add(w); el.classList.toggle('on'); detect(); };
+    return el;
+  }
+  function toggleLib(){
+    const l=document.getElementById('lib'); l.classList.toggle('show');
+    document.getElementById('libArrow').textContent=l.classList.contains('show')?'▾':'▸';
+  }
+  function addWord(){
+    const i=document.getElementById('newWord'); const w=i.value.trim(); if(!w)return;
+    active.add(w); document.getElementById('wordsOff').appendChild(mkWord(w)); i.value=''; detect();
+  }
+
+  function allKp(){ return [...document.querySelectorAll('[data-kp]')]; }
+  function detect(){
+    allKp().forEach(el=>{
+      const word = el.firstChild.textContent.trim();
+      const isKp = active.has(word);
+      el.style.textDecoration = isKp? '' : 'none';
+      el.style.cursor = isKp? 'pointer':'default';
+      el.dataset.is = isKp? '1':'0';
+      el.onclick = isKp? ()=>killOne(el) : null;
+    });
+    recount();
+  }
+  function recount(){
+    const n=allKp().filter(e=>e.dataset.is==='1'&&!e.classList.contains('killed')).length;
+    document.getElementById('cnt').textContent=n;
+  }
+  function killOne(el){ el.classList.add('killed'); recount(); }
+  function killAll(){ allKp().forEach(el=>{ if(el.dataset.is==='1') el.classList.add('killed'); }); recount(); }
+  function jump(dir){
+    const list=allKp().filter(e=>e.dataset.is==='1'&&!e.classList.contains('killed'));
+    if(!list.length)return;
+    allKp().forEach(e=>e.classList.remove('cur'));
+    curIdx=(curIdx+dir+list.length)%list.length;
+    const t=list[curIdx]; t.classList.add('cur');
+    t.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+
+  function tab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+    document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.pane===name));
+  }
+
+  renderWords();
+  detect();
+</script>
+</body>
+</html>

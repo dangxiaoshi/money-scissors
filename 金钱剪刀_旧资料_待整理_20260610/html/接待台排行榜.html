@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>金钱剪刀 · 排行榜</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --cream:#f5f0e8;
+  --cream2:#ede5d5;
+  --cream3:#e0d0b8;
+  --gold:#c8952a;
+  --gold2:#e8b84b;
+  --gold3:#f5d06a;
+  --gold-light:#f5e8b0;
+  --gold-border:rgba(200,149,42,0.25);
+  --gold-border2:rgba(200,149,42,0.15);
+  --text-dark:#1a1209;
+  --text-mid:#5a4a2a;
+  --text-muted:#9a8a6a;
+  --text-pale:#b8a070;
+  --red:#C04030;
+  --green:#387A4A;
+  --card-bg:rgba(255,252,240,0.9);
+  --card-shadow:0 2px 12px rgba(180,130,20,0.10);
+}
+
+body{
+  background: var(--cream);
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(240,200,60,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(220,180,40,0.10) 0%, transparent 60%);
+  font-family:'Noto Sans SC',sans-serif;
+  color:var(--text-dark);
+  min-height:100vh;
+}
+
+/* ── Nav ── */
+nav{
+  display:flex;align-items:center;
+  padding:0 28px;height:52px;
+  background:linear-gradient(90deg,#2A1A04 0%,#3D2808 40%,#2A1A04 100%);
+  border-bottom:1px solid rgba(200,148,10,0.4);
+  gap:36px;
+}
+.logo{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.logo-img{
+  width:30px;height:30px;
+  background:linear-gradient(135deg,#F0C030,#A07010);
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;
+}
+.logo-name{font-size:14px;font-weight:700;color:#F5D870;letter-spacing:1px;}
+.logo-sub{font-size:9px;color:rgba(200,160,80,0.7);margin-top:1px;}
+nav ul{display:flex;list-style:none;gap:2px;flex:1;}
+nav ul a{
+  color:rgba(220,190,120,0.7);text-decoration:none;
+  font-size:12px;padding:5px 14px;border-radius:4px;transition:all .2s;
+}
+nav ul a:hover,nav ul a.active{color:#F5D870;background:rgba(240,200,60,0.12);}
+.nav-right{display:flex;align-items:center;gap:10px;}
+.nav-icon{
+  width:26px;height:26px;border-radius:50%;
+  background:rgba(240,200,60,0.1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:rgba(220,190,120,0.7);cursor:pointer;
+}
+.nav-avatar{
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,#F0C030,#8B6010);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:600;color:#fff;cursor:pointer;
+}
+
+/* ── Page ── */
+.page{padding:22px 28px 36px;max-width:1280px;margin:0 auto;}
+
+/* ── Header ── */
+.page-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:22px;
+}
+.batch-tag{
+  display:inline-flex;align-items:center;
+  font-size:11px;color:var(--text-muted);
+  background:rgba(200,148,10,0.1);
+  border:1px solid var(--gold-border);
+  padding:2px 10px;border-radius:3px;
+  margin-bottom:6px;letter-spacing:1px;
+}
+.page-title{
+  font-family:'Noto Serif SC',serif;
+  font-size:40px;font-weight:700;
+  color:var(--text-dark);letter-spacing:2px;line-height:1;
+}
+.page-title .mid{color:var(--gold);margin:0 4px;}
+.date-range{margin-top:6px;font-size:11px;color:var(--text-pale);letter-spacing:.5px;}
+
+.header-deco{display:flex;align-items:center;gap:12px;padding-top:4px;}
+.scissors-big{font-size:44px;opacity:.7;transform:rotate(-10deg);}
+
+/* ── KPI row ── */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+.kpi-card{
+  background:var(--card-bg);
+  border:1px solid var(--gold-border);
+  border-radius:12px;
+  padding:16px 18px;
+  display:flex;align-items:center;gap:14px;
+  box-shadow:var(--card-shadow);
+  position:relative;overflow:hidden;
+}
+.kpi-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;
+  height:3px;
+  background:linear-gradient(90deg,transparent,var(--gold2),transparent);
+  opacity:.7;
+}
+.kpi-icon{
+  width:46px;height:46px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,rgba(240,200,60,0.2),rgba(200,148,10,0.08));
+  border:1px solid rgba(200,148,10,0.2);
+}
+.kpi-label{font-size:11px;color:var(--text-muted);margin-bottom:3px;}
+.kpi-value{font-size:28px;font-weight:700;color:var(--text-dark);line-height:1;}
+.kpi-value .unit{font-size:13px;font-weight:400;margin-left:1px;color:var(--text-mid);}
+.kpi-change{font-size:10px;margin-top:3px;display:flex;align-items:center;gap:2px;}
+.up{color:var(--green);}
+.down{color:var(--red);}
+
+/* ── 3-col ── */
+.main-grid{
+  display:grid;
+  grid-template-columns:210px 1fr 210px;
+  gap:14px;margin-bottom:16px;
+}
+
+/* Card base */
+.card{
+  background:var(--card-bg);
+  border:1px solid var(--gold-border);
+  border-radius:12px;padding:16px;
+  box-shadow:var(--card-shadow);
+}
+.card-title{
+  font-size:11px;color:var(--text-muted);
+  letter-spacing:1px;text-transform:uppercase;
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:6px;
+}
+.card-title::before{
+  content:'';width:3px;height:11px;
+  background:linear-gradient(180deg,var(--gold2),var(--gold));
+  border-radius:2px;flex-shrink:0;
+}
+
+/* ── Left: ranking ── */
+.student-list{display:flex;flex-direction:column;gap:7px;}
+.student-item{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 8px;border-radius:8px;
+  transition:background .2s;
+}
+.student-item:hover{background:rgba(200,148,10,0.06);}
+.rank-badge{
+  width:20px;height:20px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;flex-shrink:0;
+}
+.r1{background:linear-gradient(135deg,#FFD700,#B8860B);color:#fff;}
+.r2{background:linear-gradient(135deg,#C0C0C0,#808080);color:#fff;}
+.r3{background:linear-gradient(135deg,#CD7F32,#8B4513);color:#fff;}
+.rn{background:rgba(200,148,10,0.12);color:var(--text-muted);}
+.s-avatar{
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;color:#fff;
+}
+.av1{background:linear-gradient(135deg,#E07040,#A04020);}
+.av2{background:linear-gradient(135deg,#4080D0,#204890);}
+.av3{background:linear-gradient(135deg,#40B060,#206030);}
+.av4{background:linear-gradient(135deg,#C040A0,#702070);}
+.av5{background:linear-gradient(135deg,#D0A040,#806010);}
+.s-name{font-size:12px;color:var(--text-dark);flex:1;}
+.s-score{
+  font-size:13px;font-weight:700;
+  color:var(--gold);
+  background:rgba(200,148,10,0.1);
+  border-radius:4px;padding:0 6px;
+  min-width:22px;text-align:center;
+}
+.list-col-header{
+  display:flex;justify-content:space-between;
+  font-size:10px;color:var(--text-pale);
+  padding:0 8px 4px;letter-spacing:.5px;
+}
+
+/* ── Middle ── */
+.mid-col{display:flex;flex-direction:column;gap:14px;}
+.lesson-card{flex:1;}
+.lesson-top{display:flex;gap:14px;align-items:flex-start;}
+.teacher-photo{
+  width:70px;height:70px;border-radius:50%;flex-shrink:0;
+  overflow:hidden;
+  border:2px solid rgba(200,148,10,0.3);
+  background:linear-gradient(135deg,#E0B060,#906820);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;
+}
+.teacher-name{font-size:16px;font-weight:700;color:var(--text-dark);margin-bottom:6px;}
+.teacher-quote{
+  font-size:12px;color:var(--text-mid);line-height:1.8;
+  border-left:2px solid var(--gold-border);
+  padding-left:10px;font-style:italic;
+}
+.income-row{
+  margin-top:14px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background:linear-gradient(90deg,rgba(200,148,10,0.06),rgba(200,148,10,0.02));
+  border:1px solid var(--gold-border2);
+  border-radius:8px;
+}
+.income-label{font-size:12px;color:var(--text-muted);}
+.income-val{font-size:26px;font-weight:700;color:var(--gold);}
+
+/* ── Right ── */
+.right-col{display:flex;flex-direction:column;gap:14px;}
+
+/* donut */
+.donut-wrap{display:flex;align-items:center;gap:12px;}
+.donut-pct{font-size:28px;font-weight:700;color:var(--text-dark);line-height:1;}
+.donut-sub{font-size:11px;color:var(--text-muted);margin-top:3px;}
+.donut-detail{font-size:12px;color:var(--text-mid);margin-top:1px;}
+
+/* mini leaderboard */
+.mini-list{display:flex;flex-direction:column;gap:8px;}
+.mini-item{display:flex;align-items:center;gap:8px;}
+.mini-rank-num{
+  width:18px;font-size:10px;text-align:center;
+  color:var(--text-pale);flex-shrink:0;
+}
+.mini-av{
+  width:24px;height:24px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:600;color:#fff;
+}
+.mini-name{font-size:12px;color:var(--text-dark);flex:1;}
+.mini-val{font-size:12px;font-weight:600;color:var(--gold);}
+
+/* ── Bottom row ── */
+.bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+/* Tree */
+.tree-stage{position:relative;height:210px;overflow:hidden;}
+.tree-node{
+  position:absolute;
+  display:flex;flex-direction:column;align-items:center;
+  gap:2px;
+}
+.tree-bubble{
+  background:linear-gradient(135deg,rgba(240,200,60,0.85),rgba(180,130,20,0.85));
+  border:1px solid rgba(240,200,60,0.5);
+  border-radius:20px;
+  padding:3px 10px;
+  font-size:11px;font-weight:600;
+  color:#3A2A08;
+  white-space:nowrap;
+  box-shadow:0 2px 6px rgba(180,130,20,0.25);
+}
+.tree-nname{font-size:9px;color:var(--text-mid);font-weight:400;}
+
+/* Summary stats */
+.stat-row{display:flex;flex-direction:column;gap:12px;margin-top:4px;}
+.stat-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background:linear-gradient(90deg,rgba(200,148,10,0.05),rgba(200,148,10,0.02));
+  border:1px solid var(--gold-border2);
+  border-radius:10px;
+}
+.stat-label{font-size:11px;color:var(--text-muted);margin-bottom:3px;}
+.stat-val{font-size:24px;font-weight:700;color:var(--text-dark);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-img">✂️</div>
+    <div>
+      <div class="logo-name">金钱剪刀</div>
+      <div class="logo-sub">视频剪辑工作室</div>
+    </div>
+  </div>
+  <ul>
+    <li><a href="#">首页</a></li>
+    <li><a href="#" class="active">剪辑营</a></li>
+    <li><a href="#">成长路径</a></li>
+    <li><a href="#">资源专区</a></li>
+    <li><a href="#">资讯</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-icon">🔍</div>
+    <div class="nav-icon">🔔</div>
+    <div class="nav-avatar">蜜</div>
+  </div>
+</nav>
+
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <div class="batch-tag">第 7 期</div>
+      <div class="page-title">播客剪辑营<span class="mid">·</span>战报</div>
+      <div class="date-range">2024.01.03 — 2024.01.24</div>
+    </div>
+    <div class="header-deco">
+      <svg width="130" height="36" viewBox="0 0 130 36">
+        <path d="M0 18 Q16 4 32 18 Q48 32 64 18 Q80 4 96 18 Q112 32 128 18" stroke="rgba(200,148,10,0.45)" stroke-width="1.5" fill="none"/>
+        <path d="M0 27 Q16 13 32 27 Q48 41 64 27 Q80 13 96 27 Q112 41 128 27" stroke="rgba(200,148,10,0.2)" stroke-width="1" fill="none"/>
+      </svg>
+      <div class="scissors-big">✂️</div>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-icon">👥</div>
+      <div>
+        <div class="kpi-label">学员人数</div>
+        <div class="kpi-value">26<span class="unit"> 人</span></div>
+        <div class="kpi-change up">↑ 比上期 +4%</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📋</div>
+      <div>
+        <div class="kpi-label">出勤人数</div>
+        <div class="kpi-value">18<span class="unit"> 人</span></div>
+        <div class="kpi-change up">↑ 比上期 +25%</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💰</div>
+      <div>
+        <div class="kpi-label">累计收入</div>
+        <div class="kpi-value">¥28,600</div>
+        <div class="kpi-change up">↑ 较上一期</div>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">🎬</div>
+      <div>
+        <div class="kpi-label">剪辑视频</div>
+        <div class="kpi-value">67<span class="unit"> 个</span></div>
+        <div class="kpi-change up">↑ 较上期</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+
+    <div class="card">
+      <div class="card-title">今日最佳学员</div>
+      <div class="list-col-header"><span>学员</span><span>投稿</span></div>
+      <div class="student-list">
+        <div class="student-item">
+          <div class="rank-badge r1">1</div>
+          <div class="s-avatar av1">村</div>
+          <div class="s-name">村花</div>
+          <div class="s-score">2</div>
+        </div>
+        <div class="student-item">
+          <div class="rank-badge r2">2</div>
+          <div class="s-avatar av2">北</div>
+          <div class="s-name">小北</div>
+          <div class="s-score">2</div>
+        </div>
+        <div class="student-item">
+          <div class="rank-badge r3">3</div>
+          <div class="s-avatar av3">宋</div>
+          <div class="s-name">宋宋</div>
+          <div class="s-score">1</div>
+        </div>
+        <div class="student-item">
+          <div class="rank-badge rn">4</div>
+          <div class="s-avatar av4">金</div>
+          <div class="s-name">小金</div>
+          <div class="s-score">1</div>
+        </div>
+        <div class="student-item">
+          <div class="rank-badge rn">5</div>
+          <div class="s-avatar av5">嗯</div>
+          <div class="s-name">嗯嗯</div>
+          <div class="s-score">1</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mid-col">
+      <div class="card lesson-card">
+        <div class="card-title">今日一课</div>
+        <div class="lesson-top">
+          <div class="teacher-photo">👩</div>
+          <div>
+            <div class="teacher-name">妍课</div>
+            <div class="teacher-quote">
+              "你不是在学剪辑，你是在训练你的审美和叙事直觉。每一刀都是一个选择。"
+            </div>
+          </div>
+        </div>
+        <div class="income-row">
+          <span class="income-label">今日收入</span>
+          <span class="income-val">¥3,800</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="card">
+        <div class="card-title">室内健身率</div>
+        <div class="donut-wrap">
+          <svg width="70" height="70" viewBox="0 0 70 70">
+            <circle cx="35" cy="35" r="27" fill="none" stroke="rgba(200,148,10,0.12)" stroke-width="7"/>
+            <circle cx="35" cy="35" r="27" fill="none"
+              stroke="url(#dg)" stroke-width="7"
+              stroke-linecap="round"
+              stroke-dasharray="169.6" stroke-dashoffset="52.6"
+              transform="rotate(-90 35 35)"/>
+            <defs>
+              <linearGradient id="dg" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#F5C842"/>
+                <stop offset="100%" stop-color="#C8940A"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div>
+            <div class="donut-pct">69%</div>
+            <div class="donut-detail">18 / 26 次</div>
+            <div class="donut-sub">相比上期 +12%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">最近交流奖</div>
+        <div class="mini-list">
+          <div class="mini-item">
+            <div class="mini-rank-num">🥇</div>
+            <div class="mini-av" style="background:linear-gradient(135deg,#E09040,#A05010)">飞</div>
+            <div class="mini-name">大飞</div>
+            <div class="mini-val">¥4000</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-rank-num">🥈</div>
+            <div class="mini-av" style="background:linear-gradient(135deg,#4080D0,#204890)">蜜</div>
+            <div class="mini-name">小蜜</div>
+            <div class="mini-val">¥3200</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-rank-num">🥉</div>
+            <div class="mini-av av1">村</div>
+            <div class="mini-name">村花</div>
+            <div class="mini-val">¥2800</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-rank-num" style="font-size:11px;color:var(--text-pale)">4</div>
+            <div class="mini-av av3">宋</div>
+            <div class="mini-name">宋宋</div>
+            <div class="mini-val">¥2100</div>
+          </div>
+          <div class="mini-item">
+            <div class="mini-rank-num" style="font-size:11px;color:var(--text-pale)">5</div>
+            <div class="mini-av" style="background:linear-gradient(135deg,#8060C0,#402080)">喵</div>
+            <div class="mini-name">大喵</div>
+            <div class="mini-val">¥1500</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="bottom-row">
+    <div class="card">
+      <div class="card-title">财富树</div>
+      <div class="tree-stage">
+        <svg style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 460 210" preserveAspectRatio="xMidYMid meet">
+          <rect x="225" y="145" width="10" height="65" rx="4" fill="rgba(160,100,30,0.5)"/>
+          <path d="M230 145 Q180 120 100 85" stroke="rgba(160,110,30,0.5)" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M230 145 Q240 110 230 75" stroke="rgba(160,110,30,0.5)" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M230 145 Q280 120 360 85" stroke="rgba(160,110,30,0.5)" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M100 85 Q60 65 40 40" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M100 85 Q110 55 120 32" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M360 85 Q400 65 420 40" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M360 85 Q340 55 330 32" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M230 75 Q200 48 185 20" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <path d="M230 75 Q255 48 275 20" stroke="rgba(160,110,30,0.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <circle cx="40" cy="36" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="120" cy="28" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="185" cy="16" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="275" cy="16" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="330" cy="28" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="420" cy="36" r="22" fill="rgba(100,170,70,0.2)" stroke="rgba(100,170,70,0.35)" stroke-width="1"/>
+          <circle cx="100" cy="82" r="28" fill="rgba(100,170,70,0.15)" stroke="rgba(100,170,70,0.25)" stroke-width="1"/>
+          <circle cx="360" cy="82" r="28" fill="rgba(100,170,70,0.15)" stroke="rgba(100,170,70,0.25)" stroke-width="1"/>
+          <circle cx="230" cy="72" r="26" fill="rgba(100,170,70,0.15)" stroke="rgba(100,170,70,0.25)" stroke-width="1"/>
+        </svg>
+        <div style="position:absolute;left:2px;top:18px" class="tree-node">
+          <div class="tree-bubble">¥4,700</div>
+          <div class="tree-nname">大飞</div>
+        </div>
+        <div style="position:absolute;left:80px;top:10px" class="tree-node">
+          <div class="tree-bubble">¥4,300</div>
+          <div class="tree-nname">村花</div>
+        </div>
+        <div style="position:absolute;left:calc(50% - 80px);top:0" class="tree-node">
+          <div class="tree-bubble">¥2,800</div>
+          <div class="tree-nname">宋宋</div>
+        </div>
+        <div style="position:absolute;right:80px;top:0" class="tree-node">
+          <div class="tree-bubble">¥3,600</div>
+          <div class="tree-nname">小北</div>
+        </div>
+        <div style="position:absolute;right:2px;top:18px" class="tree-node">
+          <div class="tree-bubble">¥12,000</div>
+          <div class="tree-nname">嗯嗯</div>
+        </div>
+        <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)" class="tree-node">
+          <div class="tree-bubble" style="font-size:12px;padding:4px 14px;">¥28,600</div>
+          <div class="tree-nname" style="font-size:10px">总收入</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">本期总结</div>
+      <div class="stat-row">
+        <div class="stat-item">
+          <div>
+            <div class="stat-label">完课率</div>
+            <div class="stat-val">92<span style="font-size:14px;font-weight:400;color:var(--text-mid)">%</span></div>
+          </div>
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="20" fill="none" stroke="rgba(200,148,10,0.12)" stroke-width="6"/>
+            <circle cx="26" cy="26" r="20" fill="none" stroke="var(--gold2)" stroke-width="6"
+              stroke-dasharray="125.66" stroke-dashoffset="10"
+              stroke-linecap="round" transform="rotate(-90 26 26)"/>
+          </svg>
+        </div>
+        <div class="stat-item">
+          <div>
+            <div class="stat-label">作业提交</div>
+            <div class="stat-val">87<span style="font-size:14px;font-weight:400;color:var(--text-mid)">%</span></div>
+          </div>
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="20" fill="none" stroke="rgba(200,148,10,0.12)" stroke-width="6"/>
+            <circle cx="26" cy="26" r="20" fill="none" stroke="#4A9A5A" stroke-width="6"
+              stroke-dasharray="125.66" stroke-dashoffset="16"
+              stroke-linecap="round" transform="rotate(-90 26 26)"/>
+          </svg>
+        </div>
+        <div class="stat-item">
+          <div>
+            <div class="stat-label">满意度</div>
+            <div class="stat-val">98<span style="font-size:14px;font-weight:400;color:var(--text-mid)">%</span></div>
+          </div>
+          <svg width="52" height="52" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="20" fill="none" stroke="rgba(200,148,10,0.12)" stroke-width="6"/>
+            <circle cx="26" cy="26" r="20" fill="none" stroke="var(--gold3)" stroke-width="6"
+              stroke-dasharray="125.66" stroke-dashoffset="2.5"
+              stroke-linecap="round" transform="rotate(-90 26 26)"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

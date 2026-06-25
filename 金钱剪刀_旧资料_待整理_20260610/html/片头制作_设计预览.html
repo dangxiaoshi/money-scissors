@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>片头制作 · 设计预览（Model B：正文选句 → 独立片头页）</title>
+<style>
+  :root{
+    --gold:#f2c14e; --gold-bg:#ffeaa8; --gold-deep:#e09a2b;
+    --ink:#2b2b2b; --gray:#9aa0a8; --gray-line:#b6bbc2; --line:#ececec; --bg:#f6f7f9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);}
+  .demo-flag{background:#fff6e5;border-bottom:1px solid #ffe0a3;color:#9a6a00;font-size:13px;padding:8px 16px;text-align:center}
+  .top{display:flex;align-items:center;gap:14px;background:#fff;border-bottom:1px solid var(--line);padding:10px 18px;}
+  .logo{font-weight:700;color:var(--gold-deep)}
+  .proj{color:var(--gray);font-size:14px}
+  .top .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .btn.primary{background:var(--gold-deep);color:#fff;border-color:var(--gold-deep)}
+  .btn.ghost{color:var(--gray)}
+  .btn.icon{padding:7px 10px}
+  /* 顶栏「片头制作」入口 + 数字角标 */
+  .pien-entry{position:relative;background:#fff;border:1px solid var(--gold);color:var(--gold-deep);font-weight:600}
+  .pien-entry .badge{position:absolute;top:-8px;right:-8px;min-width:18px;height:18px;border-radius:9px;background:var(--gold-deep);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+
+  .wrap{display:flex;max-width:1180px;margin:16px auto;gap:16px;padding:0 16px 80px}
+  .left{width:262px;flex:none;display:flex;flex-direction:column;gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+  .tabs{display:flex;gap:4px;background:#eef0f3;border-radius:10px;padding:4px}
+  .tab{flex:1;text-align:center;font-size:13px;padding:7px 0;border-radius:7px;cursor:pointer;color:#666}
+  .tab.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .pane{display:none} .pane.on{display:block}
+  .bignum{font-size:30px;font-weight:700}
+  .bignum s{color:#b9bcc2;font-weight:400;font-size:20px}
+  .delsum{font-size:13px;color:var(--gray);margin:8px 0 12px}
+  .delsum b{color:var(--gold-deep)}
+  .note{background:#fff8ec;border-left:3px solid var(--gold);border-radius:6px;padding:9px 11px;font-size:12.5px;color:#7a6a45;line-height:1.6}
+  .ohead{color:var(--gold-deep);margin:0 0 6px;font-size:13px}
+  .declist{font-size:13px;line-height:1.7}
+  .declist .it{padding:8px 0;border-bottom:1px dashed var(--line);color:#555}
+  .ov p{margin:0 0 8px;font-size:12.5px;color:var(--gray);line-height:1.7}
+
+  .center{flex:1;min-width:0}
+  .modes{display:flex;gap:8px;margin-bottom:14px}
+  .mode{padding:8px 16px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer}
+  .mode.on{background:#111;color:#fff;border-color:#111}
+  .act-h{font-weight:700;margin:4px 0 12px;font-size:15px}
+  .tiphint{background:#FBFBF8;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;color:var(--gray);font-size:12.5px;line-height:1.7;margin-bottom:14px}
+  .tiphint b{color:var(--ink)}
+  .sp{font-size:12px;color:var(--gray);margin:14px 0 6px}
+  .row{display:flex;gap:10px;padding:5px 8px;border-radius:8px;line-height:1.95;font-size:15.5px}
+  .row:hover{background:#fafafa}
+  .row .ck{flex:none;width:16px;height:16px;border:1.5px solid #cfd4dc;border-radius:4px;margin-top:6px}
+  .row .body{flex:1}
+  .sent{cursor:text;padding:0 2px;border-radius:3px}
+  .gold{background:var(--gold-bg);border-bottom:2px solid var(--gold);border-radius:3px;padding:0 2px}
+  .del{text-decoration:line-through;text-decoration-color:var(--gray-line);color:#b9bcc2}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--gray);margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+
+  /* 选区浮层：删除置顶（高频），加入片头其次 */
+  .pop{position:absolute;display:none;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;z-index:60}
+  .pop button{display:flex;align-items:center;gap:8px;border:0;background:#fff;color:var(--ink);font-size:14px;padding:9px 13px;border-radius:7px;cursor:pointer;white-space:nowrap;width:100%}
+  .pop button:hover{background:#f5f6f8}
+  .pop .ic{font-size:14px;width:15px;text-align:center}
+  .pop .del-ic{color:#e05a4a}
+  .pop .gold-ic{color:var(--gold-deep)}
+
+  /* === 片头制作页 === */
+  .pien-page{display:none;max-width:760px;margin:18px auto;padding:0 16px 90px}
+  .pien-page.on{display:block}
+  .pien-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .pien-head h2{font-size:19px;margin:0}
+  .pien-sub{color:var(--gray);font-size:13px;margin:0 0 18px}
+  .blk{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .blk .bh{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .blk .bh .step{font-size:11px;font-weight:400;color:#fff;background:var(--gold-deep);border-radius:10px;padding:2px 8px}
+  .blk .bh .soon{font-size:11px;font-weight:400;color:var(--gray);background:#eef0f3;border-radius:10px;padding:2px 8px}
+  .blk.dim{background:#fafbfc;border-style:dashed}
+  .blk.dim .bh{color:#aab0b8}
+  .blk .desc{color:var(--gray);font-size:12.5px;line-height:1.6;margin-top:6px}
+  .jqcount{color:var(--gray);font-size:12.5px;margin:6px 0 12px}
+  .jqcount b{color:var(--ink);font-size:16px}
+  .warn{display:none;background:#fbeee0;border:1px solid #eccba0;color:#9a6a00;font-size:12.5px;line-height:1.6;border-radius:8px;padding:9px 11px;margin-bottom:12px}
+  .warn.show{display:block}
+  .item{display:flex;align-items:flex-start;gap:9px;background:#fffaf0;border:1px solid var(--gold);border-radius:10px;padding:11px 11px;margin-bottom:9px;cursor:grab}
+  .item.drag{opacity:.4}
+  .item .num{flex:none;width:20px;height:20px;border-radius:50%;background:var(--gold-deep);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .item .txt{flex:1;font-size:14px;line-height:1.55}
+  .item .grip{color:#d8be7e;font-size:15px;cursor:grab;user-select:none}
+  .item .rm{color:#cfcfcf;cursor:pointer;font-size:15px}
+  .item .rm:hover{color:#e05a4a}
+  .empty{color:#bbb;font-size:13px;text-align:center;padding:26px 8px;line-height:1.9}
+  .exp{width:100%;height:46px;border:none;border-radius:11px;background:var(--gold-deep);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+  .exp:disabled{background:#e6e2d6;cursor:not-allowed}
+  .backlink{color:var(--gold-deep);font-size:13px;cursor:pointer;background:none;border:none;padding:0}
+
+  .player{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:10px 20px}
+  .play{width:40px;height:40px;border-radius:50%;background:var(--gold-deep);color:#fff;border:none;font-size:16px;cursor:pointer}
+  .bar{flex:1;height:4px;background:#eee;border-radius:2px;position:relative}
+  .bar::after{content:"";position:absolute;left:0;top:0;height:4px;width:18%;background:var(--gold-deep);border-radius:2px}
+  .time{font-size:13px;color:var(--gray)}
+</style>
+</head>
+<body>
+<div class="demo-flag">⚠️ 片头制作设计预览 · 假数据 · 不接真页面、不动 review.html · Model B：正文只标记，金句进独立「片头制作」页</div>
+
+<div class="top">
+  <span class="logo">金钱剪刀</span>
+  <span class="proj">瑞景新村 4.m4a</span>
+  <div class="right">
+    <span class="btn icon ghost" id="undo" title="撤销">↶</span>
+    <span class="btn icon ghost" id="redo" title="重做">↷</span>
+    <span class="btn pien-entry" id="pienBtn" onclick="goPien()">片头制作<span class="badge" id="badge">0</span></span>
+    <span class="btn">生成 MP3</span>
+    <span class="btn primary">提交助教审核</span>
+  </div>
+</div>
+
+<!-- ========== 正文页 ========== -->
+<div class="wrap" id="pageEdit">
+  <div class="left">
+    <div class="tabs">
+      <div class="tab on" data-tab="ov" onclick="tab('ov')">进度</div>
+      <div class="tab" data-tab="con" onclick="tab('con')">解读</div>
+      <div class="tab" data-tab="kp" onclick="tab('kp')">口癖</div>
+    </div>
+    <div class="card">
+      <div class="pane on" data-pane="ov">
+        <div class="bignum"><s>1:56</s> → <b>1:30</b></div>
+        <div class="delsum">删减了 <b>0:26</b></div>
+        <div class="note">片头金句不在这里挑列表——选中的句子去顶栏「片头制作」页排序导出。</div>
+      </div>
+      <div class="pane" data-pane="con">
+        <h5 class="ohead">节目概要</h5>
+        <p>从身体特征切入家族 DNA 与祖先创伤。故事 60% / 情绪 30% / 干货 10%。</p>
+      </div>
+      <div class="pane" data-pane="kp">
+        <div class="note" style="background:#f4f5f7;border-color:#ddd;color:#888">口癖检测在隔壁那版预览里，这版重点看「片头制作」。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="center">
+    <div class="modes"><div class="mode on">剪辑模式</div><div class="mode">粗剪试听</div></div>
+    <div class="card">
+      <div class="act-h">第一幕 · 身体就是家族密码</div>
+      <div class="tiphint"><b>怎么用：</b>选中<b>任意一段（可以是半句）</b> → 浮层 <b>①删除（高频，置顶）②加入片头</b>，跟删除一样按你框选的范围来，不强制整句。加入片头的文字<b>留在正文变金黄底</b>当记号，排序在顶栏「片头制作」页里做。</div>
+
+      <div class="sp">说话人 1</div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">很多人一开始不敢用这个工具，怕剪坏，其实剪坏了随时能撤回。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">你真正要练的不是软件，是判断——哪句话留、哪句话扔。</span></span></div>
+
+      <div class="sp">说话人 2</div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">你的身体，其实就是你整个家族的一本说明书。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">片头放一两句最戳人的金句，听众三秒就被勾住，愿意听下去。</span></span></div>
+
+      <div class="sp">说话人 1</div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">对，敢动手比剪得好更重要，新手最大的坎就是不敢删。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">把口癖删掉之后，整条音频立刻清爽，听感差一个档次。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="del">这句是被划线删掉的整句示例，文字保留可还原。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">所以金句不用多，挑准就行，多了反而拖长开头。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">我习惯先通读一遍把候选都标进片头，最后再到片头页排顺序。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">这样读的时候不分心，挑和排分开，脑子清楚。</span></span></div>
+      <div class="row"><span class="ck"></span><span class="body"><span class="sent">坚持剪上一个月，你会发现自己的耳朵都变灵了。</span></span></div>
+
+      <div class="legend">
+        <span><span class="gold">金句</span> 金黄底 = 已加入片头</span>
+        <span><span class="del">删除</span> 灰实线 = 已删</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 片头制作页 ========== -->
+<div class="pien-page" id="pagePien">
+  <div class="pien-head">
+    <button class="backlink" onclick="goEdit()">← 返回剪辑</button>
+    <h2>片头制作</h2>
+  </div>
+  <p class="pien-sub">片头按顺序 = ① 片头音乐 → ② 金句 → ③ 开场白，拼成一段抓人的开头。本期先做金句。</p>
+
+  <!-- ① 片头音乐：第二步占位 -->
+  <div class="blk dim">
+    <div class="bh"><span style="color:#aab0b8">①</span> 🎵 片头音乐 <span class="soon">第二步 · 即将</span></div>
+    <div class="desc">片头一开声先铺一段背景音乐。第二步加入，可调起止和淡入淡出。</div>
+  </div>
+
+  <!-- ② 金句：第一步，做的就是这块 -->
+  <div class="blk">
+    <div class="bh"><span style="color:var(--gold-deep)">②</span> ★ 金句（按顺序播）<span class="step">第一步 · 现在做</span></div>
+    <div class="jqcount">共 <b id="cnt">0</b> 条 · 不限量 · 拖动排序</div>
+    <div class="warn" id="warn">⚠️ 片头有点长了，听众可能等不及——超过 5 条建议精简，但不强制。</div>
+    <div id="list"></div>
+    <div class="empty" id="empty">还没有金句<br>回「剪辑」页，选中文字点「加入片头」</div>
+  </div>
+
+  <!-- ③ 开场白：第二步占位 -->
+  <div class="blk dim">
+    <div class="bh"><span style="color:#aab0b8">③</span> 🎙 节目开场白 <span class="soon">第二步 · 即将</span></div>
+    <div class="desc">「大家好，欢迎收听……」固定一句或录一小段。第二步加入。</div>
+  </div>
+
+  <button class="exp" id="exp" disabled>导出片头</button>
+  <p class="desc" style="text-align:center;margin-top:12px">导出后：这段片头拼到正片<b>最前面</b>，后接完整音频。</p>
+</div>
+
+<div class="player"><button class="play">▶</button><div class="bar"></div><span class="time">0:21 / 1:56</span><span class="btn ghost">1.0x</span></div>
+
+<!-- 选区浮层 -->
+<div class="pop" id="pop">
+  <button id="popDelete"><span class="ic del-ic">✕</span> 删除这句</button>
+  <button id="popAdd"><span class="ic gold-ic">★</span> 加入片头</button>
+  <button id="popUngold" style="display:none"><span class="ic gold-ic">☆</span> 移出片头</button>
+  <button id="popRestore" style="display:none"><span class="ic" style="color:#4a90d6">↺</span> 恢复这句</button>
+</div>
+
+<script>
+  let golden=[]; let savedRange=null; let ctxSpan=null;
+  const pop=document.getElementById('pop');
+  const popDelete=document.getElementById('popDelete'),popAdd=document.getElementById('popAdd'),
+        popUngold=document.getElementById('popUngold'),popRestore=document.getElementById('popRestore');
+
+  document.getElementById('pageEdit').addEventListener('mouseup',()=>{
+    setTimeout(()=>{
+      const sel=window.getSelection();
+      if(!sel.rangeCount||sel.isCollapsed||!sel.toString().trim()){hidePop();return;}
+      const range=sel.getRangeAt(0);
+      const host=range.commonAncestorContainer;
+      const hostEl=host.nodeType===1?host:host.parentElement;
+      if(!hostEl||!hostEl.closest('.center')){hidePop();return;}   // 只在正文里弹
+      savedRange=range.cloneRange();
+      ctxSpan=hostEl.closest('.gold, .del');                       // 是否选到了已标过的片段
+      const inGold=ctxSpan&&ctxSpan.classList.contains('gold');
+      const inDel=ctxSpan&&ctxSpan.classList.contains('del');
+      popDelete.style.display=(!inGold&&!inDel)?'flex':'none';
+      popAdd.style.display=(!inGold&&!inDel)?'flex':'none';
+      popUngold.style.display=inGold?'flex':'none';
+      popRestore.style.display=inDel?'flex':'none';
+      const r=range.getBoundingClientRect();
+      pop.style.display='block';
+      pop.style.top=(window.scrollY+r.top-pop.offsetHeight-8)+'px';
+      pop.style.left=(window.scrollX+r.left)+'px';
+    },10);
+  });
+  function hidePop(){pop.style.display='none';}
+  document.addEventListener('mousedown',e=>{if(!pop.contains(e.target))hidePop();});
+
+  // 把当前选区（任意一段，可半句）包成一个片段
+  function wrap(cls){
+    if(!savedRange)return null;
+    const span=document.createElement('span'); span.className=cls;
+    try{ savedRange.surroundContents(span); }
+    catch(_){ const f=savedRange.extractContents(); span.appendChild(f); savedRange.insertNode(span); }
+    return span;
+  }
+  popAdd.onclick=()=>{ const s=wrap('gold'); if(s){golden.push(s);render();} done(); };
+  popDelete.onclick=()=>{ wrap('del'); done(); };
+  popUngold.onclick=()=>{ if(ctxSpan)ungold(ctxSpan); done(); };
+  popRestore.onclick=()=>{ if(ctxSpan){ctxSpan.replaceWith(document.createTextNode(ctxSpan.textContent));} done(); };
+  function ungold(n){ golden=golden.filter(g=>g!==n); n.replaceWith(document.createTextNode(n.textContent)); render(); }
+  function done(){hidePop();window.getSelection().removeAllRanges();savedRange=null;ctxSpan=null;}
+
+  const list=document.getElementById('list'),empty=document.getElementById('empty'),cnt=document.getElementById('cnt'),
+        warn=document.getElementById('warn'),exp=document.getElementById('exp'),badge=document.getElementById('badge');
+  function render(){
+    list.innerHTML='';
+    empty.style.display=golden.length?'none':'block';
+    golden.forEach((n,i)=>{
+      const it=document.createElement('div');it.className='item';it.draggable=true;it.dataset.pos=i;
+      it.innerHTML=`<span class="num">${i+1}</span><span class="txt">${n.textContent}</span><span class="grip">☰</span><span class="rm">✕</span>`;
+      it.querySelector('.rm').onclick=()=>ungold(n); bindDrag(it); list.appendChild(it);
+    });
+    cnt.textContent=golden.length;
+    badge.textContent=golden.length;
+    warn.classList.toggle('show',golden.length>5);
+    exp.disabled=!golden.length;
+  }
+  let from=null;
+  function bindDrag(it){
+    it.addEventListener('dragstart',()=>{from=+it.dataset.pos;it.classList.add('drag');});
+    it.addEventListener('dragend',()=>it.classList.remove('drag'));
+    it.addEventListener('dragover',e=>e.preventDefault());
+    it.addEventListener('drop',e=>{e.preventDefault();const to=+it.dataset.pos;if(from===null||from===to)return;const m=golden.splice(from,1)[0];golden.splice(to,0,m);render();});
+  }
+  exp.onclick=()=>alert('【导出片头·示意】金句按此顺序拼到正片最前面：\n\n'+golden.map((n,i)=>`${i+1}. ${n.textContent}`).join('\n')+'\n\n（开场白/音乐是第二步）');
+
+  function goPien(){document.getElementById('pageEdit').style.display='none';document.getElementById('pagePien').classList.add('on');}
+  function goEdit(){document.getElementById('pagePien').classList.remove('on');document.getElementById('pageEdit').style.display='flex';}
+  function tab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+    document.querySelectorAll('#pageEdit .pane').forEach(p=>p.classList.toggle('on',p.dataset.pane===name));
+  }
+  render();
+</script>
+</body>
+</html>

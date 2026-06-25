@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/refine/">
+  <title>金钱剪刀 · 音频精修</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="header">
+    <h1>💰✂️ 音频精修</h1>
+    <p>上传播客 MP3，自动调整响度到 -16 LUFS 播客标准</p>
+  </div>
+
+  <!-- 上传卡片 -->
+  <div class="card" id="upload-card">
+    <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="选择音频文件">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
+      </svg>
+      <div class="hint">点击或拖拽音频文件</div>
+      <div class="sub">支持 mp3 / m4a / wav，最大 500MB</div>
+      <div class="file-selected" id="file-name" hidden></div>
+    </div>
+
+    <input type="file" id="file-input" accept="audio/*" hidden>
+
+    <div class="option-row">
+      <label>
+        <input type="checkbox" id="opt-denoise">
+        轻度降噪
+      </label>
+      <span class="tip">适合有底噪的录音环境，对干净录音效果有限</span>
+    </div>
+
+    <button class="btn-primary" id="btn-start" disabled>开始精修</button>
+
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <!-- 处理进度卡片 -->
+  <div class="card progress-card" id="progress-card">
+    <ul class="step-list" id="step-list">
+      <li class="step-item" id="step-upload" data-step="upload">
+        <div class="step-icon">1</div>
+        <span>上传音频</span>
+      </li>
+      <li class="step-item" id="step-measure" data-step="measuring">
+        <div class="step-icon">2</div>
+        <span>分析响度</span>
+      </li>
+      <li class="step-item" id="step-normalize" data-step="normalizing">
+        <div class="step-icon">3</div>
+        <span>响度标准化</span>
+      </li>
+      <li class="step-item" id="step-done" data-step="done">
+        <div class="step-icon">4</div>
+        <span>生成成品</span>
+      </li>
+    </ul>
+
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="log-area" id="log-area"></div>
+  </div>
+
+  <!-- 完成卡片 -->
+  <div class="card result-card" id="result-card">
+    <div class="result-title">✅ 精修完成</div>
+    <a class="btn-download" id="btn-download" href="#" download>下载精修版 MP3</a>
+    <button class="btn-again" id="btn-again">再处理一个</button>
+    <div class="tip-box">
+      <strong>下一步</strong>：这份 MP3 已经完成响度标准化。<br>
+      如需加片头片尾音乐、高光剪辑，推荐用剪映或 Adobe Audition。
+    </div>
+  </div>
+
+  <script src="js/process.js" type="module"></script>
+</body>
+</html>
