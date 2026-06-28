@@ -1622,11 +1622,13 @@ let DECISION_ERROR = loadDecisionError();
 let decisionSections = [];
 
 const REFINE_SETTINGS_KEY = 'jinqian_refine_settings';
+const REFINE_SETTINGS_VERSION = 2;
 const DEFAULT_REFINE_SETTINGS = {
-  normalizeLoudness: true,
+  normalizeLoudness: false,
   denoise: false,
   voiceEnhance: false,
-  targetLufs: -16
+  targetLufs: -16,
+  version: REFINE_SETTINGS_VERSION
 };
 let refineSettings = loadRefineSettings();
 
@@ -1642,12 +1644,16 @@ function loadRefineSettings(){
     const raw = sessionStorage.getItem(REFINE_SETTINGS_KEY) || localStorage.getItem(REFINE_SETTINGS_KEY);
     if (!raw) return {...DEFAULT_REFINE_SETTINGS};
     const parsed = JSON.parse(raw);
+    const isCurrentVersion = Number(parsed.version) >= REFINE_SETTINGS_VERSION;
     return {
       ...DEFAULT_REFINE_SETTINGS,
-      normalizeLoudness: Boolean(parsed.normalizeLoudness),
+      // 2026-06-27：旧版本曾把“响度统一”默认写进 localStorage。
+      // 没有新版标记的旧缓存一律按新默认关闭，避免老用户继续被自动精修卡住。
+      normalizeLoudness: isCurrentVersion ? Boolean(parsed.normalizeLoudness) : false,
       denoise: Boolean(parsed.denoise),
       voiceEnhance: Boolean(parsed.voiceEnhance),
-      targetLufs: -16
+      targetLufs: -16,
+      version: REFINE_SETTINGS_VERSION
     };
   } catch(e) {
     return {...DEFAULT_REFINE_SETTINGS};

@@ -6,6 +6,7 @@ let outputName = '';
 const CUT_POLL_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const LONG_WAIT_HINT_MS = 30 * 60 * 1000;
 const PENDING_CUT_KEY = 'jinqian_pending_cut_job';
+const SILENT_TROUBLE_HEADERS = { 'X-Money-Scissors-Silent-Trouble': '1' };
 
 document.addEventListener('DOMContentLoaded', () => {
   const auth = ensureLoggedIn();
@@ -85,22 +86,36 @@ async function runCut() {
 
   const refineSettings = data.refineSettings || {};
   if (shouldRefine(refineSettings)) {
-    const roughcutResp = await apiFetch(roughcutUrl);
-    if (!roughcutResp.ok) {
-      const errorData = await roughcutResp.json().catch(() => ({}));
-      throw new Error(errorData.message || errorData.error || `粗剪文件读取失败：HTTP ${roughcutResp.status}`);
+    try {
+      setStatus('准备应用音频精修', '粗剪 MP3 已生成，正在尝试应用音频精修。', 93);
+      const roughcutResp = await apiFetch(roughcutUrl, { headers: SILENT_TROUBLE_HEADERS });
+      if (!roughcutResp.ok) {
+        const errorData = await roughcutResp.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `粗剪文件读取失败：HTTP ${roughcutResp.status}`);
+      }
+      const blob = await roughcutResp.blob();
+      await runRefine(blob, data.fileName || buildOutputName(false), refineSettings);
+      return;
+    } catch (error) {
+      console.warn('音频精修未应用，已降级为粗剪 MP3 下载', error);
+      setRoughcutDownloadReady(
+        roughcutUrl,
+        '粗剪 MP3 已生成；音频精修这次没有应用，你可以先下载去外部软件继续剪。'
+      );
+      return;
     }
-    const blob = await roughcutResp.blob();
-    await runRefine(blob, data.fileName || buildOutputName(false), refineSettings);
-    return;
   }
 
+  setRoughcutDownloadReady(roughcutUrl, '可以下载到电脑，再去剪映 / AU / Logic / Audacity 等外部软件继续剪或精修。');
+}
+
+function setRoughcutDownloadReady(roughcutUrl, detail) {
   outputUrl = roughcutUrl;
   outputName = buildOutputName(false);
   els.download.textContent = '下载 MP3（去外部软件）';
-  setStatus('MP3 已生成', '可以下载到电脑，再去剪映 / AU / Logic / Audacity 等外部软件继续剪或精修。', 100);
   els.download.disabled = false;
   els.download.classList.add('ready');
+  setStatus('粗剪 MP3 已生成', detail, 100);
 }
 
 async function startServerCut(data) {
@@ -229,6 +244,7 @@ async function runRefine(blob, filename, refineSettings) {
 
   const startResp = await apiFetch('/api/refine/start', {
     method: 'POST',
+    headers: SILENT_TROUBLE_HEADERS,
     body: form,
   });
   const startData = await startResp.json().catch(() => ({}));
@@ -255,7 +271,7 @@ async function pollRefine(jobId, optionText) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < 30 * 60 * 1000) {
     await wait(1800);
-    const resp = await apiFetch(`/api/refine/status/${encodeURIComponent(jobId)}`);
+    const resp = await apiFetch(`/api/refine/status/${encodeURIComponent(jobId)}`, { headers: SILENT_TROUBLE_HEADERS });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.message || data.error || `精修状态读取失败：HTTP ${resp.status}`);
 
