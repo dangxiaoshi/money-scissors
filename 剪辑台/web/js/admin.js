@@ -8,6 +8,7 @@ const els = {};
 let users = [];
 let snapshots = [];
 let feedbackReports = [];
+let downloadHealth = null;
 let filter = 'all';
 let view = 'users';
 let modalUserId = null;
@@ -32,9 +33,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     usersPanel: document.getElementById('users-panel'),
     snapshotsPanel: document.getElementById('snapshots-panel'),
     feedbackPanel: document.getElementById('feedback-panel'),
+    downloadHealthPanel: document.getElementById('download-health-panel'),
     feedbackSummary: document.getElementById('feedback-summary'),
     feedbackDigest: document.getElementById('feedback-digest'),
     feedbackTbody: document.getElementById('feedback-table-body'),
+    downloadHealthSummary: document.getElementById('download-health-summary'),
+    downloadHealthStrip: document.getElementById('download-health-strip'),
+    downloadHealthTbody: document.getElementById('download-health-table-body'),
+    downloadHealthRefresh: document.getElementById('download-health-refresh'),
     userFilterRow: document.getElementById('user-filter-row'),
     modalMask: document.getElementById('modal-mask'),
     modalTitle: document.getElementById('modal-title'),
@@ -49,10 +55,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindModal();
   els.exportBtn.addEventListener('click', exportCsv);
   els.feedbackCopyBtn?.addEventListener('click', copyFeedbackDigest);
+  els.downloadHealthRefresh?.addEventListener('click', loadDownloadHealth);
 
   await loadUsers();
   await loadSnapshots();
   await loadFeedbackReports();
+  await loadDownloadHealth();
 });
 
 async function loadUsers() {
@@ -85,6 +93,16 @@ async function loadFeedbackReports() {
   }
 }
 
+async function loadDownloadHealth() {
+  try {
+    const data = await apiJson('/api/admin/download-health?hours=24&limit=30');
+    downloadHealth = data;
+    renderDownloadHealth();
+  } catch (error) {
+    showError(error.message || String(error));
+  }
+}
+
 function bindViews() {
   els.views.forEach((button) => {
     button.addEventListener('click', () => {
@@ -108,14 +126,17 @@ function bindFilters() {
 function renderView() {
   const isSnapshots = view === 'snapshots';
   const isFeedback = view === 'feedback';
-  els.usersPanel.hidden = isSnapshots || isFeedback;
+  const isDownloadHealth = view === 'downloadHealth';
+  els.usersPanel.hidden = isSnapshots || isFeedback || isDownloadHealth;
   els.snapshotsPanel.hidden = !isSnapshots;
   els.feedbackPanel.hidden = !isFeedback;
-  els.userFilterRow.hidden = isSnapshots || isFeedback;
-  els.exportBtn.hidden = isSnapshots || isFeedback;
+  els.downloadHealthPanel.hidden = !isDownloadHealth;
+  els.userFilterRow.hidden = isSnapshots || isFeedback || isDownloadHealth;
+  els.exportBtn.hidden = isSnapshots || isFeedback || isDownloadHealth;
   if (els.feedbackCopyBtn) els.feedbackCopyBtn.hidden = !isFeedback;
   if (isSnapshots) renderSnapshots();
   else if (isFeedback) renderFeedbackReports();
+  else if (isDownloadHealth) renderDownloadHealth();
   else renderRows();
 }
 
@@ -262,6 +283,95 @@ function renderFeedbackReports() {
   els.feedbackTbody.querySelectorAll('[data-feedback-status]').forEach((button) => {
     button.addEventListener('click', () => updateFeedbackStatus(button));
   });
+}
+
+function renderDownloadHealth() {
+  if (!downloadHealth) {
+    if (els.downloadHealthSummary) els.downloadHealthSummary.innerHTML = '';
+    if (els.downloadHealthStrip) els.downloadHealthStrip.textContent = '导出健康数据还没有加载。';
+    if (els.downloadHealthTbody) els.downloadHealthTbody.innerHTML = '<tr><td colspan="6">加载中。</td></tr>';
+    return;
+  }
+  const summary = downloadHealth.summary || {};
+  const cutQueue = downloadHealth.cutQueue || {};
+  const refineQueue = downloadHealth.refineQueue || {};
+  const cards = [
+    ['成功任务', summary.readyJobs ?? 0],
+    ['失败任务', summary.failedJobs ?? 0],
+    ['成功率', summary.successRate == null ? '—' : `${summary.successRate}%`],
+    ['粗剪队列', `${cutQueue.activeJobs || 0}/${cutQueue.queuedJobs || 0}`],
+    ['精修处理中', refineQueue.activeJobs || 0],
+  ];
+  els.downloadHealthSummary.innerHTML = cards.map(([label, value]) => `
+    <div class="health-card">
+      <div class="health-num">${escapeHtml(value)}</div>
+      <div class="health-label">${escapeHtml(label)}</div>
+    </div>
+  `).join('');
+
+  const sentinel = downloadHealth.sentinel;
+  const processInfo = downloadHealth.process || {};
+  const sentinelText = sentinel
+    ? `<span class="${sentinel.status === 'pass' ? 'health-ok' : 'health-warn'}">${escapeHtml(sentinel.status === 'pass' ? '巡检通过' : '巡检失败')}</span> · ${escapeHtml(formatDate(sentinel.finishedAt || sentinel.startedAt))} · ${escapeHtml(sentinel.summary || '')}`
+    : '<span class="health-warn">还没有定时巡检结果</span>';
+  els.downloadHealthStrip.innerHTML = [
+    `窗口：最近 ${escapeHtml(downloadHealth.windowHours || 24)} 小时`,
+    `巡检：${sentinelText}`,
+    `服务：启动于 ${escapeHtml(formatDate(processInfo.startedAt))}，已运行 ${escapeHtml(formatUptime(processInfo.uptimeSeconds || 0))}，内存 ${escapeHtml(processInfo.memoryMb || 0)} MB`,
+    `精修：启动 ${escapeHtml(summary.refineStarted || 0)}，完成 ${escapeHtml(summary.refineDone || 0)}，失败 ${escapeHtml(summary.refineFailed || 0)}，降级粗剪 ${escapeHtml(summary.fallbackCount || 0)}`,
+    `参数校验类失败：${escapeHtml(summary.validationFailedJobs || 0)} 个，不计入系统失败率`,
+  ].join('<br>');
+
+  const rows = (downloadHealth.recentFailures && downloadHealth.recentFailures.length)
+    ? downloadHealth.recentFailures
+    : (downloadHealth.recentEvents || []);
+  if (!rows.length) {
+    els.downloadHealthTbody.innerHTML = '<tr><td colspan="6">最近 24 小时还没有导出事件。</td></tr>';
+    return;
+  }
+  els.downloadHealthTbody.innerHTML = rows.map((event) => `
+    <tr>
+      <td>${escapeHtml(formatDate(event.createdAt))}</td>
+      <td>${escapeHtml(event.userName || event.userPhone || '-')}</td>
+      <td>
+        <div>${escapeHtml(downloadEventLabel(event.eventType))}</div>
+        <div class="mono-small">${escapeHtml(event.jobId || event.refineJobId || '')}</div>
+      </td>
+      <td>${escapeHtml(event.stage || event.status || '-')}</td>
+      <td>${escapeHtml(event.message || '-')}</td>
+      <td>${escapeHtml(event.browser || '-')}</td>
+    </tr>
+  `).join('');
+}
+
+function downloadEventLabel(value) {
+  return {
+    created: '任务创建',
+    queued: '进入队列',
+    downloading: '读取原音频',
+    processing: '生成 MP3',
+    uploading: '保存文件',
+    ready: '粗剪就绪',
+    download_clicked: '点击下载',
+    download_redirect: 'OSS 跳转',
+    download_started: '开始下载',
+    failed: '导出失败',
+    refine_started: '精修开始',
+    refine_status: '精修状态',
+    refine_done: '精修完成',
+    refine_failed: '精修失败',
+    fallback_to_roughcut: '降级粗剪',
+  }[value] || value || '未知事件';
+}
+
+function formatUptime(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds || 0)));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (days) return `${days}天${hours}小时`;
+  if (hours) return `${hours}小时${minutes}分钟`;
+  return `${minutes}分钟`;
 }
 
 function renderFeedbackSummary() {

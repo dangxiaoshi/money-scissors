@@ -21,6 +21,8 @@ const PORT = Number(process.env.PORT || 80);
 const STATIC_ROOT = resolveStaticRoot();
 const DATA_ROOT = path.join(__dirname, 'data');
 const LOG_ROOT = path.join(__dirname, 'logs');
+const SERVER_STARTED_AT = new Date().toISOString();
+const DOWNLOAD_WATCH_LATEST_PATH = path.join(LOG_ROOT, 'download-watch-latest.json');
 const UPLOAD_ROOT = path.join(STATIC_ROOT, 'uploads');
 const PRACTICE_TEMPLATES = {
   launch: {
@@ -240,6 +242,33 @@ const statements = {
       updated_at = @updated_at,
       resolved_at = @resolved_at
     WHERE id = @id
+  `),
+  insertDownloadEvent: db.prepare(`
+    INSERT INTO download_events (
+      id, user_id, job_id, refine_job_id, event_type, stage, status, message,
+      detail_json, page_url, user_agent, browser, ip, created_at
+    )
+    VALUES (
+      @id, @user_id, @job_id, @refine_job_id, @event_type, @stage, @status, @message,
+      @detail_json, @page_url, @user_agent, @browser, @ip, @created_at
+    )
+  `),
+  listDownloadEventsSince: db.prepare(`
+    SELECT e.*, u.phone, u.nickname
+    FROM download_events e
+    LEFT JOIN users u ON u.id = e.user_id
+    WHERE e.created_at >= @since
+    ORDER BY e.created_at DESC
+    LIMIT @limit
+  `),
+  listDownloadFailuresSince: db.prepare(`
+    SELECT e.*, u.phone, u.nickname
+    FROM download_events e
+    LEFT JOIN users u ON u.id = e.user_id
+    WHERE e.created_at >= @since
+      AND e.event_type IN ('failed', 'refine_failed')
+    ORDER BY e.created_at DESC
+    LIMIT @limit
   `),
   insertVisitEvent: db.prepare(`
     INSERT INTO visit_events (
@@ -2014,6 +2043,13 @@ async function handleAdmin(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/admin/download-health') {
+    const hours = clampNumber(Number(url.searchParams.get('hours') || 24), 1, 168);
+    const limit = clampNumber(Number(url.searchParams.get('limit') || 20), 1, 100);
+    sendJson(res, 200, buildDownloadHealth({ hours, limit }));
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/admin/feedback/reports') {
     const status = normalizeFeedbackStatus(url.searchParams.get('status') || '') || '';
     const limit = clampNumber(Number(url.searchParams.get('limit') || 100), 1, 200);
@@ -2741,7 +2777,7 @@ function setCors(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-proxy-check');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type, x-proxy-check, x-money-scissors-silent-trouble');
   res.setHeader('Vary', 'Origin');
 }
 
@@ -2961,6 +2997,31 @@ function initializeDatabase(database) {
       ON feedback_reports(status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_reports_user
       ON feedback_reports(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS download_events (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER,
+      job_id TEXT NOT NULL DEFAULT '',
+      refine_job_id TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      detail_json TEXT NOT NULL DEFAULT '{}',
+      page_url TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      browser TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_download_events_created
+      ON download_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_download_events_job
+      ON download_events(job_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_download_events_user
+      ON download_events(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_download_events_type
+      ON download_events(event_type, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS visit_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3395,6 +3456,106 @@ function publicUser(user) {
   };
 }
 
+function recordDownloadEvent(req, user, event = {}) {
+  try {
+    const detail = event.detail && typeof event.detail === 'object' ? event.detail : {};
+    const userAgent = String(event.userAgent || req?.headers?.['user-agent'] || '').slice(0, 400);
+    statements.insertDownloadEvent.run({
+      id: crypto.randomBytes(10).toString('hex'),
+      user_id: user?.id ? Number(user.id) : null,
+      job_id: sanitizeEventId(event.jobId || event.job_id),
+      refine_job_id: sanitizeEventId(event.refineJobId || event.refine_job_id),
+      event_type: sanitizeEventType(event.eventType || event.event_type),
+      stage: String(event.stage || '').trim().slice(0, 80),
+      status: String(event.status || '').trim().slice(0, 80),
+      message: String(event.message || '').trim().slice(0, 1000),
+      detail_json: stringifyEventDetail(detail),
+      page_url: sanitizeVisitPath(event.pageUrl || event.page_url || ''),
+      user_agent: userAgent,
+      browser: String(event.browser || detectBrowser(userAgent)).trim().slice(0, 80),
+      ip: String(event.ip || (req ? getClientIp(req) : '')).slice(0, 80),
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[download-event] 写入失败', error.message || error);
+  }
+}
+
+function recordCutJobEvent(job, eventType, message = '', detail = {}) {
+  if (!job?.id) return;
+  recordDownloadEvent(null, { id: job.userId }, {
+    jobId: job.id,
+    eventType,
+    stage: job.stage || '',
+    status: job.stage === 'error' ? 'failed' : job.stage || '',
+    message,
+    detail: {
+      progress: Number(job.progress || 0),
+      outputObjectKey: job.outputObjectKey ? 'present' : '',
+      ...detail,
+    },
+  });
+}
+
+function publicDownloadEvent(row) {
+  return {
+    id: row.id,
+    userId: row.user_id ? Number(row.user_id) : null,
+    userPhone: row.phone ? maskPhone(row.phone) : '',
+    userName: row.nickname || '',
+    jobId: row.job_id || '',
+    refineJobId: row.refine_job_id || '',
+    eventType: row.event_type || '',
+    stage: row.stage || '',
+    status: row.status || '',
+    message: row.message || '',
+    detail: parseJsonObject(row.detail_json),
+    pageUrl: row.page_url || '',
+    browser: row.browser || '',
+    userAgent: row.user_agent || '',
+    createdAt: row.created_at || null,
+  };
+}
+
+function sanitizeEventId(value) {
+  return String(value || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+}
+
+function sanitizeEventType(value) {
+  return String(value || 'unknown')
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .slice(0, 80) || 'unknown';
+}
+
+function stringifyEventDetail(value) {
+  try {
+    return JSON.stringify(value || {}).slice(0, 4000);
+  } catch {
+    return '{}';
+  }
+}
+
+function parseJsonObject(value) {
+  try {
+    const data = JSON.parse(value || '{}');
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function detectBrowser(userAgent) {
+  const ua = String(userAgent || '');
+  if (/MicroMessenger/i.test(ua)) return 'WeChat';
+  if (/Edg\//i.test(ua)) return 'Edge';
+  if (/Chrome|CriOS/i.test(ua) && !/Edg\//i.test(ua)) return 'Chrome';
+  if (/Safari/i.test(ua) && !/Chrome|CriOS|Chromium|Android/i.test(ua)) return 'Safari';
+  if (/Firefox|FxiOS/i.test(ua)) return 'Firefox';
+  if (/node/i.test(ua)) return 'Node';
+  return ua ? 'Other' : '';
+}
+
 function normalizeVisitEvent(body, req) {
   if (!body || typeof body !== 'object') return null;
   const sessionId = String(body.sessionId || body.session_id || '')
@@ -3511,6 +3672,108 @@ function buildVisitStats(events, days) {
       .map(([path, count]) => ({ path, count })),
     recentUsers: Array.from(recentUsers.values()).slice(0, 12),
   };
+}
+
+function buildDownloadHealth(options = {}) {
+  const hours = clampNumber(Number(options.hours || 24), 1, 168);
+  const limit = clampNumber(Number(options.limit || 20), 1, 100);
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const events = statements.listDownloadEventsSince.all({ since, limit: 5000 });
+  const failures = statements.listDownloadFailuresSince.all({ since, limit });
+  const readyJobs = new Set();
+  const failedJobs = new Set();
+  const validationFailedJobs = new Set();
+  const refineStartedJobs = new Set();
+  const refineDoneJobs = new Set();
+  const refineFailedJobs = new Set();
+  let downloadClicks = 0;
+  let downloadRedirects = 0;
+  let fallbackCount = 0;
+
+  events.forEach((event) => {
+    const jobKey = event.job_id || event.refine_job_id || event.id;
+    if (event.event_type === 'ready') readyJobs.add(jobKey);
+    if (event.event_type === 'failed') {
+      if (isExpectedInputFailure(event)) validationFailedJobs.add(jobKey);
+      else failedJobs.add(jobKey);
+    }
+    if (event.event_type === 'download_clicked') downloadClicks += 1;
+    if (event.event_type === 'download_redirect' || event.event_type === 'download_started') downloadRedirects += 1;
+    if (event.event_type === 'refine_started') refineStartedJobs.add(event.refine_job_id || event.id);
+    if (event.event_type === 'refine_done') refineDoneJobs.add(event.refine_job_id || event.id);
+    if (event.event_type === 'refine_failed') refineFailedJobs.add(event.refine_job_id || event.id);
+    if (event.event_type === 'fallback_to_roughcut') fallbackCount += 1;
+  });
+
+  const completed = readyJobs.size + failedJobs.size;
+  const successRate = completed ? Math.round((readyJobs.size / completed) * 1000) / 10 : null;
+  return {
+    generatedAt: new Date().toISOString(),
+    windowHours: hours,
+    summary: {
+      events: events.length,
+      readyJobs: readyJobs.size,
+      failedJobs: failedJobs.size,
+      validationFailedJobs: validationFailedJobs.size,
+      successRate,
+      downloadClicks,
+      downloadRedirects,
+      refineStarted: refineStartedJobs.size,
+      refineDone: refineDoneJobs.size,
+      refineFailed: refineFailedJobs.size,
+      fallbackCount,
+    },
+    cutQueue: {
+      activeJobs: countRunningCutJobs(),
+      queuedJobs: countQueuedCutJobs(),
+      pendingJobs: countPendingCutJobs(),
+      maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
+      maxQueuedJobs: CUT_MAX_QUEUED_JOBS,
+      perUserLimit: CUT_MAX_ACTIVE_JOBS_PER_USER,
+    },
+    refineQueue: {
+      activeJobs: countActiveRefineJobs(),
+      maxActiveJobs: REFINE_MAX_ACTIVE_JOBS,
+      perUserLimit: REFINE_MAX_ACTIVE_JOBS_PER_USER,
+    },
+    process: {
+      startedAt: SERVER_STARTED_AT,
+      uptimeSeconds: Math.round(process.uptime()),
+      pid: process.pid,
+      memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    },
+    sentinel: readDownloadWatchLatest(),
+    recentFailures: failures.map(publicDownloadEvent),
+    recentEvents: events.slice(0, limit).map(publicDownloadEvent),
+  };
+}
+
+function isExpectedInputFailure(event) {
+  const status = String(event.status || '');
+  const message = String(event.message || '');
+  return status === 'invalid_cut_segments'
+    || status === 'missing_audio_url'
+    || status === 'invalid_audio_url'
+    || status === 'forbidden_oss_object'
+    || /删除段第 \d+ 段|所有音频都被标记删除|格式不正确|超过原音频时长/.test(message);
+}
+
+function readDownloadWatchLatest() {
+  try {
+    if (!fs.existsSync(DOWNLOAD_WATCH_LATEST_PATH)) return null;
+    const data = JSON.parse(fs.readFileSync(DOWNLOAD_WATCH_LATEST_PATH, 'utf8'));
+    if (!data || typeof data !== 'object') return null;
+    return {
+      status: data.status || '',
+      mode: data.mode || '',
+      startedAt: data.startedAt || null,
+      finishedAt: data.finishedAt || null,
+      durationSeconds: Number(data.durationSeconds || 0),
+      summary: String(data.summary || '').slice(0, 1000),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function recentChinaDayKeys(days) {
@@ -4208,6 +4471,24 @@ async function handleCut(req, res, url) {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/cut/events') {
+    const body = await readJson(req).catch(() => ({}));
+    recordDownloadEvent(req, user, {
+      jobId: body.jobId,
+      refineJobId: body.refineJobId,
+      eventType: body.eventType,
+      stage: body.stage,
+      status: body.status,
+      message: body.message,
+      detail: body.detail,
+      pageUrl: body.pageUrl,
+      browser: body.browser,
+      userAgent: body.userAgent,
+    });
+    sendJson(res, 202, { ok: true });
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/cut/start') {
     if (!hasDay1Access(user)) {
       sendDay1Required(res);
@@ -4244,16 +4525,36 @@ async function handleCut(req, res, url) {
         error: 'invalid_cut_segments',
         message: error.message || '删除段格式不正确，请回到审稿页重新生成备用 MP3。',
       });
+      recordDownloadEvent(req, user, {
+        eventType: 'failed',
+        stage: 'created',
+        status: 'invalid_cut_segments',
+        message: error.message || '删除段格式不正确',
+        detail: { reason: 'invalid_cut_segments' },
+      });
       return;
     }
     if (!useOss && !audioUrl) {
       sendJson(res, 400, { error: 'missing_audio_url', message: '缺少原始音频 URL，请从审查页重新导出。' });
+      recordDownloadEvent(req, user, {
+        eventType: 'failed',
+        stage: 'created',
+        status: 'missing_audio_url',
+        message: '缺少原始音频 URL',
+      });
       return;
     }
     const payloadSignature = buildCutPayloadSignature({ ...body, segments, goldenSegments });
     const existingUserJob = findPendingCutJob(user.id);
     const activeUserJobCount = countPendingCutJobs(user.id);
     if (existingUserJob?.payloadSignature && existingUserJob.payloadSignature === payloadSignature) {
+      recordDownloadEvent(req, user, {
+        jobId: existingUserJob.id,
+        eventType: 'queued',
+        stage: existingUserJob.stage,
+        status: 'resumed_existing',
+        message: '继续等待已有导出任务',
+      });
       sendJson(res, 202, cutJobStatusPayload(existingUserJob));
       return;
     }
@@ -4262,6 +4563,12 @@ async function handleCut(req, res, url) {
         error: 'cut_user_busy',
         message: '你已有另一份备用 MP3 正在排队或生成中，请等它完成后再生成新的。',
         retryAfterSeconds: 30,
+      });
+      recordDownloadEvent(req, user, {
+        eventType: 'failed',
+        stage: 'created',
+        status: 'cut_user_busy',
+        message: '账号已有另一份备用 MP3 正在排队或生成中',
       });
       return;
     }
@@ -4274,6 +4581,16 @@ async function handleCut(req, res, url) {
         queuedJobs: countQueuedCutJobs(),
         maxActiveJobs: CUT_MAX_ACTIVE_JOBS,
         maxQueuedJobs: CUT_MAX_QUEUED_JOBS,
+      });
+      recordDownloadEvent(req, user, {
+        eventType: 'failed',
+        stage: 'created',
+        status: 'cut_queue_full',
+        message: '生成备用 MP3 队列已满',
+        detail: {
+          activeJobs: countRunningCutJobs(),
+          queuedJobs: countQueuedCutJobs(),
+        },
       });
       return;
     }
@@ -4296,6 +4613,12 @@ async function handleCut(req, res, url) {
       sendJson(res, error.statusCode || 400, {
         error: error.statusCode === 403 ? 'forbidden_oss_object' : 'invalid_audio_url',
         message: error.message || '原始音频地址无效。',
+      });
+      recordDownloadEvent(req, user, {
+        eventType: 'failed',
+        stage: 'created',
+        status: error.statusCode === 403 ? 'forbidden_oss_object' : 'invalid_audio_url',
+        message: error.message || '原始音频地址无效',
       });
       return;
     }
@@ -4330,6 +4653,19 @@ async function handleCut(req, res, url) {
     };
     cutJobs.set(jobId, job);
     persistCutJob(job, { force: true });
+    recordDownloadEvent(req, user, {
+      jobId,
+      eventType: 'created',
+      stage: 'queued',
+      status: 'accepted',
+      message: '导出任务已创建',
+      detail: {
+        fileName: job.filename,
+        segmentCount: job.segments.length,
+        goldenSegmentCount: job.goldenSegments.length,
+        storage: useOss ? 'oss' : 'local',
+      },
+    });
     scheduleCutJobs();
 
     sendJson(res, 202, cutJobStatusPayload(job));
@@ -4339,7 +4675,17 @@ async function handleCut(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/api/cut/status/')) {
     const jobId = url.pathname.replace('/api/cut/status/', '');
     const job = cutJobs.get(jobId);
-    if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
+    if (!job) {
+      recordDownloadEvent(req, user, {
+        jobId,
+        eventType: 'failed',
+        stage: 'status',
+        status: 'not_found',
+        message: '导出任务不存在',
+      });
+      sendJson(res, 404, { error: '任务不存在' });
+      return;
+    }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
     sendJson(res, 200, cutJobStatusPayload(job));
     return;
@@ -4348,9 +4694,29 @@ async function handleCut(req, res, url) {
   if (req.method === 'GET' && url.pathname.startsWith('/api/cut/download/')) {
     const jobId = url.pathname.replace('/api/cut/download/', '');
     const job = cutJobs.get(jobId);
-    if (!job) { sendJson(res, 404, { error: '任务不存在' }); return; }
+    if (!job) {
+      recordDownloadEvent(req, user, {
+        jobId,
+        eventType: 'failed',
+        stage: 'download',
+        status: 'not_found',
+        message: '导出任务不存在',
+      });
+      sendJson(res, 404, { error: '任务不存在' });
+      return;
+    }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
-    if (job.stage !== 'done') { sendJson(res, 409, { error: '文件尚未就绪' }); return; }
+    if (job.stage !== 'done') {
+      recordDownloadEvent(req, user, {
+        jobId,
+        eventType: 'failed',
+        stage: 'download',
+        status: 'not_ready',
+        message: '下载文件尚未就绪',
+      });
+      sendJson(res, 409, { error: '文件尚未就绪' });
+      return;
+    }
 
     const basename = path.basename(job.filename, path.extname(job.filename));
     const dlName = encodeURIComponent(`${basename}_精剪版.mp3`);
@@ -4359,17 +4725,50 @@ async function handleCut(req, res, url) {
       // 产物在 OSS：302 重定向到公网签名下载链接，下载流量绕开 ECS
       try {
         const signed = oss.signPublicUrl(job.outputObjectKey, 600, { filename: `${basename}_精剪版.mp3` });
+        recordDownloadEvent(req, user, {
+          jobId,
+          eventType: 'download_redirect',
+          stage: 'download',
+          status: '302',
+          message: '已生成 OSS 下载跳转',
+          detail: { outputObjectKey: 'present' },
+        });
         res.writeHead(302, { Location: signed, 'Access-Control-Allow-Origin': '*' });
         res.end();
       } catch (error) {
         console.error('[cut] OSS 下载签名失败', error && error.message);
+        recordDownloadEvent(req, user, {
+          jobId,
+          eventType: 'failed',
+          stage: 'download',
+          status: 'sign_failed',
+          message: error.message || '下载链接生成失败',
+        });
         sendJson(res, 500, { error: '下载链接生成失败' });
       }
       return;
     }
 
-    if (!fs.existsSync(job.outputPath)) { sendJson(res, 410, { error: '文件已过期' }); return; }
+    if (!fs.existsSync(job.outputPath)) {
+      recordDownloadEvent(req, user, {
+        jobId,
+        eventType: 'failed',
+        stage: 'download',
+        status: 'expired',
+        message: '导出文件已过期',
+      });
+      sendJson(res, 410, { error: '文件已过期' });
+      return;
+    }
     const stat = fs.statSync(job.outputPath);
+    recordDownloadEvent(req, user, {
+      jobId,
+      eventType: 'download_started',
+      stage: 'download',
+      status: '200',
+      message: '已开始本地文件下载',
+      detail: { bytes: stat.size },
+    });
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
       'Content-Disposition': `attachment; filename*=UTF-8''${dlName}`,
@@ -4390,7 +4789,7 @@ function countPendingCutJobs(userId) {
   let count = 0;
   for (const job of cutJobs.values()) {
     if (userId && job.userId !== userId) continue;
-    if (['queued', 'downloading', 'processing'].includes(job.stage)) count += 1;
+    if (['queued', 'downloading', 'processing', 'uploading'].includes(job.stage)) count += 1;
   }
   return count;
 }
@@ -4398,7 +4797,7 @@ function countPendingCutJobs(userId) {
 function countRunningCutJobs() {
   let count = 0;
   for (const job of cutJobs.values()) {
-    if (['downloading', 'processing'].includes(job.stage) || job.running) count += 1;
+    if (['downloading', 'processing', 'uploading'].includes(job.stage) || job.running) count += 1;
   }
   return count;
 }
@@ -4419,7 +4818,7 @@ function getQueuedCutJobs() {
 
 function findPendingCutJob(userId) {
   return [...cutJobs.values()]
-    .filter((job) => job.userId === userId && ['queued', 'downloading', 'processing'].includes(job.stage))
+    .filter((job) => job.userId === userId && ['queued', 'downloading', 'processing', 'uploading'].includes(job.stage))
     .sort((a, b) => (Number(a.queuedAt || a.createdAt) - Number(b.queuedAt || b.createdAt)) || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
 
@@ -4545,10 +4944,12 @@ function startCutJob(job) {
       try { fs.unlinkSync(job.inputPath); } catch {}
       if (oss.isOssEnabled()) {
         // 产物 MP3 传到 OSS（cut/ 前缀，7 天生命周期自动清），本地产物删掉，下载走 OSS 签名链接
+        setCutJobStage(job, 'uploading', 96);
         await cutUploadOutput(job);
         try { fs.unlinkSync(job.outputPath); } catch {}
       }
       job.completedAt = Date.now();
+      setCutJobStage(job, 'done', 100);
       persistCutJob(job, { force: true });
     } catch (error) {
       failCutJob(job, error.message || String(error));
@@ -4629,13 +5030,13 @@ function loadCutJobsFromDisk() {
         continue;
       }
       job.running = false;
-      if (job.nonResumable && ['queued', 'downloading', 'processing'].includes(job.stage)) {
+      if (job.nonResumable && ['queued', 'downloading', 'processing', 'uploading'].includes(job.stage)) {
         cleanupCutJobTempFiles(job, { keepOutput: false });
         failCutJob(job, '这个临时音频任务无法在服务器重启后继续，请重新生成备用 MP3。');
         cutJobs.set(job.id, job);
         continue;
       }
-      if (['queued', 'downloading', 'processing'].includes(job.stage)) {
+      if (['queued', 'downloading', 'processing', 'uploading'].includes(job.stage)) {
         const queuedAt = Number(job.queuedAt || job.createdAt || now);
         const updatedAt = Number(job.updatedAt || job.startedAt || queuedAt);
         const isStale = job.stage === 'queued'
@@ -4686,7 +5087,7 @@ function cleanupCutJobs() {
       continue;
     }
 
-    if (['downloading', 'processing'].includes(job.stage) || job.running) {
+    if (['downloading', 'processing', 'uploading'].includes(job.stage) || job.running) {
       const touchedAt = Number(job.updatedAt || job.startedAt || job.createdAt || now);
       if (now - touchedAt > CUT_RUNNING_STALE_MS) {
         try { if (job.childProcess) job.childProcess.kill('SIGTERM'); } catch {}
@@ -4705,9 +5106,21 @@ function cleanupCutJobs() {
 }
 
 function setCutJobStage(job, stage, progress) {
+  const previousStage = job.stage;
   job.stage = stage;
   if (Number.isFinite(progress)) job.progress = progress;
   persistCutJob(job, { force: true });
+  if (previousStage !== stage) {
+    const eventType = {
+      queued: 'queued',
+      downloading: 'downloading',
+      processing: 'processing',
+      uploading: 'uploading',
+      done: 'ready',
+      error: 'failed',
+    }[stage] || stage;
+    recordCutJobEvent(job, eventType, stage === 'done' ? '粗剪 MP3 已生成' : `导出阶段：${stage}`);
+  }
 }
 
 function setCutJobProgress(job, progress) {
@@ -4721,6 +5134,7 @@ function failCutJob(job, message) {
   job.error = message || '任务处理失败';
   job.completedAt = Date.now();
   persistCutJob(job, { force: true });
+  recordCutJobEvent(job, 'failed', job.error);
 }
 
 async function cutDownloadInput(job) {
@@ -4858,7 +5272,7 @@ async function cutProcess(job) {
       },
     });
     if (code !== 0) throw new Error('ffmpeg 剪辑失败');
-    setCutJobStage(job, 'done', 100);
+    setCutJobProgress(job, 95);
   } finally {
     job.childProcess = null;
   }
@@ -5222,63 +5636,114 @@ async function handleRefine(req, res, url) {
   const user = requireAuth(req, res);
   if (!user) return;
 
+  // POST /api/refine/start-from-cut — server-side roughcut -> refine
+  if (req.method === 'POST' && url.pathname === '/api/refine/start-from-cut') {
+    if (!hasDay1Access(user)) {
+      sendDay1Required(res);
+      return;
+    }
+    if (!ensureRefineCapacity(user, res)) return;
+
+    const body = await readJson(req).catch(() => ({}));
+    const cutJobId = sanitizeEventId(body.cutJobId || body.jobId);
+    const cutJob = cutJobs.get(cutJobId);
+    if (!cutJob) {
+      recordDownloadEvent(req, user, {
+        jobId: cutJobId,
+        eventType: 'refine_failed',
+        stage: 'refine',
+        status: 'cut_job_not_found',
+        message: '粗剪任务不存在，无法精修',
+      });
+      sendJson(res, 404, { error: 'cut_job_not_found', message: '粗剪任务不存在，请重新生成 MP3。' });
+      return;
+    }
+    if (cutJob.userId !== user.id) {
+      sendJson(res, 403, { error: 'forbidden' });
+      return;
+    }
+    if (cutJob.stage !== 'done') {
+      recordDownloadEvent(req, user, {
+        jobId: cutJob.id,
+        eventType: 'refine_failed',
+        stage: 'refine',
+        status: 'cut_not_ready',
+        message: '粗剪 MP3 尚未生成，无法精修',
+      });
+      sendJson(res, 409, { error: 'cut_not_ready', message: '粗剪 MP3 还没生成完成，请稍后再试。' });
+      return;
+    }
+
+    let options;
+    try {
+      options = normalizeRefineOptions(body);
+    } catch (error) {
+      recordDownloadEvent(req, user, {
+        jobId: cutJob.id,
+        eventType: 'refine_failed',
+        stage: 'refine',
+        status: 'invalid_refine_options',
+        message: error.message || '精修参数不正确',
+      });
+      sendJson(res, 400, { error: 'invalid_refine_options', message: error.message || '精修参数不正确。' });
+      return;
+    }
+
+    const refineJob = createRefineJob(user, {
+      ...options,
+      filename: cutJob.filename || 'podcast.mp3',
+      cutJobId: cutJob.id,
+      sourceType: cutJob.outputObjectKey ? 'cut_oss' : 'cut_file',
+      prepareInput: async (targetPath) => {
+        if (cutJob.outputObjectKey) {
+          await oss.pullToFile(cutJob.outputObjectKey, targetPath);
+          return;
+        }
+        if (!cutJob.outputPath || !fs.existsSync(cutJob.outputPath)) {
+          throw new Error('粗剪 MP3 文件已过期，请重新生成。');
+        }
+        fs.copyFileSync(cutJob.outputPath, targetPath);
+      },
+    });
+    recordDownloadEvent(req, user, {
+      jobId: cutJob.id,
+      refineJobId: refineJob.id,
+      eventType: 'refine_started',
+      stage: 'refine',
+      status: 'accepted',
+      message: '已从粗剪 MP3 启动后端精修',
+      detail: { sourceType: refineJob.sourceType },
+    });
+    sendJson(res, 202, { jobId: refineJob.id });
+    return;
+  }
+
   // POST /api/refine/start  — upload + kick off
   if (req.method === 'POST' && url.pathname === '/api/refine/start') {
     if (!hasDay1Access(user)) {
       sendDay1Required(res);
       return;
     }
-    if (countActiveRefineJobs() >= REFINE_MAX_ACTIVE_JOBS) {
-      sendJson(res, 429, { error: 'refine_busy', message: '当前精修任务较多，请稍后再试。' });
-      return;
-    }
-    if (countActiveRefineJobs(user.id) >= REFINE_MAX_ACTIVE_JOBS_PER_USER) {
-      sendJson(res, 429, { error: 'refine_user_busy', message: '你已有精修任务在处理中，请完成后再提交新的音频。' });
-      return;
-    }
+    if (!ensureRefineCapacity(user, res)) return;
 
     let parsed;
     try { parsed = await parseRefineUpload(req); }
     catch (e) { sendJson(res, 400, { error: e.message }); return; }
 
-    const jobId = crypto.randomBytes(10).toString('hex');
-    const jobsDir = path.join(__dirname, 'data', 'refine-jobs');
-    ensureDir(jobsDir);
-    const outPath = path.join(jobsDir, jobId + '_out.mp3');
+    const job = createRefineJob(user, {
+      ...parsed,
+      sourceType: 'upload',
+    });
+    recordDownloadEvent(req, user, {
+      refineJobId: job.id,
+      eventType: 'refine_started',
+      stage: 'refine',
+      status: 'accepted',
+      message: '已从上传文件启动精修',
+      detail: { sourceType: 'upload' },
+    });
 
-    const job = {
-      id: jobId,
-      userId: user.id,
-      stage: 'queued',
-      progress: 0,
-      log: [],
-      inputPath: parsed.filePath,
-      outputPath: outPath,
-      filename: parsed.filename,
-      normalizeLoudness: parsed.normalizeLoudness,
-      denoise: parsed.denoise,
-      voiceEnhance: parsed.voiceEnhance,
-      targetLufs: parsed.targetLufs,
-      durationSec: 0,
-      createdAt: Date.now(),
-      error: null,
-    };
-    refineJobs.set(jobId, job);
-
-    // Run async
-    (async () => {
-      try {
-        job.durationSec = await refineProbe(job.inputPath);
-        await refineProcess(job);
-        try { fs.unlinkSync(job.inputPath); } catch {}
-      } catch (e) {
-        job.stage = 'error';
-        job.error = e.message;
-        console.error('[refine]', jobId, e.message);
-      }
-    })();
-
-    sendJson(res, 202, { jobId });
+    sendJson(res, 202, { jobId: job.id });
     return;
   }
 
@@ -5302,6 +5767,8 @@ async function handleRefine(req, res, url) {
       progress: job.progress,
       log: job.log,
       error: job.error || null,
+      cutJobId: job.cutJobId || '',
+      sourceType: job.sourceType || 'upload',
       options: {
         normalizeLoudness: job.normalizeLoudness,
         denoise: job.denoise,
@@ -5317,6 +5784,13 @@ async function handleRefine(req, res, url) {
     const jobId = url.pathname.replace('/api/refine/download/', '');
     const job = refineJobs.get(jobId);
     if (!job) {
+      recordDownloadEvent(req, user, {
+        refineJobId: jobId,
+        eventType: 'failed',
+        stage: 'refine_download',
+        status: 'job_interrupted',
+        message: '精修文件已过期或任务已中断',
+      });
       sendJson(res, 410, {
         error: 'job_interrupted',
         message: '音频精修文件已过期或任务已中断，请重新上传音频处理。',
@@ -5324,12 +5798,43 @@ async function handleRefine(req, res, url) {
       return;
     }
     if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
-    if (job.stage !== 'done') { sendJson(res, 409, { error: '文件尚未就绪' }); return; }
-    if (!fs.existsSync(job.outputPath)) { sendJson(res, 410, { error: '文件已过期' }); return; }
+    if (job.stage !== 'done') {
+      recordDownloadEvent(req, user, {
+        jobId: job.cutJobId,
+        refineJobId: job.id,
+        eventType: 'failed',
+        stage: 'refine_download',
+        status: 'not_ready',
+        message: '精修文件尚未就绪',
+      });
+      sendJson(res, 409, { error: '文件尚未就绪' });
+      return;
+    }
+    if (!fs.existsSync(job.outputPath)) {
+      recordDownloadEvent(req, user, {
+        jobId: job.cutJobId,
+        refineJobId: job.id,
+        eventType: 'failed',
+        stage: 'refine_download',
+        status: 'expired',
+        message: '精修文件已过期',
+      });
+      sendJson(res, 410, { error: '文件已过期' });
+      return;
+    }
 
     const basename = path.basename(job.filename, path.extname(job.filename));
     const dlName = encodeURIComponent(basename + '_精修版.mp3');
     const stat = fs.statSync(job.outputPath);
+    recordDownloadEvent(req, user, {
+      jobId: job.cutJobId,
+      refineJobId: job.id,
+      eventType: 'download_started',
+      stage: 'refine_download',
+      status: '200',
+      message: '已开始精修文件下载',
+      detail: { bytes: stat.size },
+    });
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
       'Content-Disposition': `attachment; filename*=UTF-8''${dlName}`,
@@ -5344,6 +5849,92 @@ async function handleRefine(req, res, url) {
   }
 
   sendJson(res, 404, { error: 'not_found' });
+}
+
+function ensureRefineCapacity(user, res) {
+  if (countActiveRefineJobs() >= REFINE_MAX_ACTIVE_JOBS) {
+    sendJson(res, 429, { error: 'refine_busy', message: '当前精修任务较多，请稍后再试。' });
+    return false;
+  }
+  if (countActiveRefineJobs(user.id) >= REFINE_MAX_ACTIVE_JOBS_PER_USER) {
+    sendJson(res, 429, { error: 'refine_user_busy', message: '你已有精修任务在处理中，请完成后再提交新的音频。' });
+    return false;
+  }
+  return true;
+}
+
+function normalizeRefineOptions(body = {}) {
+  const normalizeLoudness = parseRefineBoolean(body.normalizeLoudness);
+  const denoise = parseRefineBoolean(body.denoise);
+  const voiceEnhance = parseRefineBoolean(body.voiceEnhance);
+  const targetLufs = Number(body.targetLufs || -16);
+  if (![-14, -16, -18].includes(targetLufs)) throw new Error('targetLufs 只允许 -14、-16、-18');
+  if (!normalizeLoudness && !denoise && !voiceEnhance) throw new Error('至少选择一个音频精修选项');
+  return { normalizeLoudness, denoise, voiceEnhance, targetLufs };
+}
+
+function createRefineJob(user, input = {}) {
+  const jobId = crypto.randomBytes(10).toString('hex');
+  const jobsDir = path.join(__dirname, 'data', 'refine-jobs');
+  ensureDir(jobsDir);
+  const filename = cleanTitle(input.filename || 'audio.mp3', 180);
+  const inputPath = input.filePath || path.join(jobsDir, `${jobId}_input${getAudioExt(filename, '')}`);
+  const outPath = path.join(jobsDir, `${jobId}_out.mp3`);
+  const job = {
+    id: jobId,
+    userId: user.id,
+    cutJobId: input.cutJobId || '',
+    sourceType: input.sourceType || 'upload',
+    stage: 'queued',
+    progress: 0,
+    log: [],
+    inputPath,
+    outputPath: outPath,
+    filename,
+    normalizeLoudness: Boolean(input.normalizeLoudness),
+    denoise: Boolean(input.denoise),
+    voiceEnhance: Boolean(input.voiceEnhance),
+    targetLufs: Number(input.targetLufs || -16),
+    durationSec: 0,
+    createdAt: Date.now(),
+    error: null,
+  };
+  refineJobs.set(jobId, job);
+  runRefineJob(job, input.prepareInput);
+  return job;
+}
+
+function runRefineJob(job, prepareInput) {
+  (async () => {
+    try {
+      if (typeof prepareInput === 'function') await prepareInput(job.inputPath);
+      job.durationSec = await refineProbe(job.inputPath);
+      await refineProcess(job);
+      recordDownloadEvent(null, { id: job.userId }, {
+        jobId: job.cutJobId,
+        refineJobId: job.id,
+        eventType: 'refine_done',
+        stage: 'refine',
+        status: 'done',
+        message: '精修版 MP3 已生成',
+        detail: { sourceType: job.sourceType },
+      });
+      try { fs.unlinkSync(job.inputPath); } catch {}
+    } catch (e) {
+      job.stage = 'error';
+      job.error = e.message;
+      recordDownloadEvent(null, { id: job.userId }, {
+        jobId: job.cutJobId,
+        refineJobId: job.id,
+        eventType: 'refine_failed',
+        stage: 'refine',
+        status: 'failed',
+        message: e.message || '精修处理失败',
+        detail: { sourceType: job.sourceType },
+      });
+      console.error('[refine]', job.id, e.message);
+    }
+  })();
 }
 
 function countActiveRefineJobs(userId) {

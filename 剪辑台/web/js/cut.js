@@ -7,6 +7,8 @@ const CUT_POLL_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const LONG_WAIT_HINT_MS = 30 * 60 * 1000;
 const PENDING_CUT_KEY = 'jinqian_pending_cut_job';
 const SILENT_TROUBLE_HEADERS = { 'X-Money-Scissors-Silent-Trouble': '1' };
+let currentCutJobId = '';
+let currentRefineJobId = '';
 
 document.addEventListener('DOMContentLoaded', () => {
   const auth = ensureLoggedIn();
@@ -32,6 +34,13 @@ document.addEventListener('DOMContentLoaded', () => {
     els.download.textContent = '准备下载…';
     try {
       postUsage('download').catch(() => {});
+      trackDownloadEvent('download_clicked', {
+        jobId: currentCutJobId,
+        refineJobId: currentRefineJobId,
+        stage: currentRefineJobId ? 'refine_download' : 'download',
+        status: 'clicked',
+        message: currentRefineJobId ? '点击下载精修版 MP3' : '点击下载粗剪 MP3',
+      });
       await triggerDownload(outputUrl, outputName || buildOutputName(false), ({ received, total }) => {
         const percent = total ? Math.floor((received / total) * 100) : 0;
         els.download.textContent = total ? `正在下载 ${percent}%` : '正在下载…';
@@ -42,6 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       setStatus('下载已开始', '如果没有看到文件，请看一下浏览器右上角下载记录或下载文件夹。', 100);
     } catch (error) {
+      trackDownloadEvent('failed', {
+        jobId: currentCutJobId,
+        refineJobId: currentRefineJobId,
+        stage: currentRefineJobId ? 'refine_download' : 'download',
+        status: 'client_error',
+        message: error.message || String(error),
+      });
       showError(error.message || String(error));
     } finally {
       els.download.disabled = false;
@@ -59,10 +75,18 @@ async function runCut() {
 
   let cutJob = readPendingCutJob(data);
   if (cutJob) {
+    currentCutJobId = cutJob.jobId || '';
+    trackDownloadEvent('queued', {
+      jobId: currentCutJobId,
+      stage: 'queued',
+      status: 'resumed_pending',
+      message: '页面找回本地保存的导出任务',
+    });
     setStatus('继续等待 MP3 导出', '已找回刚才的导出任务，继续等待生成。', 5);
   } else {
     setStatus('提交 MP3 导出任务', '服务器会按当前删减方案重新生成 MP3，完成后可下载到外部软件继续剪/精修。', 5);
     cutJob = await startServerCut(data);
+    currentCutJobId = cutJob.jobId || '';
     if (cutJob.resumedFromBusy) {
       setStatus('继续等待已有 MP3 导出', '系统检测到你账号里已有一个 MP3 正在生成，先继续等待它完成；如果超过 30 分钟，请截图给助教。', 5);
     } else {
@@ -76,6 +100,12 @@ async function runCut() {
     cutResult = await pollServerCut(cutJob.jobId);
   } catch (error) {
     if (isTerminalCutError(error)) clearPendingCutJob(cutJob.jobId);
+    trackDownloadEvent('failed', {
+      jobId: cutJob.jobId,
+      stage: 'cut',
+      status: 'poll_failed',
+      message: error.message || String(error),
+    });
     throw error;
   }
   if (!cutResult) throw new Error('MP3 导出任务未完成');
@@ -88,16 +118,18 @@ async function runCut() {
   if (shouldRefine(refineSettings)) {
     try {
       setStatus('准备应用音频精修', '粗剪 MP3 已生成，正在尝试应用音频精修。', 93);
-      const roughcutResp = await apiFetch(roughcutUrl, { headers: SILENT_TROUBLE_HEADERS });
-      if (!roughcutResp.ok) {
-        const errorData = await roughcutResp.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || `粗剪文件读取失败：HTTP ${roughcutResp.status}`);
-      }
-      const blob = await roughcutResp.blob();
-      await runRefine(blob, data.fileName || buildOutputName(false), refineSettings);
+      await runRefineFromCut(cutJob.jobId, refineSettings);
       return;
     } catch (error) {
       console.warn('音频精修未应用，已降级为粗剪 MP3 下载', error);
+      trackDownloadEvent('fallback_to_roughcut', {
+        jobId: cutJob.jobId,
+        refineJobId: currentRefineJobId,
+        stage: 'refine',
+        status: 'fallback',
+        message: error.message || String(error),
+      });
+      currentRefineJobId = '';
       setRoughcutDownloadReady(
         roughcutUrl,
         '粗剪 MP3 已生成；音频精修这次没有应用，你可以先下载去外部软件继续剪。'
@@ -152,6 +184,7 @@ async function startServerCut(data) {
 
 async function pollServerCut(jobId) {
   const startedAt = Date.now();
+  let lastStage = '';
   while (Date.now() - startedAt < CUT_POLL_TIMEOUT_MS) {
     await wait(1800);
     const resp = await apiFetch(`/api/cut/status/${encodeURIComponent(jobId)}`);
@@ -160,11 +193,26 @@ async function pollServerCut(jobId) {
 
     const progress = Number(data.progress);
     const waitHint = buildLongWaitHint(startedAt);
+    const stage = data.stage || data.status || '';
+    if (stage && stage !== lastStage) {
+      lastStage = stage;
+      trackDownloadEvent(stage === 'done' ? 'ready' : stage, {
+        jobId,
+        stage,
+        status: data.status || stage,
+        message: stage === 'done' ? '前端确认粗剪 MP3 已生成' : `前端轮询到导出阶段：${stage}`,
+        detail: {
+          progress: Number.isFinite(progress) ? progress : null,
+          queueAhead: Number(data.queueAhead || 0),
+        },
+      });
+    }
     if (Number.isFinite(progress)) setProgress(Math.max(5, Math.min(99, progress)));
     if (data.status === 'done' || data.stage === 'done') return true;
     if (data.status === 'failed' || data.stage === 'error') throw new Error(data.error || 'MP3 导出失败');
     if (data.stage === 'queued') showCutQueueStatus(data, startedAt);
     else if (data.stage === 'downloading') setStatus('读取原始音频', `服务器正在读取原始音频，准备导出 MP3。${waitHint}`, Math.max(10, Math.min(30, progress || 10)));
+    else if (data.stage === 'uploading') setStatus('准备下载文件', `服务器正在保存 MP3 下载文件，请保持页面打开。${waitHint}`, Math.max(92, Math.min(98, progress || 96)));
     else setStatus('正在生成 MP3', `服务器正在按你的删减方案重新剪辑并编码，请保持页面打开。${waitHint}`, Math.max(30, Math.min(95, progress || 30)));
   }
   throw new Error('MP3 导出等待超时，请截图给助教，带上项目名和手机号后四位。');
@@ -232,31 +280,38 @@ function isTerminalCutError(error) {
   return /任务不存在|已过期|已自动取消|处理失败|等待超时|剪辑处理失败/.test(message);
 }
 
-async function runRefine(blob, filename, refineSettings) {
-  setStatus('正在上传待精修 MP3', '准备交给服务器应用音频精修。', 94);
+async function runRefineFromCut(cutJobId, refineSettings) {
+  setStatus('正在提交音频精修', '粗剪 MP3 已生成，服务器会直接接着处理，不需要浏览器中转文件。', 94);
 
-  const form = new FormData();
-  form.append('audio', blob, filename);
-  form.append('normalizeLoudness', refineSettings.normalizeLoudness ? '1' : '0');
-  form.append('denoise', refineSettings.denoise ? '1' : '0');
-  form.append('voiceEnhance', refineSettings.voiceEnhance ? '1' : '0');
-  form.append('targetLufs', String(refineSettings.targetLufs || -16));
-
-  const startResp = await apiFetch('/api/refine/start', {
+  const startResp = await apiFetch('/api/refine/start-from-cut', {
     method: 'POST',
-    headers: SILENT_TROUBLE_HEADERS,
-    body: form,
+    headers: { 'Content-Type': 'application/json', ...SILENT_TROUBLE_HEADERS },
+    body: JSON.stringify({
+      cutJobId,
+      normalizeLoudness: refineSettings.normalizeLoudness ? '1' : '0',
+      denoise: refineSettings.denoise ? '1' : '0',
+      voiceEnhance: refineSettings.voiceEnhance ? '1' : '0',
+      targetLufs: String(refineSettings.targetLufs || -16),
+    }),
   });
   const startData = await startResp.json().catch(() => ({}));
   if (!startResp.ok) {
     throw new Error(startData.message || startData.error || `精修提交失败：HTTP ${startResp.status}`);
   }
   if (!startData.jobId) throw new Error('精修任务缺少 jobId');
+  currentRefineJobId = startData.jobId;
+  trackDownloadEvent('refine_started', {
+    jobId: cutJobId,
+    refineJobId: startData.jobId,
+    stage: 'refine',
+    status: 'accepted',
+    message: '前端已提交后端精修任务',
+  });
 
   const optionText = describeRefineOptions(refineSettings);
   setStatus(`正在应用：${optionText}`, '服务器正在处理音频，请保持页面打开。', 96);
 
-  const done = await pollRefine(startData.jobId, optionText);
+  const done = await pollRefine(startData.jobId, optionText, cutJobId);
   if (!done) throw new Error('精修任务未完成');
 
   outputUrl = `/api/refine/download/${encodeURIComponent(startData.jobId)}`;
@@ -267,8 +322,9 @@ async function runRefine(blob, filename, refineSettings) {
   setStatus('精修版 MP3 已生成', '可以下载到电脑，再去剪映 / AU / Logic / Audacity 等外部软件继续剪或交付。', 100);
 }
 
-async function pollRefine(jobId, optionText) {
+async function pollRefine(jobId, optionText, cutJobId = '') {
   const startedAt = Date.now();
+  let lastStage = '';
   while (Date.now() - startedAt < 30 * 60 * 1000) {
     await wait(1800);
     const resp = await apiFetch(`/api/refine/status/${encodeURIComponent(jobId)}`, { headers: SILENT_TROUBLE_HEADERS });
@@ -277,6 +333,17 @@ async function pollRefine(jobId, optionText) {
 
     const status = data.status || data.stage;
     const progress = Number(data.progress);
+    if (status && status !== lastStage) {
+      lastStage = status;
+      trackDownloadEvent(status === 'done' ? 'refine_done' : 'refine_status', {
+        jobId: cutJobId,
+        refineJobId: jobId,
+        stage: 'refine',
+        status,
+        message: status === 'done' ? '前端确认精修版 MP3 已生成' : `前端轮询到精修阶段：${status}`,
+        detail: { progress: Number.isFinite(progress) ? progress : null },
+      });
+    }
     if (Number.isFinite(progress)) setProgress(Math.max(96, Math.min(99, progress)));
     if (status === 'done') return true;
     if (status === 'failed' || status === 'error') throw new Error(data.error || '精修处理失败');
@@ -398,6 +465,39 @@ function formatBytes(bytes) {
 function buildLongWaitHint(startedAt) {
   if (Date.now() - Number(startedAt || 0) < LONG_WAIT_HINT_MS) return '';
   return ' 已经超过 30 分钟，请不要反复点；截图给助教，带项目名和手机号后四位。';
+}
+
+function trackDownloadEvent(eventType, event = {}) {
+  try {
+    const body = {
+      eventType,
+      jobId: event.jobId || currentCutJobId || '',
+      refineJobId: event.refineJobId || currentRefineJobId || '',
+      stage: event.stage || '',
+      status: event.status || '',
+      message: event.message || '',
+      pageUrl: `${location.pathname}${location.search}`,
+      browser: detectClientBrowser(),
+      userAgent: navigator.userAgent || '',
+      detail: event.detail || {},
+    };
+    apiFetch('/api/cut/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
+function detectClientBrowser() {
+  const ua = navigator.userAgent || '';
+  if (/MicroMessenger/i.test(ua)) return 'WeChat';
+  if (/Edg\//i.test(ua)) return 'Edge';
+  if (/Chrome|CriOS/i.test(ua) && !/Edg\//i.test(ua)) return 'Chrome';
+  if (/Safari/i.test(ua) && !/Chrome|CriOS|Chromium|Android/i.test(ua)) return 'Safari';
+  if (/Firefox|FxiOS/i.test(ua)) return 'Firefox';
+  return ua ? 'Other' : '';
 }
 
 function showError(message) {

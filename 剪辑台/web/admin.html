@@ -49,8 +49,17 @@
     .feedback-status.ignored { background:#F1F1F1; color:#777; }
     .feedback-actions { display:flex; flex-wrap:wrap; gap:6px; }
     .feedback-note { min-width:180px; width:100%; }
+    .health-summary { display:grid; gap:12px; grid-template-columns:repeat(5, minmax(0, 1fr)); margin-bottom:16px; }
+    .health-card { background:#F8FBFF; border:1px solid #DCE8F7; border-radius:12px; padding:12px 14px; }
+    .health-num { color:#245AA8; font-size:24px; font-weight:900; line-height:1.1; }
+    .health-label { color:#52657A; font-size:12px; font-weight:800; margin-top:4px; }
+    .health-strip { background:#FAFAFA; border:1px solid #eee; border-radius:12px; color:#555; font-size:13px; line-height:1.7; margin-bottom:16px; padding:12px 14px; }
+    .health-ok { color:#1A7F3C; font-weight:800; }
+    .health-warn { color:#B05A18; font-weight:800; }
+    .mono-small { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color:#666; }
     @media (max-width: 760px) {
       .feedback-summary { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .health-summary { grid-template-columns:repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
@@ -76,6 +85,7 @@
           <button class="segmented-btn active" data-view="users" type="button">用户列表</button>
           <button class="segmented-btn" data-view="snapshots" type="button">审核快照</button>
           <button class="segmented-btn" data-view="feedback" type="button">问题反馈</button>
+          <button class="segmented-btn" data-view="downloadHealth" type="button">导出健康</button>
         </div>
         <button class="secondary-btn inline-btn" id="export-btn" type="button">导出 CSV</button>
         <button class="secondary-btn inline-btn" id="feedback-copy-btn" type="button" hidden>复制今日晨报</button>
@@ -144,6 +154,28 @@
           </table>
         </div>
       </div>
+      <div id="download-health-panel" hidden>
+        <div class="health-summary" id="download-health-summary"></div>
+        <div class="health-strip" id="download-health-strip"></div>
+        <div class="toolbar-row">
+          <button class="secondary-btn inline-btn" id="download-health-refresh" type="button">刷新导出健康</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>学员</th>
+                <th>事件</th>
+                <th>阶段</th>
+                <th>说明</th>
+                <th>浏览器</th>
+              </tr>
+            </thead>
+            <tbody id="download-health-table-body"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -157,6 +189,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/admin.js?v=20260622-feedback-loop"></script>
+  <script type="module" src="js/admin.js?v=20260628-download-health"></script>
 </body>
 </html>

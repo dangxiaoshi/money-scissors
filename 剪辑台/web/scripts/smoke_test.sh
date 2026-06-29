@@ -26,25 +26,25 @@ printf '%s\n' "$headers" | grep -qi '^X-Frame-Options:' || {
 
 echo "Checking auth guard on $BASE_URL/api/auth/me"
 status="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/api/auth/me")"
-if [ "$status" != "200" ]; then
-  echo "Expected 200 for guest auth endpoint, got $status" >&2
+if [ "$status" != "401" ]; then
+  echo "Expected 401 for unauthenticated auth endpoint, got $status" >&2
   exit 1
 fi
 
-echo "Checking guest access on $BASE_URL/api/refine/status/test"
+echo "Checking auth guard on $BASE_URL/api/refine/status/test"
 status="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/api/refine/status/test")"
-if [ "$status" != "404" ]; then
-  echo "Expected 404 for missing refine job in guest mode, got $status" >&2
+if [ "$status" != "401" ]; then
+  echo "Expected 401 for unauthenticated refine endpoint, got $status" >&2
   exit 1
 fi
 
-echo "Checking guest access on $BASE_URL/api/deepseek/chat"
+echo "Checking auth guard on $BASE_URL/api/deepseek/chat"
 status="$(curl -sS -o /dev/null -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   -d '{"messages":[]}' \
   "$BASE_URL/api/deepseek/chat")"
-if [ "$status" != "400" ]; then
-  echo "Expected 400 for missing DeepSeek messages in guest mode, got $status" >&2
+if [ "$status" != "401" ]; then
+  echo "Expected 401 for unauthenticated DeepSeek endpoint, got $status" >&2
   exit 1
 fi
 

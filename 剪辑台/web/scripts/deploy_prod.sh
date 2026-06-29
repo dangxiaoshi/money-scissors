@@ -40,9 +40,9 @@ MONEY_SCISSORS_PREFLIGHT_MODE="${MONEY_SCISSORS_PREFLIGHT_MODE:-production}" \
   sh "$ROOT/scripts/deploy_ecs.sh"
 
 echo ""
-echo "==> 步骤 3/3：正式环境 smoke test（$PUBLIC_URL）"
+echo "==> Step 3/3: production smoke test ($PUBLIC_URL)"
 sh "$ROOT/scripts/smoke_test.sh" "$PUBLIC_URL"
 
 echo ""
-echo "==> 正式环境部署完成并通过 smoke test。"
-echo "    请再用浏览器实测核心路径：登录 / 上传 / 最近项目 / 审核入口。"
+echo "==> Production deploy finished and smoke test passed."
+echo "    Please still spot-check: login / upload / recent projects / review entry."

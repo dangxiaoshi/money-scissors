@@ -11,7 +11,7 @@ LOCAL_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 sh "$LOCAL_DIR/scripts/check_release.sh"
 sh "$LOCAL_DIR/scripts/preflight_ecs.sh"
 
-ssh -i "$KEY" "$HOST" "mkdir -p '$REMOTE_DIR.releases' && tar -C '$REMOTE_DIR' -czf '$REMOTE_DIR.releases/backup-$(date +%Y%m%d-%H%M%S).tgz' --exclude node_modules --exclude data --exclude logs --exclude public/uploads ."
+ssh -i "$KEY" "$HOST" "mkdir -p '$REMOTE_DIR.releases' && tar -C '$REMOTE_DIR' -czf '$REMOTE_DIR.releases/backup-$(date +%Y%m%d-%H%M%S).tgz' --exclude node_modules --exclude data --exclude logs --exclude uploads --exclude public/uploads ."
 
 rsync -av --delete \
   --exclude '.env' \
