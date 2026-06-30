@@ -588,6 +588,7 @@ body.resizing-sidebar {
   padding: 20px 0 0;
   margin: -20px 0 0;
   border-bottom: 1px solid var(--hairline);
+  container-type: inline-size;
 }
 
 .main-title {
@@ -602,6 +603,7 @@ body.resizing-sidebar {
 /* Mode toggle */
 .mode-bar {
   display: flex; align-items: center; gap: 16px;
+  justify-content: space-between;
   padding-bottom: 16px;
 }
 .mode-toggle {
@@ -609,6 +611,7 @@ body.resizing-sidebar {
   border-radius: 12px; overflow: hidden;
   padding: 4px; position: relative;
   box-shadow: var(--shadow-card);
+  flex-shrink: 0;
 }
 .mode-btn {
   padding: 10px 22px; font-size: 14px; font-weight: 600;
@@ -628,6 +631,120 @@ body.resizing-sidebar {
   background: var(--ink);
   transition: transform .25s cubic-bezier(.4, 0, .2, 1), width .25s cubic-bezier(.4, 0, .2, 1);
   z-index: 0;
+}
+
+/* Sentence search: compact transcript tool on the right side of the mode row */
+.sentence-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.sentence-search-box {
+  position: relative;
+  width: 210px;
+  height: 38px;
+  flex-shrink: 0;
+}
+.sentence-search-input {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  line-height: 38px;
+  padding: 0 40px 0 13px;
+  outline: none;
+  box-shadow: var(--shadow-card);
+  transition: border-color .15s, box-shadow .15s;
+}
+.sentence-search-input::placeholder { color: var(--placeholder); }
+.sentence-search-input:focus {
+  border-color: rgba(245,166,35,.55);
+  box-shadow: 0 0 0 3px rgba(245,166,35,.12);
+}
+.sentence-search-submit {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: transparent;
+  color: #6f7680;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding-left: 7px;
+}
+.sentence-search-submit svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.4;
+}
+.sentence-search-meta {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sentence-search.has-query .sentence-search-meta { display: inline-flex; }
+.sentence-search-status {
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sentence-search.no-hit .sentence-search-status {
+  min-width: 46px;
+  color: var(--danger);
+}
+.sentence-search-step,
+.sentence-search-clear {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+}
+.sentence-search-step:hover:not(:disabled),
+.sentence-search-clear:hover {
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+.sentence-search-step:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+@container (max-width: 700px) {
+  .mode-bar { flex-wrap: wrap; }
+  .sentence-search {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .sentence-search-box { width: min(210px, 100%); }
+}
+
+@container (max-width: 360px) {
+  .sentence-search { flex-wrap: wrap; }
+  .sentence-search.has-query .sentence-search-meta {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* Audio refine bar (kept for gear popup) */
@@ -718,6 +835,9 @@ body.resizing-sidebar {
 }
 .gear-action.primary {
   color: var(--accent-deep);
+}
+.gear-action.onboarding {
+  color: #205493;
 }
 
 /* Duration + speaker info bar in mode-bar */
@@ -913,6 +1033,10 @@ body.readonly .star { display: none; }
 .row.sp-last { padding-bottom: 10px; }
 .row:hover { background: var(--surface-2); }
 .row.act { background: var(--accent-soft); border-left-color: var(--accent); }
+.row.search-hit:not(.act) { background: #fffaf0; }
+.row.search-current {
+  box-shadow: inset 0 0 0 1.5px rgba(245,166,35,.48);
+}
 .row.del { opacity: .5; }
 .row.del:hover { opacity: .75; }
 .row.del .r-txt { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
@@ -1112,6 +1236,126 @@ body.readonly .star { display: none; }
   margin-top: 14px;
 }
 
+/* Review onboarding */
+.review-onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: none;
+  pointer-events: none;
+}
+.review-onboarding.vis { display: block; }
+.review-onboarding-shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(17,24,39,.12);
+  pointer-events: none;
+}
+.review-onboarding-spotlight {
+  position: fixed;
+  border: 2px solid #2563eb;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(17,24,39,.10), 0 8px 28px rgba(37,99,235,.18);
+  pointer-events: none;
+  transition: left .16s ease, top .16s ease, width .16s ease, height .16s ease;
+}
+.review-onboarding-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--surface);
+  border: 1px solid rgba(37,99,235,.22);
+  border-radius: 14px;
+  box-shadow: 0 18px 46px rgba(0,0,0,.22);
+  padding: 16px;
+  pointer-events: auto;
+}
+.review-onboarding-kicker {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.review-onboarding-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.review-onboarding-close:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+.review-onboarding-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.35;
+  margin-bottom: 8px;
+}
+.review-onboarding-text {
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.review-onboarding-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+.review-onboarding-left-actions,
+.review-onboarding-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-onboarding-btn {
+  min-height: 34px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.review-onboarding-btn:hover {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+.review-onboarding-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.review-onboarding-btn:disabled:hover {
+  border-color: var(--hairline);
+  color: var(--ink-2);
+}
+.review-onboarding-btn.primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+.review-onboarding-btn.primary:hover { background: #1d4ed8; }
+.review-onboarding-btn.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
 /* Export success modal */
 .export-modal {
   position: fixed; inset: 0; z-index: 3000;
@@ -1176,6 +1420,19 @@ body.readonly .star { display: none; }
   .splitter { display:none; }
   .main { padding: 24px; }
   .main-title { font-size:26px; }
+  .mode-bar { flex-wrap: wrap; }
+  .sentence-search { width: 100%; justify-content: flex-end; }
+  .sentence-search-box { width: min(210px, 100%); }
+  .review-onboarding-card {
+    left: 16px !important;
+    right: 16px;
+    bottom: 96px;
+    top: auto !important;
+    width: auto;
+  }
+  .review-onboarding-spotlight {
+    border-radius: 12px;
+  }
 }
 
 /* ===== 左栏 Tab（进度/解读/口癖）+ 口癖标注 — 2026-06-15 ===== */
@@ -1245,6 +1502,7 @@ body.readonly .star { display: none; }
 <div class="gear-popup" id="gear-popup">
   <div class="gear-menu">
     <button class="gear-action primary" id="intro-btn" onclick="openIntroMaker()">片头金句 <span id="intro-count">0</span></button>
+    <button class="gear-action onboarding" id="review-onboarding-menu-btn" onclick="openReviewOnboardingFromMenu()">新手引导</button>
     <button class="gear-action" id="manual-save-btn" onclick="manualSaveNow()">保存</button>
     <button class="gear-action" onclick="doExport({next:'cut'})">导出 MP3（去外部软件）</button>
     <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交/导出说明</button>
@@ -1280,6 +1538,29 @@ body.readonly .star { display: none; }
   <div id="order-req-content"></div>
   <div class="order-popup-foot">
     <button class="info-close" onclick="document.getElementById('order-req-popup').classList.remove('vis')">收起</button>
+  </div>
+</div>
+
+<!-- Review onboarding -->
+<div class="review-onboarding" id="review-onboarding" aria-live="polite">
+  <div class="review-onboarding-shade"></div>
+  <div class="review-onboarding-spotlight" id="review-onboarding-spotlight"></div>
+  <div class="review-onboarding-card" id="review-onboarding-card" role="dialog" aria-modal="false" aria-labelledby="review-onboarding-title">
+    <div class="review-onboarding-kicker">
+      <span id="review-onboarding-step">剪辑台新手引导 1/6</span>
+      <button class="review-onboarding-close" type="button" onclick="closeReviewOnboarding()" title="关闭">×</button>
+    </div>
+    <div class="review-onboarding-title" id="review-onboarding-title"></div>
+    <div class="review-onboarding-text" id="review-onboarding-text"></div>
+    <div class="review-onboarding-actions">
+      <div class="review-onboarding-left-actions">
+        <button class="review-onboarding-btn ghost" type="button" onclick="skipReviewOnboarding()">跳过</button>
+      </div>
+      <div class="review-onboarding-right-actions">
+        <button class="review-onboarding-btn" id="review-onboarding-prev" type="button" onclick="moveReviewOnboarding(-1)">上一步</button>
+        <button class="review-onboarding-btn primary" id="review-onboarding-next" type="button" onclick="moveReviewOnboarding(1)">下一步</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1397,6 +1678,23 @@ body.readonly .star { display: none; }
         <div class="mode-slider" id="mode-slider"></div>
         <button class="mode-btn active" id="mode-edit" onclick="setMode('edit')">✂️ 剪辑模式</button>
         <button class="mode-btn" id="mode-preview" onclick="setMode('preview')">🎧 粗剪试听</button>
+      </div>
+      <div class="sentence-search" id="sentence-search">
+        <div class="sentence-search-box">
+          <input class="sentence-search-input" id="sentence-search-input" type="text" placeholder="输入关键词" autocomplete="off" oninput="handleSentenceSearchInput()" onkeydown="handleSentenceSearchKey(event)">
+          <button class="sentence-search-submit" type="button" onclick="submitSentenceSearch()" title="搜索定位">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16 16 4 4"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="sentence-search-meta" id="sentence-search-meta">
+          <span class="sentence-search-status" id="sentence-search-status"></span>
+          <button class="sentence-search-step" id="sentence-search-prev" type="button" onclick="jumpSentenceSearch(-1)" title="上一条">‹</button>
+          <button class="sentence-search-step" id="sentence-search-next" type="button" onclick="jumpSentenceSearch(1)" title="下一条">›</button>
+          <button class="sentence-search-clear" type="button" onclick="clearSentenceSearch()" title="清空">×</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1536,6 +1834,8 @@ S.forEach(x=>{ if(x.sp && !spCMap[x.sp]){ spCMap[x.sp]=spShades[spList.length%3]
 // State
 const del=new Set(), um=new Set(), gold=new Set();
 let introClips=[];
+const sentenceSearch = { term: '', needle: '', matches: [], cursor: -1 };
+let sentenceSearchHitSet = new Set();
 const INTRO_MUSIC_URL = '/assets/music/intro-default.mp3';
 const INTRO_MUSIC_DURATION_SECONDS = 12.84;
 // 半句删除：sentenceIdx → [{a,b,s,e}]（a/b=词索引范围，s/e=删除时间段）
@@ -1859,7 +2159,7 @@ function kpKillAll(){
     });
     um.add(idx);
   });
-  kpCurKey=null; renderAll(); sv(); toast('已标删口癖');
+  kpCurKey=null; renderAllKeepingSentenceSearchFresh(); sv(); toast('已标删口癖');
 }
 // 逐个跳转
 function kpJump(dir){
@@ -2069,14 +2369,14 @@ function kpUndo(){
   if(!kpUndoStack.length){ toast('没有可撤销的操作'); return; }
   kpRedoStack.push(kpSnap());
   kpApply(kpUndoStack.pop());
-  kpCurKey=null; renderAll(); sv(); toast('已撤销');
+  kpCurKey=null; renderAllKeepingSentenceSearchFresh(); sv(); toast('已撤销');
 }
 function kpRedo(){
   if(window.__READ_ONLY) return;
   if(!kpRedoStack.length){ toast('没有可前进的操作'); return; }
   kpUndoStack.push(kpSnap());
   kpApply(kpRedoStack.pop());
-  kpCurKey=null; renderAll(); sv(); toast('已前进');
+  kpCurKey=null; renderAllKeepingSentenceSearchFresh(); sv(); toast('已前进');
 }
 function kpCanUndo(){ return kpUndoStack.length>0; }   // 供顶栏窗口控制按钮置灰
 function kpCanRedo(){ return kpRedoStack.length>0; }
@@ -2823,6 +3123,8 @@ function renderTx(options = {}) {
     if(ig) cl+=' gold';
     if(isSug) cl+=' sug';
     if(x.idx===curIdx) cl+=' act';
+    if(sentenceSearchHitSet.has(x.idx)) cl+=' search-hit';
+    if(sentenceSearch.matches[sentenceSearch.cursor]===x.idx) cl+=' search-current';
     if(sameSp) cl+=' same-sp';
     if(isLast) cl+=' sp-last';
     const reasonTag = (isSug && x.sugReason) ? `<span class="sug-reason">${esc(x.sugReason)}</span>` : '';
@@ -2838,7 +3140,7 @@ function renderAll(){
   pruneInvalidBreathCuts();
   resetDerivedCaches();
   const breaths=breathCandidates();
-  renderSidebar();renderTx({breathCandidates:breaths});kpUpdateCount();breathUpdate(breaths);updateIntroCount();updateTopbarHistoryButtons()
+  renderSidebar();renderTx({breathCandidates:breaths});kpUpdateCount();breathUpdate(breaths);updateIntroCount();updateTopbarHistoryButtons();updateSentenceSearchUi();updateReviewOnboardingPositionSoon()
 }
 
 function updateIntroCount(){
@@ -2864,7 +3166,7 @@ function tgS(i){
     restoreAt=x?x.s:null;
   }
   else{del.add(i);gold.delete(i)}
-  um.add(i);renderAll();sv()
+  um.add(i);renderAllKeepingSentenceSearchFresh();sv()
   if(restoreAt!==null) previewRestoredAudio(restoreAt);
 }
 // 标黄/取消金句：最多 3 条。被删的句子不能设金句（先恢复再标）。
@@ -2932,7 +3234,7 @@ function parseJsonObject(text){
   if(match){try{return JSON.parse(match[0])}catch{}}
   return null;
 }
-function tgB(id){if(window.__READ_ONLY)return;kpPushUndo();const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAll();sv()}
+function tgB(id){if(window.__READ_ONLY)return;kpPushUndo();const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAllKeepingSentenceSearchFresh();sv()}
 
 // ===== 半句删除（选区 → 词 → 时间段）=====
 const selbtn=document.createElement('div');
@@ -3288,6 +3590,372 @@ function scrollRowIntoView(row, options, suppressMs){
   withProgrammaticScroll(() => row.scrollIntoView(options), suppressMs);
 }
 
+function normalizeSentenceSearchText(text){
+  return String(text || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function handleSentenceSearchInput(){
+  updateSentenceSearchFromInput(true);
+}
+
+function handleSentenceSearchKey(event){
+  if(event.isComposing || event.keyCode === 229) return;
+  if(event.key === 'Enter'){
+    event.preventDefault();
+    submitSentenceSearch();
+  }else if(event.key === 'Escape'){
+    clearSentenceSearch();
+  }
+}
+
+function submitSentenceSearch(){
+  const input=document.getElementById('sentence-search-input');
+  if(!input) return;
+  if(!String(input.value||'').trim()){
+    input.focus();
+    return;
+  }
+  if(!sentenceSearch.matches.length){
+    updateSentenceSearchFromInput(false);
+    return;
+  }
+  jumpSentenceSearch(sentenceSearch.cursor < 0 ? 0 : 1);
+}
+
+function renderAllKeepingSentenceSearchFresh(){
+  if(sentenceSearch.needle && previewMode){
+    updateSentenceSearchFromInput(false);
+    return;
+  }
+  renderAll();
+}
+
+function updateSentenceSearchFromInput(jumpToFirst){
+  const input=document.getElementById('sentence-search-input');
+  if(!input) return;
+  const previousIdx=sentenceSearch.matches[sentenceSearch.cursor];
+  const term=String(input.value||'').trim();
+  const needle=normalizeSentenceSearchText(term);
+  sentenceSearch.term=term;
+  sentenceSearch.needle=needle;
+  sentenceSearch.matches=[];
+  sentenceSearchHitSet=new Set();
+
+  if(needle){
+    S.forEach(x=>{
+      if(previewMode && del.has(x.idx)) return;
+      const text=normalizeSentenceSearchText(x.t || (Array.isArray(x.w) ? x.w.map(w=>w.t).join('') : ''));
+      if(text.includes(needle)){
+        sentenceSearch.matches.push(x.idx);
+        sentenceSearchHitSet.add(x.idx);
+      }
+    });
+  }
+
+  if(!needle || !sentenceSearch.matches.length){
+    sentenceSearch.cursor=-1;
+  }else{
+    const preserved=sentenceSearch.matches.indexOf(previousIdx);
+    sentenceSearch.cursor=preserved>=0 ? preserved : 0;
+  }
+
+  renderAll();
+  if(jumpToFirst && sentenceSearch.matches.length){
+    goToSentenceSearchMatch();
+  }
+}
+
+function jumpSentenceSearch(delta){
+  if(!sentenceSearch.needle){
+    const input=document.getElementById('sentence-search-input');
+    if(input) input.focus();
+    return;
+  }
+  if(!sentenceSearch.matches.length) return;
+  const len=sentenceSearch.matches.length;
+  sentenceSearch.cursor=(sentenceSearch.cursor + delta + len) % len;
+  renderAll();
+  goToSentenceSearchMatch();
+}
+
+function goToSentenceSearchMatch(){
+  const idx=sentenceSearch.matches[sentenceSearch.cursor];
+  if(idx===undefined) return;
+  goTo(idx);
+}
+
+function clearSentenceSearch(){
+  const input=document.getElementById('sentence-search-input');
+  if(input) input.value='';
+  sentenceSearch.term='';
+  sentenceSearch.needle='';
+  sentenceSearch.matches=[];
+  sentenceSearch.cursor=-1;
+  sentenceSearchHitSet=new Set();
+  renderAll();
+  if(input) input.focus();
+}
+
+function updateSentenceSearchUi(){
+  const wrap=document.getElementById('sentence-search');
+  const status=document.getElementById('sentence-search-status');
+  const prev=document.getElementById('sentence-search-prev');
+  const next=document.getElementById('sentence-search-next');
+  if(!wrap || !status) return;
+  const hasQuery=Boolean(sentenceSearch.needle);
+  const hasHits=sentenceSearch.matches.length>0;
+  wrap.classList.toggle('has-query', hasQuery);
+  wrap.classList.toggle('no-hit', hasQuery && !hasHits);
+  status.textContent = hasQuery ? (hasHits ? `${sentenceSearch.cursor+1}/${sentenceSearch.matches.length}` : '没有找到') : '';
+  if(prev) prev.disabled=!hasHits;
+  if(next) next.disabled=!hasHits;
+}
+
+// ===== REVIEW ONBOARDING =====
+const REVIEW_ONBOARDING_SEEN_KEY = 'moneyScissors.reviewOnboarding.v1.seen';
+const reviewOnboarding = { active:false, step:0, positionTimer:null };
+
+function openReviewOnboardingFromMenu(){
+  const popup=document.getElementById('gear-popup');
+  if(popup) popup.classList.remove('vis');
+  openReviewOnboarding({manual:true});
+}
+
+function openReviewOnboarding(options = {}){
+  if(!Array.isArray(S) || !S.length) return;
+  reviewOnboarding.active=true;
+  reviewOnboarding.step=0;
+  const root=document.getElementById('review-onboarding');
+  if(root) root.classList.add('vis');
+  renderReviewOnboardingStep();
+}
+
+function closeReviewOnboarding(){
+  reviewOnboarding.active=false;
+  const root=document.getElementById('review-onboarding');
+  if(root) root.classList.remove('vis');
+}
+
+function skipReviewOnboarding(){
+  markReviewOnboardingSeen();
+  closeReviewOnboarding();
+}
+
+function finishReviewOnboarding(){
+  markReviewOnboardingSeen();
+  closeReviewOnboarding();
+  document.getElementById('submit-review-btn')?.focus?.();
+}
+
+function moveReviewOnboarding(delta){
+  if(!reviewOnboarding.active) return;
+  const nextStep=reviewOnboarding.step+delta;
+  if(nextStep>=reviewOnboardingStepCount()){
+    finishReviewOnboarding();
+    return;
+  }
+  reviewOnboarding.step=Math.max(0,nextStep);
+  renderReviewOnboardingStep();
+}
+
+function reviewOnboardingStepCount(){ return 6; }
+
+function hasUsableReviewDecision(){
+  return Boolean(String(DECISION_REPORT||'').trim()) && !String(DECISION_ERROR||'').trim();
+}
+
+function hasOnboardingKoupiOrBreath(){
+  try {
+    const hasKoupi = typeof kpAllHits === 'function' && kpAllHits().length > 0;
+    const hasBreath = typeof breathCandidates === 'function' && breathCandidates().length > 0;
+    return hasKoupi || hasBreath;
+  } catch {
+    return false;
+  }
+}
+
+function firstTranscriptRow(){
+  return document.querySelector('.row:not(.del)') || document.querySelector('.row') || document.getElementById('tx');
+}
+
+function reviewOnboardingSteps(){
+  const hasDecision=hasUsableReviewDecision();
+  const hasCleanup=hasOnboardingKoupiOrBreath();
+  return [
+    {
+      title: hasDecision ? '先看大纲和剪辑决策' : '先判断这一期主线',
+      text: hasDecision
+        ? '先看左边的大纲和 AI 剪辑建议，知道这一期主线。等下删减时，就按这个主线来取舍。'
+        : '这一期先按逐字稿内容判断主线。抓住主要表达，再去处理跑题、重复和等待内容。',
+      target: () => document.querySelector('#pane-read .nav-act-item') || document.getElementById('pane-read') || document.querySelector('.sidebar'),
+      before: () => switchSideTab('read'),
+    },
+    {
+      title: '左边看方向，右边做删减',
+      text: '左边看大纲，右边删逐字稿。先处理跑题、重复解释、大段等待、完全没信息量的整句整段。',
+      target: () => firstTranscriptRow(),
+      before: () => switchSideTab('read'),
+    },
+    {
+      title: '第一遍先做粗剪',
+      text: '第一遍先以整句、整段为单位。细碎口癖、半个词、轻微卡顿放到后面统一处理，剪出来更稳。',
+      target: () => firstTranscriptRow(),
+    },
+    {
+      title: '再处理口癖和气口',
+      text: hasCleanup
+        ? '大段删完后，再看左边的口癖和气口。把明显重复的口癖和较长停顿统一处理，让听感更干净。'
+        : '这期暂时没有明显口癖或长气口，可以继续回听前后衔接。',
+      target: () => document.getElementById('pane-koupi') || document.querySelector('.sidebar'),
+      before: () => switchSideTab('koupi'),
+    },
+    {
+      title: '每删一段，就回听衔接',
+      text: '每删完一段，拉回前一句听一下。重点听：有没有吞字、跳字、咔哒声，前后意思顺不顺。',
+      target: () => document.querySelector('.player'),
+    },
+    {
+      title: '交作业先提交审核',
+      text: '提交审核就是交给助教看。导出 MP3 是备用留底或外部精修。下载时保持页面等系统处理；需要帮助就截图和项目名发助教。',
+      target: () => document.getElementById('submit-review-btn'),
+    },
+  ];
+}
+
+function renderReviewOnboardingStep(){
+  if(!reviewOnboarding.active) return;
+  const steps=reviewOnboardingSteps();
+  const index=Math.min(Math.max(0,reviewOnboarding.step),steps.length-1);
+  reviewOnboarding.step=index;
+  const spec=steps[index];
+  if(spec.before) spec.before();
+  const stepEl=document.getElementById('review-onboarding-step');
+  const titleEl=document.getElementById('review-onboarding-title');
+  const textEl=document.getElementById('review-onboarding-text');
+  const prevBtn=document.getElementById('review-onboarding-prev');
+  const nextBtn=document.getElementById('review-onboarding-next');
+  if(stepEl) stepEl.textContent=`剪辑台新手引导 ${index+1}/${steps.length}`;
+  if(titleEl) titleEl.textContent=spec.title;
+  if(textEl) textEl.textContent=spec.text;
+  if(prevBtn) prevBtn.disabled=index===0;
+  if(nextBtn) nextBtn.textContent=index===steps.length-1 ? '知道了，先提交审核' : '下一步';
+  updateReviewOnboardingPositionSoon();
+}
+
+function updateReviewOnboardingPositionSoon(){
+  if(!reviewOnboarding.active) return;
+  clearTimeout(reviewOnboarding.positionTimer);
+  reviewOnboarding.positionTimer=setTimeout(updateReviewOnboardingPosition, 20);
+}
+
+function updateReviewOnboardingPosition(){
+  if(!reviewOnboarding.active) return;
+  const steps=reviewOnboardingSteps();
+  const spec=steps[reviewOnboarding.step];
+  const target=spec?.target?.();
+  const card=document.getElementById('review-onboarding-card');
+  const spot=document.getElementById('review-onboarding-spotlight');
+  if(!card || !spot || !target) return;
+  ensureReviewOnboardingTargetVisible(target);
+  requestAnimationFrame(()=>{
+    const rect=target.getBoundingClientRect();
+    placeReviewOnboardingSpotlight(spot, rect, target);
+    placeReviewOnboardingCard(card, rect);
+  });
+}
+
+function ensureReviewOnboardingTargetVisible(target){
+  if(!target || target.classList?.contains('player') || target.closest?.('.topbar')) return;
+  const rect=target.getBoundingClientRect();
+  if(rect.top<76 || rect.bottom>window.innerHeight-104){
+    const fn=()=>target.scrollIntoView({behavior:'auto',block:'center',inline:'nearest'});
+    if(typeof withProgrammaticScroll==='function') withProgrammaticScroll(fn, 250);
+    else fn();
+  }
+}
+
+function placeReviewOnboardingSpotlight(spot, rect, target){
+  const pad=target.classList?.contains('player') ? 4 : 8;
+  const isFixedTarget=target.classList?.contains('player') || target.closest?.('.topbar');
+  const minTop=isFixedTarget ? 8 : 62;
+  const maxBottom=isFixedTarget ? window.innerHeight-6 : window.innerHeight-88;
+  const left=Math.max(8, rect.left-pad);
+  const right=Math.min(window.innerWidth-8, rect.right+pad);
+  const top=Math.max(minTop, rect.top-pad);
+  const bottom=Math.max(top+42, Math.min(maxBottom, rect.bottom+pad));
+  spot.style.left=`${Math.round(left)}px`;
+  spot.style.top=`${Math.round(top)}px`;
+  spot.style.width=`${Math.round(Math.max(42,right-left))}px`;
+  spot.style.height=`${Math.round(Math.max(42,bottom-top))}px`;
+}
+
+function placeReviewOnboardingCard(card, rect){
+  const margin=16;
+  const gap=14;
+  const cardWidth=card.offsetWidth || 360;
+  const cardHeight=card.offsetHeight || 190;
+  let left=rect.right+gap;
+  if(left+cardWidth>window.innerWidth-margin) left=rect.left-cardWidth-gap;
+  if(left<margin) left=Math.min(Math.max(rect.left, margin), window.innerWidth-cardWidth-margin);
+  let top=rect.top;
+  if(rect.bottom>window.innerHeight-96) top=rect.top-cardHeight-gap;
+  top=Math.min(Math.max(72, top), window.innerHeight-cardHeight-96);
+  const adjusted=avoidSentenceSearchOverlap(left, top, cardWidth, cardHeight);
+  card.style.left=`${Math.round(adjusted.left)}px`;
+  card.style.top=`${Math.round(adjusted.top)}px`;
+}
+
+function avoidSentenceSearchOverlap(left, top, width, height){
+  const search=document.getElementById('sentence-search');
+  if(!search) return {left, top};
+  const rect=search.getBoundingClientRect();
+  if(rect.width<=0 || rect.height<=0) return {left, top};
+  const overlaps=!(left+width<rect.left || left>rect.right || top+height<rect.top || top>rect.bottom);
+  if(!overlaps) return {left, top};
+  const below=rect.bottom+14;
+  if(below+height<window.innerHeight-96) return {left, top:below};
+  if(rect.left-width-14>16) return {left:rect.left-width-14, top};
+  if(rect.right+14+width<window.innerWidth-16) return {left:rect.right+14, top};
+  return {left, top};
+}
+
+function markReviewOnboardingSeen(){
+  try { localStorage.setItem(REVIEW_ONBOARDING_SEEN_KEY, '1'); } catch {}
+}
+
+function hasSeenReviewOnboarding(){
+  try { return localStorage.getItem(REVIEW_ONBOARDING_SEEN_KEY) === '1'; } catch { return false; }
+}
+
+function shouldAutoStartReviewOnboarding(){
+  if(hasSeenReviewOnboarding()) return false;
+  if(!Array.isArray(S) || !S.length) return false;
+  const searchInput=document.getElementById('sentence-search-input');
+  if(searchInput && (document.activeElement===searchInput || String(searchInput.value||'').trim())) return false;
+  const blockingPopups=['export-modal','info-tip','gear-popup','order-req-popup'];
+  if(blockingPopups.some(id=>document.getElementById(id)?.classList.contains('vis'))) return false;
+  return true;
+}
+
+function maybeAutoStartReviewOnboarding(){
+  setTimeout(()=>{
+    if(shouldAutoStartReviewOnboarding()) openReviewOnboarding({manual:false});
+  }, 650);
+}
+
+window.addEventListener('resize', updateReviewOnboardingPositionSoon);
+window.addEventListener('scroll', updateReviewOnboardingPositionSoon, true);
+document.addEventListener('keydown', (event)=>{
+  if(!reviewOnboarding.active) return;
+  const active=document.activeElement;
+  const typing=active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName);
+  if(typing) return;
+  if(event.key==='Escape'){
+    event.preventDefault();
+    closeReviewOnboarding();
+  }
+});
+
 function initTranscriptScrollGuard(){
   const main = document.querySelector('.main');
   if(main){
@@ -3405,7 +4073,8 @@ function setMode(mode) {
   document.getElementById('mode-preview').classList.toggle('active', previewMode);
   positionSlider();
 
-  renderSidebar();
+  if(sentenceSearch.needle) updateSentenceSearchFromInput(false);
+  else renderSidebar();
   if (typeof updatePlayerDuration === 'function') updatePlayerDuration();
 
   if (anchorIdx >= 0) {
@@ -3756,7 +4425,7 @@ window.addEventListener('pagehide', () => {
 });
 function showT(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('vis');setTimeout(()=>el.classList.remove('vis'),2000)}
 
-rs();applyOpeningSpeakerDisplayHints();renderAll();initRefineBar();initSidebarResize();kpRenderLib();initOrderRequirements();
+rs();applyOpeningSpeakerDisplayHints();renderAll();initRefineBar();initSidebarResize();kpRenderLib();initOrderRequirements();maybeAutoStartReviewOnboarding();
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();tgPlay()}});
 
 </script>

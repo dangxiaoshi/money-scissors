@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-06-22 深夜
+> 更新：2026-06-30 夜
 
 ---
 
@@ -44,7 +44,7 @@
 
 | 优先级 | 事项 | 状态 |
 |---|---|---|
-| A | 🔴 H2 真短信 + 删除验证码后门 | **阻塞中，等运营商报备，出门期间不要碰。** 企业资质已过、RAM 小钥匙已建、签名名 `成都当前文化`；等当当盖章授权书、签名/模板审核通过后，先配测试站真机收码，再推正式并删 `devCode` 明文后门。本项未通前别动 `server.cjs`、`.env`、验证码代码。 |
+| A | 🔴 H2 真短信 + 删除验证码后门 | **仍阻塞，等阿里云短信 Secret/运营商报备最终可用。** 2026-06-30 晚正式站登录 500 根因是 `.env` 里阿里云短信 key/签名/模板不完整，同时绿色验证码兜底为 0；已临时把正式站 `ALLOW_DEV_SEND_CODE_FALLBACK=1` 恢复，登录可用。后续拿到完整短信 Secret 后，先配测试站真机收码，再推正式并删 `devCode` 明文后门。 |
 | A | 🟡 OSS 正式灰度·观察期 | 6/19 正式站已切 OSS（`STORAGE_BACKEND=oss / OSS_PREFIX=prod`），上传 storage=oss、签名下载 200、ffmpeg 可解码。**观察 1-2 天**：盯上传/转写/生成MP3/下载/ECS 带宽。注意 RAM key 当前**无 delete 权限**，测试对象暂留 `prod/uploads`。观察期是运维盯防，不是开发任务。 |
 | A | 🔴 派单需求在剪辑页常驻可见 | 学员从接单任务进剪辑页后容易忘甲方需求。要做：剪辑页一键打开当前订单需求（目标时长/必须保留/必须删除/开头结尾/交付格式）。属剪辑台 `review.html`（+ 可能 `server.cjs` 读订单需求）。**只剩的真 P0。** |
 | B | 🔴 磁吸复查 | 学员仍报"字删了、听起来还在"。先纯调查出结论：已收口 / 部分收口 / 未收口，要修只动 `review.html`。 |
@@ -70,6 +70,9 @@
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-06-30 | 剪辑台新手引导测试站完成（正式未部署） | 基于搜索框定稿版 `review.html`，新增首次进入已转写审稿页自动弹出的 6 步新手引导，并在齿轮工具菜单增加“新手引导”手动入口：先看左侧大纲/剪辑决策，再按右侧逐字稿删减，第一遍整句整段粗剪，再处理口癖和气口，随后回听前后衔接，最后优先提交审核、MP3 只作备用留底或外部精修。引导只写浏览器本地 `moneyScissors.reviewOnboarding.v1.seen`，不改删除段、半句删除、金句、气口、导出/提交 payload 或项目保存内容；打开时搜索框仍可输入，搜索黄色命中和引导蓝色高亮区分。已白名单单文件同步测试站 `/opt/money-scissors-test/review.html`，备份 `/root/nginx-backups/money-scissors-test-onboarding-20260630-235301/`，测试站 sha256=`1f117f7e397ea2b38c46165b442a2a7585935afcecd93bc74c1c0462e39c3819`，health 200。本地验收：内联脚本语法 OK、`npm run check` OK、Chrome/Playwright 覆盖自动弹、跳过/完成后不再自动弹、齿轮菜单可重开、无剪辑决策和无口癖/气口兜底、桌面/窄屏/手机不遮挡搜索框和播放器，并重新跑搜索定位原清单通过。测试站冒烟：首次弹引导、搜索命中 `2/5 → 3/5` 且音频定位、完成后刷新不再自动弹、齿轮菜单可重开。Codex 窄审长时间未给结论已中止，未收到 P1/P2 发现。 |
+| 2026-06-30 | 搜索定位句子测试站完成（正式未部署） | 按当当拍板的“正文工具行右侧小输入框”方案，在剪辑页“剪辑模式/粗剪试听”同一工具行右侧新增 `输入关键词 + 放大镜` 搜索框；输入后显示命中序号、上一条/下一条、清空；命中句子高亮并定位音频到句首，搜索不写入项目状态、不影响删除/恢复/金句/导出。验证：内联脚本语法 OK、`npm run check` OK；本地 Chrome 桌面输入“剪辑”显示 `1/5`，下一条变 `2/5`，清空后高亮消失；搜不存在词显示“没有找到”且下一条禁用；粗剪试听不命中已删隐藏句；边搜边删后结果刷新，撤销后恢复；侧栏拉宽时按正文区域换行；手机宽度不挡播放器；Codex 复查无 P1/P2。2026-06-30 晚已随新手引导一起单文件同步测试站 `review.html`，测试站冒烟通过搜索命中与音频定位；正式站未部署。 |
+| 2026-06-30 | 登录验证码 500 热修 | 学员和当当本人反馈登录不进去，页面报 `500 · /api/auth/send-code`。确认服务器健康、磁盘正常，根因是正式站 `.env` 短信配置不完整且绿色验证码兜底关闭，`sendSmsCode` 抛“短信配置不完整”。已备份正式 `.env` 到 `/root/nginx-backups/money-scissors-prod-login-devcode-restore-20260630-211729/.env.before`，临时恢复 `ALLOW_DEV_SEND_CODE_FALLBACK=1` 并重启 `money-scissors-m2`；同时备份 `users.db` 到 `/root/nginx-backups/money-scissors-prod-login-code-count-reset-20260630-211925/users.db.before`，清零 2026-06-30 的 3 条失败发送计数，避免已失败用户继续 429。内网和正式域名真实链路均验证：发送验证码 200、返回绿色码、用绿色码登录 200；今日 blockedPhones=0。真短信仍未收口，等完整阿里云短信 Secret 后再切换并删除绿色码后门。 |
 | 2026-06-23 | 接单台转录失败全量回归收口 | 在 6/22 修复基础上，补测所有已知风险入口并确认正式站可用：老本地素材任务 2/6/7/11 全部转录 `SUCCEEDED`，阿里云收到的地址均已从 `/uploads/...` 变成 `https://bokejianji.cn/uploads/2026-06-21/...`；OSS 素材任务 12/13 也转录 `SUCCEEDED`，确认 `/api/orders/material/prod...` 仍走 OSS 签名，没有被相对路径修复误伤。回归 task_id：2=`7739f95c-71f1-4c3c-9694-705d99b029eb`，6=`bfa08db8-264b-4b87-8ded-c0eb6ba9a043`，7=`de12c24d-5f21-4fb9-a17b-f3ef7dbe6bfb`，11=`dc2be318-fdf1-4692-bb59-3f66b649495b`，12=`e66075b2-26b8-4230-8bd4-d7f6c2f3a329`，13=`0a9455d1-e587-4e67-858b-c94557ccaf1a`。经验沉淀已写入 Obsidian `项目/金钱剪刀/需求讨论/反馈与错误沉淀台账.md`，完成标准：代码上线、配置生效、测试/正式健康检查、老本地素材与 OSS 素材真转录成功、文档与日记留证。 |
 | 2026-06-22 | 接单台老本地素材阿里云转录失败修复 | 学员反馈接单台任务音频导入逐字稿失败，截图显示 DashScope `subtask_status: FAILED` 且 `file_url` 是 `/uploads/2026-06-21/dispatch-order-live-20260615.m4a` 相对路径。确认根因：任务 2/6/7/11 是 6/21 挂上的老本地素材，前端从接单台带入剪辑台时传 `/uploads/...`，后端提交给阿里云前未补公网域名；阿里云无法拉取音频。已白名单同步测试站和正式站 `server.cjs`、`js/transcribe.js`，并把测试 `.env PUBLIC_BASE_URL` 改为 `http://8.136.133.196:8090`、正式改为 `https://bokejianji.cn`。修复：后端统一规范化 DashScope 音频地址，`/uploads/...` 自动补公网 URL，`/api/orders/material/...` 继续走 OSS 签名；前端失败提示不再裸露阿里云 JSON。验证：本地语法检查通过；Codex 复查指出 PUBLIC_BASE_URL 优先级问题，已补修；正式站小音频转录 `SUCCEEDED`，任务 6 大音频转录 `SUCCEEDED`，阿里云看到的 `file_url=https://bokejianji.cn/uploads/2026-06-21/dispatch-order-live-20260615.m4a`；测试/正式 health 200。最终 sha256：`server.cjs`=`a28f63135e0ab02d716bf62f9121d526c7324bc63cd6c2da679af7f7755edd47`，`js/transcribe.js`=`6865779b88a52dcd8fe04c2a1e6a375cede1790f87e7f9849b204c8657d17037`。备份：测试 `/root/nginx-backups/money-scissors-test-transcribe-url-fix-20260622-235220/`、`/root/nginx-backups/money-scissors-test-transcribe-url-fix2-20260623-000142/`；正式 `/root/nginx-backups/money-scissors-prod-transcribe-url-fix-20260622-235417/`、`/root/nginx-backups/money-scissors-prod-transcribe-url-fix2-20260623-000203/`。沉淀文档：Obsidian `项目/金钱剪刀/需求讨论/反馈与错误沉淀台账.md`。 |
 | 2026-06-22 | 说话人身份纠正上线 | 学员反馈“瑶瑶是嘉宾”，截图显示播客主/嘉宾默认身份可能标反。确认根因：旧规则容易按说话人顺序默认命名，遇到“某某你好/欢迎某某”等开场会把打招呼者和被问候者弄反。已白名单同步测试站和正式站 `js/main.js`、`review.html`：新上传项目会优先根据开场问候线索判断播客主/嘉宾；无法判断时显示“说话人1/2”而不是硬猜；已生成的老项目首次打开时也会在用户未手动改名的前提下按开场问候矫正显示名；剪辑分析提示词禁止按顺序猜身份；审稿页左侧说话人列表新增“点名字改名”入口，顶部和左侧改名共用保存逻辑。验证：本地 `node --check js/main.js`、`npm run check`、审稿页内联脚本解析通过；模拟“瑶瑶你好”映射为打招呼的人=播客主、回应者=瑶瑶；测试/正式 health 200，本地/服务器/公网两文件 sha256 一致。最终 sha256：`main.js`=`939c735492df5da62bf1df3f6d9dc420410503348bdafcc8e87950c5adf7914e`，`review.html`=`c4af81f7aec2c0a8d42a8ac436ed3799d28c4d54c265e8a02c16e24079728f2e`。备份：测试 `/root/nginx-backups/money-scissors-test-speaker-role-20260622-204933/`；正式 `/root/nginx-backups/money-scissors-prod-speaker-role-20260622-205011/`。 |
