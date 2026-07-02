@@ -1253,9 +1253,9 @@ body.readonly .star { display: none; }
 }
 .review-onboarding-spotlight {
   position: fixed;
-  border: 2px solid #2563eb;
+  border: 2px solid var(--accent);
   border-radius: 14px;
-  box-shadow: 0 0 0 9999px rgba(17,24,39,.10), 0 8px 28px rgba(37,99,235,.18);
+  box-shadow: 0 0 0 9999px rgba(17,24,39,.10), 0 8px 28px rgba(245,166,35,.24);
   pointer-events: none;
   transition: left .16s ease, top .16s ease, width .16s ease, height .16s ease;
 }
@@ -1263,7 +1263,7 @@ body.readonly .star { display: none; }
   position: fixed;
   width: min(360px, calc(100vw - 32px));
   background: var(--surface);
-  border: 1px solid rgba(37,99,235,.22);
+  border: 1px solid rgba(245,166,35,.32);
   border-radius: 14px;
   box-shadow: 0 18px 46px rgba(0,0,0,.22);
   padding: 16px;
@@ -1274,7 +1274,7 @@ body.readonly .star { display: none; }
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  color: #1d4ed8;
+  color: var(--accent-deep);
   font-size: 12px;
   font-weight: 800;
   margin-bottom: 6px;
@@ -1291,8 +1291,8 @@ body.readonly .star { display: none; }
   line-height: 1;
 }
 .review-onboarding-close:hover {
-  border-color: #2563eb;
-  color: #1d4ed8;
+  border-color: var(--accent);
+  color: var(--accent-deep);
 }
 .review-onboarding-title {
   font-size: 18px;
@@ -1332,8 +1332,8 @@ body.readonly .star { display: none; }
   cursor: pointer;
 }
 .review-onboarding-btn:hover {
-  border-color: #2563eb;
-  color: #1d4ed8;
+  border-color: var(--accent);
+  color: var(--accent-deep);
 }
 .review-onboarding-btn:disabled {
   opacity: .45;
@@ -1344,11 +1344,11 @@ body.readonly .star { display: none; }
   color: var(--ink-2);
 }
 .review-onboarding-btn.primary {
-  border-color: #2563eb;
-  background: #2563eb;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
-.review-onboarding-btn.primary:hover { background: #1d4ed8; }
+.review-onboarding-btn.primary:hover { background: var(--accent-hover); }
 .review-onboarding-btn.ghost {
   border-color: transparent;
   background: transparent;

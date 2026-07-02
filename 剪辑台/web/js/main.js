@@ -1,5 +1,5 @@
 import { uploadAudioToOSS } from './upload.js?v=20260618-oss-1';
-import { transcribeWithFunASR } from './transcribe.js?v=20260618-oss-1';
+import { transcribeWithFunASR } from './transcribe.js?v=20260702-friendly-errors';
 import { analyzeEditing, applyAnalysisToReviewPayload } from './analyze.js?v=20260609-1';
 import { apiJson, ensureLoggedIn, postUsage, setupSessionChrome } from './api.js?v=20260610-reviewflow-1';
 import {
