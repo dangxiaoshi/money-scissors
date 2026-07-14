@@ -85,6 +85,18 @@
       transition: transform 0.2s, box-shadow 0.2s;
     }
     .header-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(200,149,42,0.5); }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-login {
+      color: var(--text-mid);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .header-login:hover { color: var(--gold-1); }
 
     /* ── HERO ── */
     .hero {
@@ -663,7 +675,10 @@
       <div class="logo-tag">剪辑营</div>
     </div>
   </div>
-  <a href="#signup" class="header-cta">立即报名 →</a>
+  <div class="header-actions">
+    <a href="/login.html" class="header-login">学员登录</a>
+    <a href="#signup" class="header-cta">立即报名 →</a>
+  </div>
 </header>
 
 <!-- ── HERO ── -->
@@ -885,4 +900,3 @@
 
 </body>
 </html>
-
