@@ -367,6 +367,22 @@
       border-color: var(--path-gold);
       box-shadow: 0 8px 18px rgba(232, 144, 47, 0.22);
     }
+    .task-card.completed {
+      background: #f0eadb;
+      border-color: rgba(95, 82, 48, 0.26);
+      box-shadow: none;
+    }
+    .task-card.completed:hover {
+      border-color: rgba(95, 82, 48, 0.34);
+      box-shadow: none;
+      transform: none;
+    }
+    .task-card.completed .task-emoji,
+    .task-card.completed .task-title,
+    .task-card.completed .task-goal,
+    .task-card.completed .task-quota {
+      opacity: 0.74;
+    }
     .task-head {
       align-items: center;
       color: var(--path-faint);
@@ -430,6 +446,28 @@
       font-weight: 900;
       line-height: 1.4;
       margin-top: 6px;
+    }
+    .notice-stack {
+      display: grid;
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+    .notice-card {
+      background: #eef7ef;
+      border: 1px solid #b8ddc1;
+      border-radius: 10px;
+      color: #256c3d;
+      display: grid;
+      gap: 4px;
+      padding: 12px 14px;
+    }
+    .notice-card strong {
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .notice-card span {
+      font-size: 13px;
+      line-height: 1.55;
     }
     .dialog-backdrop {
       align-items: center;
@@ -646,6 +684,7 @@
     </section>
 
     <div class="error" id="error"></div>
+    <section class="notice-stack" id="notice-stack" hidden></section>
 
     <section class="map-row">
       <div class="row-label">
@@ -667,12 +706,12 @@
           <span class="task-head"><span>还没有接单记录</span><span class="tag">先看需求</span></span>
           <span class="task-emoji">🧾</span>
           <span class="task-title">先点任务看需求，再抢单开始剪</span>
-          <span class="task-goal">抢过的任务会在这里显示制作中、待审核和已完成。</span>
+          <span class="task-goal">抢过的任务会在这里显示制作中、待审核和已采用。</span>
         </article>
       </div>
     </section>
 
-    <p class="tiny-note">任务卡会显示可抢人数和当前状态；点开卡片先看完整需求，再在详情里抢单。提交审核绑定订单会在下一步接入。</p>
+    <p class="tiny-note">任务卡会显示可抢人数和当前状态；点开卡片先看完整需求，再在详情里抢单。作品被采用后，本单会直接完结。</p>
   </main>
 
   <div class="dialog-backdrop" id="task-dialog" aria-hidden="true">
@@ -686,20 +725,8 @@
       </div>
       <div id="detail-warning"></div>
       <div class="detail-section">
-        <h3>成品目标</h3>
-        <p id="detail-target"></p>
-      </div>
-      <div class="detail-section">
-        <h3>必须保留</h3>
-        <p id="detail-keep"></p>
-      </div>
-      <div class="detail-section">
-        <h3>必须删除</h3>
-        <p id="detail-remove"></p>
-      </div>
-      <div class="detail-section">
-        <h3>提交重点</h3>
-        <p id="detail-submit"></p>
+        <h3>任务需求</h3>
+        <p id="detail-demand"></p>
       </div>
       <div class="detail-section">
         <h3>素材试听 / 下载</h3>
@@ -717,7 +744,7 @@
         <button class="path-btn secondary" id="detail-submit-work" type="button">提交成品</button>
         <button class="path-btn secondary" id="detail-back" type="button">再看看</button>
       </div>
-      <div class="detail-note">点“抢单并开始剪”后，这单会进入“我的接单 / 制作中”。</div>
+      <div class="detail-note" id="detail-note">点“抢单并开始剪”后，这单会进入“我的接单 / 制作中”。</div>
     </article>
   </div>
 
@@ -766,6 +793,7 @@
 
     let dispatchTasks = [];
     let dispatchClaims = [];
+    let dispatchNotifications = [];
     let activeSubmitContext = null;
 
     const auth = await initStationNav({ active: 'orders', requireDay2: true });
@@ -804,17 +832,19 @@
         ]);
         dispatchTasks = (Array.isArray(data.tasks) ? data.tasks : []).map(normalizeTask);
         dispatchClaims = (Array.isArray(claimData.claims) ? claimData.claims : []).map(normalizeClaim);
+        dispatchNotifications = (Array.isArray(claimData.notifications) ? claimData.notifications : []).map(normalizeNotification);
       } catch (error) {
         root.innerHTML = '<div class="empty">任务加载失败，请刷新。</div>';
         return;
       }
+      renderNotifications();
       renderMyClaims();
       if (!dispatchTasks.length) {
         root.innerHTML = '<div class="empty">还没有发布中的接单任务。</div>';
         return;
       }
       root.innerHTML = dispatchTasks.map((task, index) => `
-        <article class="task-card compact ${index === 0 ? 'featured' : ''}" role="button" tabindex="0" data-task-id="${escapeAttr(task.id)}" aria-label="查看${escapeAttr(task.title)}需求">
+        <article class="task-card compact ${index === 0 && !task.completed ? 'featured' : ''} ${task.completed ? 'completed' : ''}" role="button" tabindex="0" data-task-id="${escapeAttr(task.id)}" aria-label="查看${escapeAttr(task.title)}需求">
           <span class="task-head"><span>派单 #${escapeHtml(task.id)} · ${escapeHtml(task.price)}</span><span class="tag">${escapeHtml(task.quota)}</span></span>
           <span class="task-emoji">${escapeHtml(task.emoji)}</span>
           <span class="task-title">${escapeHtml(task.title)}</span>
@@ -841,12 +871,12 @@
             <span class="task-head"><span>还没有接单记录</span><span class="tag">先看需求</span></span>
             <span class="task-emoji">🧾</span>
             <span class="task-title">先点任务看需求，再抢单开始剪</span>
-            <span class="task-goal">抢过的任务会在这里显示制作中、待审核和已完成。</span>
+            <span class="task-goal">抢过的任务会在这里显示制作中、待审核和已采用。</span>
           </article>`;
         return;
       }
       root.innerHTML = dispatchClaims.map((claim) => `
-        <article class="task-card my-task claim-card">
+        <article class="task-card my-task claim-card ${isClosedClaim(claim) ? 'completed' : ''}">
           <span class="task-head"><span>${escapeHtml(claimStatusLabel(claim.status))}</span><span class="tag">派单 #${escapeHtml(claim.taskId)}</span></span>
           <span class="task-emoji">${escapeHtml(inferEmoji(claim.task.title, claim.task.demand))}</span>
           <span class="task-title">${escapeHtml(claim.task.title || '未命名任务')}</span>
@@ -854,8 +884,8 @@
           <span class="claim-status">${escapeHtml(claimStatusHint(claim))}</span>
           <div class="task-actions">
             ${renderClaimPrimaryActions(claim)}
-            <button class="path-btn secondary" type="button" data-submit-claim="${escapeAttr(claim.id)}" ${canSubmitClaim(claim.status) ? '' : 'hidden'}>${escapeHtml(claimSubmitAction(claim))}</button>
-            <button class="path-btn secondary" type="button" data-abandon-claim="${escapeAttr(claim.id)}" ${canAbandonClaim(claim.status) ? '' : 'hidden'}>放弃此单</button>
+            <button class="path-btn secondary" type="button" data-submit-claim="${escapeAttr(claim.id)}" ${canSubmitClaim(claim.status, claim) ? '' : 'hidden'}>${escapeHtml(claimSubmitAction(claim))}</button>
+            <button class="path-btn secondary" type="button" data-abandon-claim="${escapeAttr(claim.id)}" ${canAbandonClaim(claim.status, claim) ? '' : 'hidden'}>放弃此单</button>
           </div>
         </article>`).join('');
       root.querySelectorAll('[data-abandon-claim]').forEach((button) => {
@@ -866,16 +896,28 @@
       });
     }
 
+    function renderNotifications() {
+      const root = document.getElementById('notice-stack');
+      if (!root) return;
+      const notices = dispatchNotifications
+        .filter((item) => item.type === 'dispatch_task_completed')
+        .slice(0, 3);
+      root.hidden = !notices.length;
+      root.innerHTML = notices.map((notice) => `
+        <article class="notice-card">
+          <strong>${escapeHtml(notice.title || '本单已完结')}</strong>
+          <span>${escapeHtml(notice.body || '这单已有作品被采用，不能再提交这单。')}</span>
+        </article>
+      `).join('');
+    }
+
     function openTaskDialog(taskId) {
       const task = dispatchTasks.find((item) => String(item.id) === String(taskId));
       if (!task) return;
       document.getElementById('detail-title').textContent = `${task.title} · ${task.price}`;
       document.getElementById('detail-meta').textContent = `#${task.id} · ${task.type} · ${task.quota}`;
       document.getElementById('detail-warning').innerHTML = task.warning ? `<div class="detail-warning">${escapeHtml(task.warning)}</div>` : '';
-      document.getElementById('detail-target').textContent = task.target;
-      document.getElementById('detail-keep').textContent = task.keep;
-      document.getElementById('detail-remove').textContent = task.remove;
-      document.getElementById('detail-submit').textContent = task.submit;
+      document.getElementById('detail-demand').textContent = task.demand || '后台还没有填写任务需求。';
       const start = document.getElementById('detail-start');
       renderDetailMaterial(task);
       start.dataset.taskId = task.id;
@@ -883,9 +925,15 @@
       start.textContent = detailStartText(task);
       start.setAttribute('aria-disabled', canStartTask(task) ? 'false' : 'true');
       const submit = document.getElementById('detail-submit-work');
-      submit.hidden = !task.myClaim || !canSubmitClaim(task.myClaim.status);
+      submit.hidden = !task.myClaim || !canSubmitClaim(task.myClaim.status, task.myClaim);
       submit.textContent = task.myClaim ? claimSubmitAction(task.myClaim) : '提交成品';
       submit.dataset.taskId = task.id;
+      const note = document.getElementById('detail-note');
+      if (note) {
+        note.textContent = task.completed
+          ? '这单已经完结，只能查看需求，不能再抢单或提交。'
+          : '点“抢单并开始剪”后，这单会进入“我的接单 / 制作中”。';
+      }
       const dialog = document.getElementById('task-dialog');
       dialog.classList.add('visible');
       dialog.setAttribute('aria-hidden', 'false');
@@ -924,7 +972,7 @@
       } catch (error) {
         document.getElementById('detail-warning').innerHTML = `<div class="detail-warning">${escapeHtml(error?.message || '抢单失败，请刷新后重试。')}</div>`;
         start.textContent = detailStartText(task);
-        start.setAttribute('aria-disabled', 'false');
+        start.setAttribute('aria-disabled', canStartTask(task) ? 'false' : 'true');
       }
     }
 
@@ -941,46 +989,62 @@
 
     function normalizeTask(task) {
       const demand = String(task.demand || '').trim();
-      const sections = parseDemand(demand);
       const title = task.title || `接单任务 ${task.id}`;
       const materialLink = safeMaterialLink(task.materialLink || task.material_link || '');
       const visibility = task.visibility || 'public';
       const assigneeLabel = task.assigneeLabel || task.assigneeRefs || '';
-      const displayTask = { ...task, title, demand, materialLink, visibility, assigneeLabel };
+      const status = task.status || (task.completed ? 'completed' : 'open');
+      const completed = Boolean(task.completed || status === 'completed' || task.completedAt || task.completed_at);
+      const maxClaims = Number(task.maxClaims || task.max_claims || 2);
+      const displayTask = { ...task, title, demand, materialLink, visibility, assigneeLabel, status, completed, maxClaims };
+      const assignedWarning = visibility === 'assigned'
+        ? `私密单，仅限 ${assigneeLabel || '指定学员'} 接单。其他学员可看需求，但不能抢单。`
+        : '';
+      const normalizedClaim = task.myClaim ? normalizeClaim(task.myClaim) : null;
+      const activeMyClaim = normalizedClaim && !['expired', 'rejected', 'closed_by_task_completed'].includes(normalizedClaim.status)
+        ? normalizedClaim
+        : null;
       return {
         id: String(task.id),
         title,
         price: task.budget || extractPrice(demand) || '待定',
-        quota: buildQuotaLabel(task),
-        progress: buildProgressLabel(task),
+        quota: buildQuotaLabel(displayTask),
+        progress: buildProgressLabel(displayTask),
         claimCount: Number(task.claimCount || task.claim_count || 0),
-        maxClaims: Number(task.maxClaims || task.max_claims || 5),
+        maxClaims,
         emoji: inferEmoji(title, demand),
         type: task.difficulty || inferType(title, demand),
         visibility,
         assigneeLabel,
-        canClaim: task.canClaim !== false,
+        status,
+        completed,
+        completedClaimId: task.completedClaimId || task.completed_claim_id || '',
+        completedAt: task.completedAt || task.completed_at || '',
+        canClaim: !completed && task.canClaim !== false,
         claimBlockedReason: task.claimBlockedReason || '',
-        warning: task.visibility === 'assigned' ? `私密单，仅限 ${task.assigneeLabel || '指定学员'} 接单。其他学员可看需求，但不能抢单。` : '',
-        target: [sections.intro, sections.target].filter(Boolean).join('\n\n') || demand || '后台还没有填写任务需求。',
-        keep: sections.keep || '按任务需求保留核心信息。',
-        remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
-        submit: sections.submit || sections.ad || '提交前确认符合任务需求，并能顺畅收听。',
+        warning: completed
+          ? '这单已有学员完成并被采用，本单已完结，不能再提交这单。想接单赚钱，请选择其他未完成订单。'
+          : assignedWarning,
         materialLink,
         materialStatus: buildMaterialStatus(displayTask),
-        myClaim: task.myClaim ? normalizeClaim(task.myClaim) : null,
+        myClaim: activeMyClaim,
       };
     }
 
     function normalizeClaim(claim) {
       const task = claim.task || {};
+      const taskStatus = task.status || task.taskStatus || (task.completed ? 'completed' : 'open');
+      const taskCompleted = Boolean(task.completed || taskStatus === 'completed' || task.completedAt || task.completed_at);
       return {
         id: String(claim.id || ''),
         taskId: String(claim.taskId || claim.task_id || task.id || ''),
         status: claim.status || 'in_progress',
         claimedAt: claim.claimedAt || claim.claimed_at || '',
+        claimExpiresAt: claim.claimExpiresAt || claim.claim_expires_at || '',
         updatedAt: claim.updatedAt || claim.updated_at || '',
         submittedAt: claim.submittedAt || claim.submitted_at || '',
+        reviewedAt: claim.reviewedAt || claim.reviewed_at || '',
+        completedAt: claim.completedAt || claim.completed_at || '',
         reviewNote: claim.reviewNote || claim.review_note || '',
         projectId: claim.projectId || claim.project_id || '',
         snapshotId: claim.snapshotId || claim.snapshot_id || '',
@@ -993,7 +1057,24 @@
           materialLink: safeMaterialLink(task.materialLink || task.material_link || ''),
           visibility: task.visibility || 'public',
           assigneeLabel: task.assigneeLabel || task.assignee_refs || '',
+          status: taskStatus,
+          completed: taskCompleted,
+          completedClaimId: task.completedClaimId || task.completed_claim_id || '',
+          completedAt: task.completedAt || task.completed_at || '',
+          maxClaims: Number(task.maxClaims || task.max_claims || 2),
         },
+      };
+    }
+
+    function normalizeNotification(value) {
+      return {
+        id: String(value.id || ''),
+        type: String(value.type || ''),
+        entityId: String(value.entityId || value.entity_id || ''),
+        title: String(value.title || ''),
+        body: String(value.body || ''),
+        createdAt: value.createdAt || value.created_at || '',
+        unread: value.unread !== false,
       };
     }
 
@@ -1021,7 +1102,8 @@
     }
 
     function buildQuotaLabel(task) {
-      const maxClaims = Number(task.maxClaims || task.max_claims || 5);
+      if (task.completed) return '已完结';
+      const maxClaims = Number(task.maxClaims || task.max_claims || 2);
       const claimCount = Number(task.claimCount || task.claim_count || 0);
       if (task.visibility === 'assigned') return '私密单';
       if (claimCount >= maxClaims) return `已满 · ${claimCount}/${maxClaims}`;
@@ -1029,41 +1111,44 @@
     }
 
     function buildProgressLabel(task) {
-      const maxClaims = Number(task.maxClaims || task.max_claims || 5);
+      if (task.completed) return '本单已采用';
+      const maxClaims = Number(task.maxClaims || task.max_claims || 2);
       const claimCount = Number(task.claimCount || task.claim_count || 0);
       const reviewingCount = Number(task.reviewingCount || task.reviewing_count || 0);
-      const adopted = Boolean(task.adoptedSubmissionId || task.adopted_submission_id);
       if (task.visibility === 'assigned') return `仅 ${task.assigneeLabel || '指定学员'} 可接`;
-      if (adopted) return '已采用，任务结束';
       if (reviewingCount > 0) return `${reviewingCount} 人待审核`;
       return `还可抢 ${Math.max(maxClaims - claimCount, 0)} 人`;
     }
 
     function buildMaterialStatus(task) {
+      if (task.completed) return '本单已完结，不能再提交';
       if (!task.materialLink) return noLinkMaterialInfo(task).status;
       if (isAutoAudioMaterial(task.materialLink)) return '素材状态：可试听 / 可下载';
       return '素材状态：外部链接下载';
     }
 
     function canStartTask(task) {
+      if (task?.completed) return false;
       if (task?.canClaim === false) return false;
       if (!task.materialLink && !noLinkMaterialInfo(task).canOpenEditor) return false;
       if (task.myClaim) return true;
-      return Number(task.claimCount || 0) < Number(task.maxClaims || 5);
+      return Number(task.claimCount || 0) < Number(task.maxClaims || 2);
     }
 
     function detailStartText(task) {
+      if (task.completed) return '已完结';
       if (task.canClaim === false) return task.claimBlockedReason || '仅指定学员可接';
       if (!task.materialLink && task.myClaim) return noLinkMaterialInfo(task).claimedStart;
       if (!task.materialLink) return noLinkMaterialInfo(task).startAction;
       if (!isAutoAudioMaterial(task.materialLink) && task.myClaim) return '已抢单，先下载素材';
       if (!isAutoAudioMaterial(task.materialLink)) return '抢单，先下载素材';
       if (task.myClaim) return '继续剪辑';
-      if (Number(task.claimCount || 0) >= Number(task.maxClaims || 5)) return '名额已满';
+      if (Number(task.claimCount || 0) >= Number(task.maxClaims || 2)) return '名额已满';
       return '抢单并开始剪';
     }
 
     function detailStartHref(task) {
+      if (task.completed) return '#';
       if (!task.myClaim) return '#';
       if (!task.materialLink) return noLinkMaterialInfo(task).canOpenEditor ? buildEditHref(task, task.myClaim) : '#';
       return buildEditHref(task, task.myClaim);
@@ -1101,8 +1186,10 @@
         in_progress: '制作中',
         returned: '打回修改',
         submitted: '待审核',
-        completed: '已完成',
+        completed: '已采用',
         rejected: '未采用',
+        closed_by_task_completed: '本单已结',
+        expired: '已超时',
       };
       return labels[status] || '制作中';
     }
@@ -1110,20 +1197,24 @@
     function claimStatusHint(claimOrStatus) {
       const claim = typeof claimOrStatus === 'object' ? claimOrStatus : null;
       const status = claim ? claim.status : claimOrStatus;
+      if (claim?.task?.completed && status !== 'completed') return '本单已采用其他作品，订单已完结，不能再提交这单。';
+      if (status === 'closed_by_task_completed') return '本单已采用其他作品，订单已完结，不能再提交这单。';
+      if (status === 'expired') return '领取后 5 天内未提交，制作名额已释放。';
       if (claim?.projectId && claim?.externalSubmission?.url && status === 'submitted') return '已提交粗剪和外部成品，等待助教审核。';
       if (claim?.externalSubmission?.url && status === 'submitted') return '已提交外部成品，等待助教审核。';
       if (claim?.externalSubmission?.url && status === 'completed') return '这单已采用，可以查看提交链接。';
       if (claim?.externalSubmission?.url && status === 'rejected') return '这份成品未采用，可以查看原提交链接。';
       if (claim?.projectId && status === 'submitted') return '已提交粗剪给助教，也可以继续补交外部精修成品链接。';
-      if (status === 'completed') return '这单已经结束。';
+      if (status === 'completed') return '这单已采用，订单已完结。';
       if (status === 'rejected') return '这份成品未采用，这单已经结束。';
       if (claim && !claim.task.materialLink) return noLinkMaterialInfo(claim.task).claimHint;
       if (claim && claim.task.materialLink && !isAutoAudioMaterial(claim.task.materialLink)) return '已抢单，请先打开素材链接下载音频，再去剪辑台上传。';
+      const remaining = claim ? formatClaimRemaining(claim.claimExpiresAt) : '';
       const hints = {
-        in_progress: '已抢单，可以继续剪辑。',
-        returned: '按助教意见修改后重新提交。',
+        in_progress: remaining ? `已抢单，可以继续剪辑；剩余 ${remaining}。` : '已抢单，可以继续剪辑。',
+        returned: remaining ? `按助教意见修改后重新提交；剩余 ${remaining}。` : '按助教意见修改后重新提交。',
         submitted: '已提交，之后可以抢下一单。',
-        completed: '这单已经结束。',
+        completed: '这单已采用，订单已完结。',
         rejected: '这份成品未采用，这单已经结束。',
       };
       return hints[status] || hints.in_progress;
@@ -1131,12 +1222,15 @@
 
     function claimPrimaryAction(status) {
       if (status === 'submitted') return '查看已提交成品';
-      if (status === 'completed') return '查看结果';
+      if (status === 'completed') return '查看已采用作品';
+      if (status === 'closed_by_task_completed') return '本单已完结';
+      if (status === 'expired') return '已超时';
       if (status === 'rejected') return '未采用';
       return '继续剪辑';
     }
 
     function claimSubmitAction(claim) {
+      if (claim?.task?.completed || claim?.status === 'closed_by_task_completed') return '本单已完结';
       if (claim?.externalSubmission?.url) return '修改成品提交';
       if (claim?.status === 'submitted') return '补交成品';
       return '提交成品';
@@ -1207,6 +1301,18 @@
 
     function renderClaimPrimaryActions(claim) {
       const editHref = buildEditHref(claim.task || { id: claim.taskId }, claim);
+      if (claim.status === 'closed_by_task_completed' || (claim.task?.completed && claim.status !== 'completed')) {
+        if (claim.projectId || claim.externalSubmission?.url) {
+          const links = [];
+          if (claim.projectId) links.push(`<a class="path-btn secondary" href="${escapeAttr(editHref)}">查看原作品</a>`);
+          if (claim.externalSubmission?.url) links.push(`<a class="path-btn secondary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`);
+          return links.join('');
+        }
+        return '<button class="path-btn primary" type="button" disabled>本单已完结</button>';
+      }
+      if (claim.status === 'expired') {
+        return '<button class="path-btn primary" type="button" disabled>已超时释放</button>';
+      }
       if (claim.projectId && claim.externalSubmission?.url && ['submitted', 'completed', 'rejected'].includes(claim.status)) {
         return `<a class="path-btn primary" href="${escapeAttr(editHref)}">查看粗剪</a><a class="path-btn primary" href="${escapeAttr(claim.externalSubmission.url)}" target="_blank" rel="noopener">查看提交</a>`;
       }
@@ -1252,17 +1358,21 @@
     function openSubmitDialogFromTask() {
       const taskId = document.getElementById('detail-submit-work')?.dataset.taskId;
       const task = dispatchTasks.find((item) => String(item.id) === String(taskId));
-      if (!task?.myClaim || !canSubmitClaim(task.myClaim.status)) return;
+      if (!task?.myClaim || !canSubmitClaim(task.myClaim.status, task.myClaim)) return;
       openSubmitDialog(task.myClaim);
     }
 
     function openSubmitDialogFromClaim(claimId) {
       const claim = dispatchClaims.find((item) => String(item.id) === String(claimId));
-      if (!claim || !canSubmitClaim(claim.status)) return;
+      if (!claim || !canSubmitClaim(claim.status, claim)) return;
       openSubmitDialog(claim);
     }
 
     function openSubmitDialog(claim) {
+      if (!canSubmitClaim(claim.status, claim)) {
+        alert('这单已经完结，不能再提交本单作品。请去选择其他未完成订单。');
+        return;
+      }
       activeSubmitContext = claim;
       const external = claim.externalSubmission || {};
       document.getElementById('submit-title').textContent = '提交成品';
@@ -1279,6 +1389,10 @@
 
     async function handleSubmitShell() {
       if (!activeSubmitContext) return;
+      if (!canSubmitClaim(activeSubmitContext.status, activeSubmitContext)) {
+        setSubmitError('这单已经完结，不能再提交本单作品。');
+        return;
+      }
       const toolEl = document.getElementById('submit-tool');
       const tool = toolEl.value.trim();
       const toolLabel = toolEl.selectedOptions?.[0]?.textContent?.trim() || tool;
@@ -1330,12 +1444,19 @@
       el.classList.toggle('visible', Boolean(message));
     }
 
-    function canAbandonClaim(status) {
+    function canAbandonClaim(status, claim = null) {
+      if (claim?.task?.completed || status === 'closed_by_task_completed' || status === 'expired') return false;
       return status === 'in_progress' || status === 'returned';
     }
 
-    function canSubmitClaim(status) {
+    function canSubmitClaim(status, claim = null) {
+      if (claim?.task?.completed || status === 'closed_by_task_completed' || status === 'expired') return false;
       return status === 'in_progress' || status === 'returned' || status === 'submitted';
+    }
+
+    function isClosedClaim(claim) {
+      return Boolean(claim?.task?.completed)
+        || ['completed', 'rejected', 'closed_by_task_completed', 'expired'].includes(claim?.status);
     }
 
     function formatClaimTime(value) {
@@ -1345,23 +1466,18 @@
       return `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     }
 
-    function parseDemand(text) {
-      const result = {};
-      const firstHeading = text.search(/\n\s*(成品目标|必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]/);
-      if (firstHeading > 0) result.intro = text.slice(0, firstHeading).trim();
-      const pairs = [
-        ['target', /成品目标[:：]([\s\S]*?)(?=\n\s*(必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['keep', /必须保留[:：]([\s\S]*?)(?=\n\s*(必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['remove', /必须删除[:：]([\s\S]*?)(?=\n\s*(广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['ad', /广告\/引流口径[:：]([\s\S]*?)(?=\n\s*提交重点[:：]|$)/],
-        ['submit', /提交重点[:：]([\s\S]*?)$/],
-      ];
-      pairs.forEach(([key, pattern]) => {
-        const match = text.match(pattern);
-        if (match?.[1]) result[key] = match[1].trim();
-      });
-      if (result.ad && result.submit) result.submit = `${result.ad}\n\n${result.submit}`;
-      return result;
+    function formatClaimRemaining(value) {
+      if (!value) return '';
+      const expiresAt = new Date(value).getTime();
+      if (!Number.isFinite(expiresAt)) return '';
+      const diff = expiresAt - Date.now();
+      if (diff <= 0) return '0 小时';
+      const hours = Math.ceil(diff / (60 * 60 * 1000));
+      const days = Math.floor(hours / 24);
+      const restHours = hours % 24;
+      if (days <= 0) return `${hours} 小时`;
+      if (restHours === 0) return `${days} 天`;
+      return `${days} 天 ${restHours} 小时`;
     }
 
     function extractPrice(text) {

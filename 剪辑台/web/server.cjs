@@ -41,8 +41,14 @@ const MAX_JSON_BYTES = Number(process.env.MAX_JSON_BYTES || 2 * 1024 * 1024);
 const MAX_PROJECT_JSON_BYTES = Number(process.env.MAX_PROJECT_JSON_BYTES || 60 * 1024 * 1024);
 const SUBMIT_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription';
 const TASK_URL = 'https://dashscope.aliyuncs.com/api/v1/tasks';
+const VOICE_TTS_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer';
+const VOICE_TTS_MODEL = process.env.DASHSCOPE_VOICE_MODEL || 'cosyvoice-v2';
+const VOICE_TTS_ID = process.env.DASHSCOPE_VOICE_ID || 'cosyvoice-v2-vd-dxs-404093cf7a6d436cb54212045bb18a65';
+const VOICE_TTS_TIMEOUT_MS = Number(process.env.VOICE_TTS_TIMEOUT_MS || 60 * 1000);
+const VOICE_MAX_TEXT_CHARS = Number(process.env.VOICE_MAX_TEXT_CHARS || 500);
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 60 * 1000);
+const DEEPSEEK_DECISION_TIMEOUT_MS = Number(process.env.DEEPSEEK_DECISION_TIMEOUT_MS || 5 * 60 * 1000);
 const FFMPEG_TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS || 90 * 60 * 1000);
 const FFPROBE_TIMEOUT_MS = Number(process.env.FFPROBE_TIMEOUT_MS || 60 * 1000);
 const CHILD_KILL_GRACE_MS = Number(process.env.CHILD_KILL_GRACE_MS || 5000);
@@ -56,11 +62,18 @@ const SMS_IP_WINDOW_MINUTES = Number(process.env.SMS_IP_WINDOW_MINUTES || 10);
 const MAX_VERIFY_ATTEMPTS = Number(process.env.MAX_VERIFY_ATTEMPTS || 5);
 const VERIFY_TTL_MINUTES = Number(process.env.VERIFY_CODE_TTL_MINUTES || 5);
 const LOCK_MINUTES = Number(process.env.VERIFY_LOCK_MINUTES || 30);
+const DISPATCH_DEFAULT_MAX_CLAIMS = 2;
+const DISPATCH_CLAIM_TTL_MS = 120 * 60 * 60 * 1000;
 // 安全默认：鉴权默认开启，只有显式设置 AUTH_DISABLED=1 才关闭。
 // （旧逻辑是 !== '0'，默认关闭鉴权，env 一旦漏配=全站后台裸奔、人人是管理员；
 //   2026-06-16 改为安全默认：漏配=锁上而不是大开。要关必须明写 =1。）
 const AUTH_DISABLED = process.env.AUTH_DISABLED === '1';
 const DEV_SEND_CODE_FALLBACK = process.env.ALLOW_DEV_SEND_CODE_FALLBACK === '1';
+// 登录验证码交付方式：
+// - sms（默认）：调用阿里云短信；配置不完整时仅允许开发环境兜底。
+// - page：完全跳过短信调用，直接把验证码返回给登录页显示为绿色码。
+// page 是显式的经营兜底开关，不会删除或覆盖短信密钥，切回 sms 后即可恢复真短信。
+const AUTH_CODE_DELIVERY_MODE = String(process.env.AUTH_CODE_DELIVERY_MODE || 'sms').trim().toLowerCase();
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/g, '');
 const AUTH_COOKIE_NAME = 'jinqian_token';
 const ADMIN_PHONES = new Set(
@@ -134,6 +147,17 @@ if (AUTH_DISABLED) {
   console.error('⚠️  如果这不是你的本意，请把 .env 里的 AUTH_DISABLED 改回 0 并重启。');
   console.error('='.repeat(60) + '\n');
 }
+if (!['sms', 'page'].includes(AUTH_CODE_DELIVERY_MODE)) {
+  console.error(`AUTH_CODE_DELIVERY_MODE 只允许 sms 或 page，当前为 ${AUTH_CODE_DELIVERY_MODE || '(空)'}`);
+  process.exit(1);
+}
+if (AUTH_CODE_DELIVERY_MODE === 'page') {
+  console.error('\n' + '='.repeat(60));
+  console.error('⚠️  警告：登录验证码当前由页面直接显示 (AUTH_CODE_DELIVERY_MODE=page)');
+  console.error('⚠️  本模式不会调用短信服务，知道手机号的人可获取登录码。');
+  console.error('⚠️  需恢复真短信时，把该值改回 sms 并重启。');
+  console.error('='.repeat(60) + '\n');
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -152,6 +176,7 @@ const MIME = {
 
 const smsClient = createSmsClient();
 const smsIpBuckets = new Map();
+const activeVoiceSynthesisUsers = new Set();
 
 const statements = {
   findUserByPhone: db.prepare('SELECT * FROM users WHERE phone = ?'),
@@ -440,25 +465,45 @@ const statements = {
   `),
 
   listDispatchTasks: db.prepare('SELECT * FROM dispatch_tasks ORDER BY sort_order ASC, id DESC'),
-  listPublishedDispatchTasks: db.prepare('SELECT * FROM dispatch_tasks WHERE published = 1 ORDER BY sort_order ASC, id DESC'),
+  listPublishedDispatchTasks: db.prepare(`
+    SELECT *
+    FROM dispatch_tasks
+    WHERE published = 1
+    ORDER BY
+      CASE
+        WHEN status = 'completed' OR completed_claim_id IS NOT NULL OR completed_at IS NOT NULL THEN 1
+        ELSE 0
+      END ASC,
+      id DESC
+  `),
   findDispatchTask: db.prepare('SELECT * FROM dispatch_tasks WHERE id = ?'),
   insertDispatchTask: db.prepare(`
-    INSERT INTO dispatch_tasks (title, client, budget, demand, delivery, difficulty, material_link, visibility, assignee_refs, published, sort_order, created_at, updated_at)
-    VALUES (@title, @client, @budget, @demand, @delivery, @difficulty, @material_link, @visibility, @assignee_refs, @published, @sort_order, @created_at, @updated_at)
+    INSERT INTO dispatch_tasks (title, client, budget, demand, delivery, difficulty, material_link, visibility, assignee_refs, published, max_claims, sort_order, created_at, updated_at)
+    VALUES (@title, @client, @budget, @demand, @delivery, @difficulty, @material_link, @visibility, @assignee_refs, @published, @max_claims, @sort_order, @created_at, @updated_at)
   `),
   updateDispatchTask: db.prepare(`
     UPDATE dispatch_tasks
     SET title=@title, client=@client, budget=@budget, demand=@demand, delivery=@delivery,
         difficulty=@difficulty, material_link=@material_link, visibility=@visibility, assignee_refs=@assignee_refs,
-        published=@published, sort_order=@sort_order, updated_at=@updated_at
+        published=@published, max_claims=@max_claims, sort_order=@sort_order, updated_at=@updated_at
     WHERE id=@id
+  `),
+  completeDispatchTask: db.prepare(`
+    UPDATE dispatch_tasks
+    SET status = 'completed',
+        completed_claim_id = @completed_claim_id,
+        completed_at = @completed_at,
+        completed_by = @completed_by,
+        updated_at = @updated_at
+    WHERE id = @id
+      AND status != 'completed'
   `),
   deleteDispatchTask: db.prepare('DELETE FROM dispatch_tasks WHERE id = ?'),
   countClaimsByTask: db.prepare(`
     SELECT COUNT(*) AS count
     FROM dispatch_claims
     WHERE task_id = ?
-      AND status != 'abandoned'
+      AND status IN ('in_progress', 'returned', 'submitted')
   `),
   countReviewingClaimsByTask: db.prepare(`
     SELECT COUNT(*) AS count
@@ -469,6 +514,13 @@ const statements = {
   findDispatchClaimByTaskUser: db.prepare(`
     SELECT * FROM dispatch_claims
     WHERE task_id = @task_id AND user_id = @user_id
+  `),
+  listDispatchClaimsByTask: db.prepare(`
+    SELECT *
+    FROM dispatch_claims
+    WHERE task_id = ?
+      AND status != 'abandoned'
+    ORDER BY claimed_at ASC, id ASC
   `),
   findDispatchClaimByIdForUser: db.prepare(`
     SELECT *
@@ -496,7 +548,9 @@ const statements = {
   `),
   listDispatchClaimsByUser: db.prepare(`
     SELECT c.*, t.title, t.client, t.budget, t.demand, t.delivery, t.difficulty, t.material_link,
-      t.visibility, t.assignee_refs, t.published, t.sort_order, t.created_at AS task_created_at, t.updated_at AS task_updated_at
+      t.visibility, t.assignee_refs, t.published, t.max_claims, t.status AS task_status,
+      t.completed_claim_id, t.completed_at AS task_completed_at,
+      t.sort_order, t.created_at AS task_created_at, t.updated_at AS task_updated_at
     FROM dispatch_claims c
     JOIN dispatch_tasks t ON t.id = c.task_id
     WHERE c.user_id = ?
@@ -505,6 +559,9 @@ const statements = {
   `),
   listDispatchReviewClaims: db.prepare(`
     SELECT c.*, u.phone, u.nickname,
+      t.status AS task_status,
+      t.completed_claim_id,
+      t.completed_at AS task_completed_at,
       s.file_name AS snapshot_file_name,
       s.original_duration AS snapshot_original_duration,
       s.roughcut_duration AS snapshot_roughcut_duration,
@@ -512,6 +569,7 @@ const statements = {
       s.status AS snapshot_status,
       s.created_at AS snapshot_created_at
     FROM dispatch_claims c
+    JOIN dispatch_tasks t ON t.id = c.task_id
     LEFT JOIN users u ON u.id = c.user_id
     LEFT JOIN review_snapshots s ON s.id = c.snapshot_id
     WHERE c.status != 'abandoned'
@@ -519,6 +577,9 @@ const statements = {
   `),
   findDispatchReviewClaimById: db.prepare(`
     SELECT c.*, u.phone, u.nickname,
+      t.status AS task_status,
+      t.completed_claim_id,
+      t.completed_at AS task_completed_at,
       s.file_name AS snapshot_file_name,
       s.original_duration AS snapshot_original_duration,
       s.roughcut_duration AS snapshot_roughcut_duration,
@@ -526,21 +587,23 @@ const statements = {
       s.status AS snapshot_status,
       s.created_at AS snapshot_created_at
     FROM dispatch_claims c
+    JOIN dispatch_tasks t ON t.id = c.task_id
     LEFT JOIN users u ON u.id = c.user_id
     LEFT JOIN review_snapshots s ON s.id = c.snapshot_id
     WHERE c.id = ?
   `),
   insertDispatchClaim: db.prepare(`
-    INSERT INTO dispatch_claims (task_id, user_id, status, claimed_at, updated_at)
-    VALUES (@task_id, @user_id, @status, @claimed_at, @updated_at)
+    INSERT INTO dispatch_claims (task_id, user_id, status, claimed_at, claim_expires_at, updated_at)
+    VALUES (@task_id, @user_id, @status, @claimed_at, @claim_expires_at, @updated_at)
   `),
   reactivateDispatchClaim: db.prepare(`
     UPDATE dispatch_claims
     SET status = 'in_progress',
         claimed_at = @claimed_at,
+        claim_expires_at = @claim_expires_at,
         updated_at = @updated_at,
         abandoned_at = NULL
-    WHERE id = @id
+    WHERE id = @id AND status IN ('abandoned', 'expired')
   `),
   abandonDispatchClaim: db.prepare(`
     UPDATE dispatch_claims
@@ -554,6 +617,7 @@ const statements = {
     SET status = 'submitted',
         submitted_at = @submitted_at,
         updated_at = @updated_at,
+        claim_expires_at = NULL,
         project_id = @project_id,
         snapshot_id = @snapshot_id
     WHERE id = @id
@@ -566,6 +630,7 @@ const statements = {
     SET status = 'submitted',
         submitted_at = @submitted_at,
         updated_at = @updated_at,
+        claim_expires_at = NULL,
         external_submitted_at = @external_submitted_at,
         external_submission_url = @external_submission_url,
         external_tool = @external_tool,
@@ -589,6 +654,7 @@ const statements = {
     SET status = 'returned',
         reviewed_at = @reviewed_at,
         updated_at = @updated_at,
+        claim_expires_at = @claim_expires_at,
         review_note = @review_note
     WHERE id = @id
       AND status != 'abandoned'
@@ -602,11 +668,61 @@ const statements = {
     WHERE id = @id
       AND status != 'abandoned'
   `),
+  closeOtherDispatchClaimsForCompletedTask: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'closed_by_task_completed',
+        reviewed_at = @reviewed_at,
+        completed_at = @completed_at,
+        updated_at = @updated_at,
+        claim_expires_at = NULL,
+        review_note = CASE
+          WHEN review_note IS NULL OR review_note = '' THEN @review_note
+          ELSE review_note
+        END
+    WHERE task_id = @task_id
+      AND id != @id
+      AND status IN ('in_progress', 'returned', 'submitted')
+  `),
+  expireDispatchClaims: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'expired',
+        updated_at = @updated_at,
+        abandoned_at = @expired_at,
+        review_note = CASE
+          WHEN review_note IS NULL OR review_note = '' THEN '领取后 5 天内未提交，制作名额已释放。'
+          ELSE review_note
+        END
+    WHERE status IN ('in_progress', 'returned')
+      AND claim_expires_at IS NOT NULL
+      AND claim_expires_at <= @now
+  `),
+  insertDispatchNotification: db.prepare(`
+    INSERT INTO dispatch_notifications (
+      id, user_id, type, entity_type, entity_id, title, body, read_at, created_at
+    ) VALUES (
+      @id, @user_id, @type, @entity_type, @entity_id, @title, @body, NULL, @created_at
+    )
+  `),
+  listDispatchNotificationsByUser: db.prepare(`
+    SELECT *
+    FROM dispatch_notifications
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 20
+  `),
 };
 
 const server = http.createServer(async (req, res) => {
   try {
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    let url;
+    try {
+      // Node 的 IncomingMessage 允许收到形如 `//` 或非法百分号编码的原始路径；
+      // 这类请求不应打出 uncaught/stack trace，也不应被当成一次服务器故障。
+      url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    } catch {
+      sendJson(res, 400, { error: 'invalid_url', message: '请求地址格式不正确。' });
+      return;
+    }
 
     if (url.pathname === '/api/health') {
       sendJson(res, 200, {
@@ -669,6 +785,11 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/deepseek/chat') {
       await handleDeepSeek(req, res);
+      return;
+    }
+
+    if (url.pathname === '/api/voice/synthesize') {
+      await handleVoiceSynthesize(req, res);
       return;
     }
 
@@ -745,6 +866,21 @@ async function handleAuth(req, res, url) {
     const code = buildVerificationCode();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + VERIFY_TTL_MINUTES * 60 * 1000).toISOString();
+
+    // 先真正把短信发出去，成功了再落库计次；发送失败不扣次数，
+    // 避免网络抖动/供应商偶发失败时学员被误锁 30 分钟（根因卡 003）。
+    let sendResult;
+    try {
+      sendResult = await sendSmsCode(phone, code);
+    } catch (error) {
+      console.error(`[send-code] 发送失败，不计次数 ${maskPhone(phone)}: ${error && error.message}`);
+      sendJson(res, 502, {
+        error: 'sms_send_failed',
+        message: '验证码发送失败，请稍后重试（本次不计入发送次数）。',
+      });
+      return;
+    }
+
     const payload = {
       phone,
       code,
@@ -752,10 +888,8 @@ async function handleAuth(req, res, url) {
       sent_day: today,
       last_sent_at: now.toISOString(),
     };
-
     statements.upsertVerificationCode.run(payload);
 
-    const sendResult = await sendSmsCode(phone, code);
     sendJson(res, 200, {
       ok: true,
       cooldownSeconds: 60,
@@ -1055,11 +1189,84 @@ async function handleOrdersData(req, res) {
 }
 
 // ── 接单台后台：钱钱自己增删改/发布练习派单任务 ────────────────────────────────
+function dispatchTaskStatus(row = {}) {
+  return String(row.status || '').trim() === 'completed' || row.completed_claim_id || row.completed_at
+    ? 'completed'
+    : 'open';
+}
+
+function isDispatchTaskCompleted(row = {}) {
+  return dispatchTaskStatus(row) === 'completed';
+}
+
+function effectiveDispatchMaxClaims(row = {}) {
+  const raw = Number(row.max_claims ?? row.maxClaims ?? DISPATCH_DEFAULT_MAX_CLAIMS);
+  if (!Number.isFinite(raw) || raw <= 0) return DISPATCH_DEFAULT_MAX_CLAIMS;
+  return Math.min(raw, DISPATCH_DEFAULT_MAX_CLAIMS);
+}
+
+function buildDispatchClaimExpiry(nowIso) {
+  return new Date(new Date(nowIso).getTime() + DISPATCH_CLAIM_TTL_MS).toISOString();
+}
+
+function releaseExpiredDispatchClaims() {
+  const now = new Date().toISOString();
+  return statements.expireDispatchClaims.run({
+    now,
+    updated_at: now,
+    expired_at: now,
+  });
+}
+
+function publicDispatchNotification(row) {
+  return {
+    id: row.id,
+    type: row.type || '',
+    entityType: row.entity_type || '',
+    entityId: row.entity_id || null,
+    title: row.title || '',
+    body: row.body || '',
+    readAt: row.read_at || null,
+    createdAt: row.created_at || null,
+    unread: !row.read_at,
+  };
+}
+
+function cleanDispatchMaterialLink(value) {
+  const raw = String(value || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim()
+    .replace(/[，。；;、）)】\]]+$/g, '')
+    .slice(0, 1000);
+  if (!raw) return '';
+  if (/^https?:\/\/\S+$/i.test(raw)) return raw;
+  if (/^\/api\/orders\/material\/\S+$/.test(raw)) return raw;
+  if (/^\/uploads\/\S+$/.test(raw)) return raw;
+  return '';
+}
+
+function extractDispatchMaterialLinkFromDemand(demand) {
+  const text = String(demand || '');
+  const nearMaterial = text.match(/(?:素材链接|素材地址|网盘|百度网盘|下载对应嘉宾的素材|下载素材|素材)[\s\S]{0,200}?(https?:\/\/[^\s"'<>]+)/i);
+  const fallback = /(?:素材|网盘|下载)/.test(text)
+    ? text.match(/https?:\/\/[^\s"'<>]+/i)
+    : null;
+  return cleanDispatchMaterialLink(nearMaterial?.[1] || fallback?.[0] || '');
+}
+
+function dispatchMaterialLink(row = {}) {
+  return cleanDispatchMaterialLink(row.material_link)
+    || cleanDispatchMaterialLink(row.materialLink)
+    || extractDispatchMaterialLinkFromDemand(row.demand);
+}
+
 function publicDispatchTask(row, viewer = null) {
-  const maxClaims = Number(row.max_claims || 5);
+  const maxClaims = effectiveDispatchMaxClaims(row);
   const claimCount = Number(statements.countClaimsByTask.get(row.id)?.count || 0);
   const reviewingCount = Number(statements.countReviewingClaimsByTask.get(row.id)?.count || 0);
-  const canClaim = viewer?.id ? canUserClaimDispatchTask(row, viewer) : true;
+  const completed = isDispatchTaskCompleted(row);
+  const materialLink = dispatchMaterialLink(row);
+  const canClaim = viewer?.id ? !completed && canUserClaimDispatchTask(row, viewer) : !completed;
   const myClaim = viewer?.id
     ? statements.findDispatchClaimByTaskUser.get({ task_id: row.id, user_id: viewer.id })
     : null;
@@ -1071,13 +1278,17 @@ function publicDispatchTask(row, viewer = null) {
     demand: row.demand,
     delivery: row.delivery,
     difficulty: row.difficulty,
-    materialLink: row.material_link,
+    materialLink,
     visibility: dispatchTaskVisibility(row),
     assigneeRefs: viewer?.id ? '' : row.assignee_refs || '',
     assigneeLabel: dispatchAssigneeLabel(row),
     canClaim,
-    claimBlockedReason: canClaim ? '' : '这是一条指定学员单，仅指定学员可接。',
+    claimBlockedReason: canClaim ? '' : completed ? '这单已经完结，不能再抢单。' : '这是一条指定学员单，仅指定学员可接。',
     published: Boolean(row.published),
+    status: dispatchTaskStatus(row),
+    completed: completed,
+    completedClaimId: row.completed_claim_id || null,
+    completedAt: row.completed_at || null,
     sortOrder: row.sort_order,
     maxClaims,
     claimCount,
@@ -1100,6 +1311,7 @@ function publicDispatchClaim(row, taskRow = null) {
     reviewedAt: row.reviewed_at || null,
     completedAt: row.completed_at || null,
     abandonedAt: row.abandoned_at || null,
+    claimExpiresAt: row.claim_expires_at || null,
     reviewNote: row.review_note || '',
     projectId: row.project_id || '',
     snapshotId: row.snapshot_id || '',
@@ -1112,11 +1324,26 @@ function publicDispatchClaim(row, taskRow = null) {
       demand: task.demand || '',
       delivery: task.delivery || '',
       difficulty: task.difficulty || '',
-      materialLink: task.material_link || '',
+      materialLink: dispatchMaterialLink(task),
       visibility: dispatchTaskVisibility(task),
       assigneeRefs: '',
       assigneeLabel: dispatchAssigneeLabel(task),
       published: Boolean(task.published),
+      status: dispatchTaskStatus({
+        ...task,
+        status: task.task_status || task.status,
+        completed_claim_id: task.completed_claim_id,
+        completed_at: task.task_completed_at || task.completed_at,
+      }),
+      completed: isDispatchTaskCompleted({
+        ...task,
+        status: task.task_status || task.status,
+        completed_claim_id: task.completed_claim_id,
+        completed_at: task.task_completed_at || task.completed_at,
+      }),
+      completedClaimId: task.completed_claim_id || null,
+      completedAt: task.task_completed_at || task.completed_at || null,
+      maxClaims: effectiveDispatchMaxClaims(task),
       sortOrder: Number(task.sort_order || 0),
       createdAt: task.task_created_at || task.created_at || null,
       updatedAt: task.task_updated_at || task.updated_at || null,
@@ -1145,6 +1372,7 @@ function publicDispatchReviewClaim(row) {
     submittedAt: row.submitted_at || null,
     reviewedAt: row.reviewed_at || null,
     completedAt: row.completed_at || null,
+    claimExpiresAt: row.claim_expires_at || null,
     reviewNote: row.review_note || '',
     projectId: row.project_id || '',
     snapshotId: row.snapshot_id || '',
@@ -1158,6 +1386,18 @@ function publicDispatchReviewClaim(row) {
       removedDuration: Number(row.snapshot_removed_duration || 0),
       createdAt: row.snapshot_created_at || null,
     } : null,
+    taskStatus: dispatchTaskStatus({
+      status: row.task_status,
+      completed_claim_id: row.completed_claim_id,
+      completed_at: row.task_completed_at,
+    }),
+    taskCompleted: isDispatchTaskCompleted({
+      status: row.task_status,
+      completed_claim_id: row.completed_claim_id,
+      completed_at: row.task_completed_at,
+    }),
+    taskCompletedClaimId: row.completed_claim_id || null,
+    taskCompletedAt: row.task_completed_at || null,
   };
 }
 
@@ -1207,10 +1447,11 @@ function dispatchRowToBody(row) {
     demand: row.demand,
     delivery: row.delivery,
     difficulty: row.difficulty,
-    materialLink: row.material_link,
+    materialLink: dispatchMaterialLink(row),
     visibility: dispatchTaskVisibility(row),
     assigneeRefs: row.assignee_refs || '',
     published: row.published,
+    maxClaims: effectiveDispatchMaxClaims(row),
     sortOrder: row.sort_order,
   };
 }
@@ -1227,17 +1468,21 @@ function readDispatchInput(body) {
     .slice(0, 20)
     .join('\n')
     .slice(0, 1000);
+  const demand = String(body.demand == null ? '' : body.demand).slice(0, 4000);
+  const materialLink = cleanDispatchMaterialLink(body.materialLink ?? body.material_link)
+    || extractDispatchMaterialLinkFromDemand(demand);
   return {
     title: clean(body.title, 120),
     client: clean(body.client, 120),
     budget: clean(body.budget, 60),
-    demand: String(body.demand == null ? '' : body.demand).slice(0, 4000),
+    demand,
     delivery: String(body.delivery == null ? '' : body.delivery).slice(0, 2000),
     difficulty: clean(body.difficulty, 40),
-    material_link: clean(body.materialLink ?? body.material_link, 1000),
+    material_link: clean(materialLink, 1000),
     visibility,
     assignee_refs: visibility === 'assigned' ? assigneeRefs : '',
     published: body.published ? 1 : 0,
+    max_claims: effectiveDispatchMaxClaims(body),
     sort_order: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
   };
 }
@@ -1381,6 +1626,8 @@ async function handleDispatchTasks(req, res, url) {
     return;
   }
 
+  releaseExpiredDispatchClaims();
+
   // 学员端：只读已发布任务，需登录 + 完成 Day2
   if (url.pathname === '/api/orders/tasks') {
     const user = requireAuth(req, res);
@@ -1402,7 +1649,8 @@ async function handleDispatchTasks(req, res, url) {
       return;
     }
     const claims = statements.listDispatchClaimsByUser.all(user.id).map((row) => publicDispatchClaim(row));
-    sendJson(res, 200, { claims });
+    const notifications = statements.listDispatchNotificationsByUser.all(user.id).map(publicDispatchNotification);
+    sendJson(res, 200, { claims, notifications });
     return;
   }
 
@@ -1420,6 +1668,14 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 404, { error: 'task_not_found', message: '这单暂时不可抢。' });
       return;
     }
+    if (isDispatchTaskCompleted(task)) {
+      sendJson(res, 409, {
+        error: 'task_completed',
+        message: '这单已经完结，不能再抢单。请去选择其他未完成订单。',
+        task: publicDispatchTask(task, user),
+      });
+      return;
+    }
     if (!canUserClaimDispatchTask(task, user)) {
       sendJson(res, 403, {
         error: 'task_assigned_to_other',
@@ -1430,11 +1686,20 @@ async function handleDispatchTasks(req, res, url) {
     }
 
     const existing = statements.findDispatchClaimByTaskUser.get({ task_id: taskId, user_id: user.id });
-    if (existing && existing.status !== 'abandoned') {
+    if (existing && ['in_progress', 'returned', 'submitted'].includes(existing.status)) {
       sendJson(res, 200, {
         claim: publicDispatchClaim(existing, task),
         task: publicDispatchTask(task, user),
         reused: true,
+      });
+      return;
+    }
+    if (existing && !['abandoned', 'expired'].includes(existing.status)) {
+      sendJson(res, 409, {
+        error: 'claim_already_closed',
+        message: '你在这单的记录已经结束，不能再次提交这单。请去选择其他未完成订单。',
+        claim: publicDispatchClaim(existing, task),
+        task: publicDispatchTask(task, user),
       });
       return;
     }
@@ -1449,7 +1714,7 @@ async function handleDispatchTasks(req, res, url) {
       return;
     }
 
-    const maxClaims = Number(task.max_claims || 5);
+    const maxClaims = effectiveDispatchMaxClaims(task);
     const claimCount = Number(statements.countClaimsByTask.get(taskId)?.count || 0);
     if (claimCount >= maxClaims) {
       sendJson(res, 409, { error: 'claim_full', message: '这单已经满员了，换一单试试。' });
@@ -1457,9 +1722,15 @@ async function handleDispatchTasks(req, res, url) {
     }
 
     const now = new Date().toISOString();
+    const claimExpiresAt = buildDispatchClaimExpiry(now);
     let claimId = existing?.id;
-    if (existing && existing.status === 'abandoned') {
-      statements.reactivateDispatchClaim.run({ id: existing.id, claimed_at: now, updated_at: now });
+    if (existing && ['abandoned', 'expired'].includes(existing.status)) {
+      statements.reactivateDispatchClaim.run({
+        id: existing.id,
+        claimed_at: now,
+        claim_expires_at: claimExpiresAt,
+        updated_at: now,
+      });
       claimId = existing.id;
     } else {
       const info = statements.insertDispatchClaim.run({
@@ -1467,6 +1738,7 @@ async function handleDispatchTasks(req, res, url) {
         user_id: user.id,
         status: 'in_progress',
         claimed_at: now,
+        claim_expires_at: claimExpiresAt,
         updated_at: now,
       });
       claimId = info.lastInsertRowid;
@@ -1493,6 +1765,19 @@ async function handleDispatchTasks(req, res, url) {
     const claim = statements.findDispatchClaimByIdForUser.get({ id: claimId, user_id: user.id });
     if (!claim || claim.status === 'abandoned') {
       sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
+      return;
+    }
+    const task = statements.findDispatchTask.get(claim.task_id);
+    if (!task) {
+      sendJson(res, 404, { error: 'task_not_found', message: '没有找到这条订单。' });
+      return;
+    }
+    if (isDispatchTaskCompleted(task)) {
+      sendJson(res, 409, {
+        error: 'task_completed',
+        message: '这单已经完结，不能再提交本单作品。请去选择其他未完成订单。',
+        claim: publicDispatchClaim(claim, task),
+      });
       return;
     }
     if (!['in_progress', 'returned', 'submitted'].includes(claim.status)) {
@@ -1583,6 +1868,11 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 400, { error: 'snapshot_or_external_required', message: '这条接单还没有提交审核作品。' });
       return;
     }
+    const reviewTask = statements.findDispatchTask.get(claim.task_id);
+    if (!reviewTask) {
+      sendJson(res, 404, { error: 'task_not_found', message: '没有找到这条订单。' });
+      return;
+    }
     let snapshot = null;
     if (hasSnapshot) {
       snapshot = statements.findSnapshotById.get(claim.snapshot_id);
@@ -1600,39 +1890,124 @@ async function handleDispatchTasks(req, res, url) {
       sendJson(res, 400, { error: 'invalid_status', message: '订单审核状态只能是通过、打回或未采用。' });
       return;
     }
+    if (!approved && isDispatchTaskCompleted(reviewTask)) {
+      sendJson(res, 409, {
+        error: 'task_already_completed',
+        message: '这条订单已完结，不能再打回或改成未采用。',
+      });
+      return;
+    }
     const now = new Date().toISOString();
     const snapshotStatus = approved ? 'approved' : 'rejected';
     const note = String(body.note || '').trim().slice(0, 1000);
-    if (snapshot) {
-      statements.updateSnapshotStatus.run({
-        id: snapshot.id,
-        status: snapshotStatus,
-        reviewed_at: now,
-        reviewed_by: admin.id,
-      });
-      statements.updateProjectReviewStatus.run({
-        id: snapshot.project_id,
-        status: snapshotStatus,
-        updated_at: now,
-      });
-    }
     const claimReviewStatus = approved ? 'completed' : rejected ? 'rejected' : 'returned';
     if (approved) {
-      statements.markDispatchClaimApproved.run({
-        id: claimId,
-        reviewed_at: now,
-        completed_at: now,
-        updated_at: now,
-        review_note: note,
+      const approveTask = db.transaction(() => {
+        const latestTask = statements.findDispatchTask.get(claim.task_id);
+        if (!latestTask || isDispatchTaskCompleted(latestTask)) {
+          const error = new Error('这条订单已被采用，请刷新查看最新状态。');
+          error.code = 'task_already_completed';
+          throw error;
+        }
+        const otherClaims = statements.listDispatchClaimsByTask.all(claim.task_id)
+          .filter((item) => Number(item.id) !== claimId && ['in_progress', 'returned', 'submitted'].includes(item.status));
+        const completed = statements.completeDispatchTask.run({
+          id: claim.task_id,
+          completed_claim_id: claimId,
+          completed_at: now,
+          completed_by: admin.id,
+          updated_at: now,
+        });
+        if (!completed.changes) {
+          const error = new Error('这条订单已被采用，请刷新查看最新状态。');
+          error.code = 'task_already_completed';
+          throw error;
+        }
+        if (snapshot) {
+          statements.updateSnapshotStatus.run({
+            id: snapshot.id,
+            status: snapshotStatus,
+            reviewed_at: now,
+            reviewed_by: admin.id,
+          });
+          statements.updateProjectReviewStatus.run({
+            id: snapshot.project_id,
+            status: snapshotStatus,
+            updated_at: now,
+          });
+        }
+        statements.markDispatchClaimApproved.run({
+          id: claimId,
+          reviewed_at: now,
+          completed_at: now,
+          updated_at: now,
+          review_note: note,
+        });
+        statements.closeOtherDispatchClaimsForCompletedTask.run({
+          task_id: claim.task_id,
+          id: claimId,
+          reviewed_at: now,
+          completed_at: now,
+          updated_at: now,
+          review_note: '本单已采用其他作品，订单已完结。',
+        });
+        otherClaims.forEach((item) => {
+          statements.insertDispatchNotification.run({
+            id: buildPublicId('dn'),
+            user_id: item.user_id,
+            type: 'dispatch_task_completed',
+            entity_type: 'dispatch_task',
+            entity_id: claim.task_id,
+            title: '本单已完结',
+            body: `你领取的订单《${reviewTask.title || '未命名订单'}》已有学员完成并被采用，本单已完结，不能再提交这单。如想接单赚钱，请选择其他未完成订单。`,
+            created_at: now,
+          });
+        });
       });
+      try {
+        approveTask();
+      } catch (error) {
+        if (error?.code === 'task_already_completed') {
+          sendJson(res, 409, { error: 'task_already_completed', message: error.message });
+          return;
+        }
+        throw error;
+      }
     } else if (returned) {
+      if (snapshot) {
+        statements.updateSnapshotStatus.run({
+          id: snapshot.id,
+          status: snapshotStatus,
+          reviewed_at: now,
+          reviewed_by: admin.id,
+        });
+        statements.updateProjectReviewStatus.run({
+          id: snapshot.project_id,
+          status: snapshotStatus,
+          updated_at: now,
+        });
+      }
       statements.markDispatchClaimReturned.run({
         id: claimId,
         reviewed_at: now,
         updated_at: now,
+        claim_expires_at: buildDispatchClaimExpiry(now),
         review_note: note,
       });
     } else {
+      if (snapshot) {
+        statements.updateSnapshotStatus.run({
+          id: snapshot.id,
+          status: snapshotStatus,
+          reviewed_at: now,
+          reviewed_by: admin.id,
+        });
+        statements.updateProjectReviewStatus.run({
+          id: snapshot.project_id,
+          status: snapshotStatus,
+          updated_at: now,
+        });
+      }
       statements.markDispatchClaimRejected.run({
         id: claimId,
         reviewed_at: now,
@@ -1928,6 +2303,15 @@ async function handleProjects(req, res, url) {
     const dispatchTaskId = readDispatchTaskIdFromPayload(payload);
     let dispatchClaim = null;
     if (dispatchTaskId) {
+      releaseExpiredDispatchClaims();
+      const dispatchTask = statements.findDispatchTask.get(dispatchTaskId);
+      if (!dispatchTask || isDispatchTaskCompleted(dispatchTask)) {
+        sendJson(res, 409, {
+          error: 'dispatch_task_completed',
+          message: '这单已经完结，不能再提交本单作品。请去接单台选择其他未完成订单。',
+        });
+        return;
+      }
       dispatchClaim = statements.findEditableDispatchClaimForSubmit.get({
         id: readDispatchClaimIdFromPayload(payload),
         task_id: dispatchTaskId,
@@ -2623,6 +3007,7 @@ async function handleDeepSeek(req, res) {
     sendJson(res, 400, { error: 'missing_messages', message: '缺少 DeepSeek messages。' });
     return;
   }
+  const timeoutMs = body.purpose === 'decision_bundle' ? DEEPSEEK_DECISION_TIMEOUT_MS : DEEPSEEK_TIMEOUT_MS;
 
   await proxyJson(res, DEEPSEEK_URL, {
     method: 'POST',
@@ -2637,15 +3022,151 @@ async function handleDeepSeek(req, res) {
       messages,
     }),
   }, {
-    timeoutMs: DEEPSEEK_TIMEOUT_MS,
+    timeoutMs,
     timeoutMessage: 'AI 服务等待超时，请稍后重试。',
     errorMessage: 'AI 服务暂时不可用，请稍后重试。',
   });
 }
 
+async function handleVoiceSynthesize(req, res) {
+  setCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return;
+  }
+
+  const user = requireAuth(req, res);
+  if (!user) return;
+  if (!API_KEY || !VOICE_TTS_ID) {
+    sendJson(res, 503, { error: 'voice_service_unconfigured', message: '声音服务暂未配置，请联系助教。' });
+    return;
+  }
+
+  const body = await readJson(req, 32 * 1024);
+  const text = String(body.text || '').trim();
+  if (!text) {
+    sendJson(res, 400, { error: 'missing_text', message: '请先输入旁白文字。' });
+    return;
+  }
+  if (text.length > VOICE_MAX_TEXT_CHARS) {
+    sendJson(res, 400, {
+      error: 'text_too_long',
+      message: `单段最多 ${VOICE_MAX_TEXT_CHARS} 字，请分段生成。`,
+    });
+    return;
+  }
+  if (activeVoiceSynthesisUsers.has(user.id)) {
+    sendJson(res, 429, { error: 'voice_generation_in_progress', message: '上一段声音还在生成，请稍候。' });
+    return;
+  }
+
+  activeVoiceSynthesisUsers.add(user.id);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), VOICE_TTS_TIMEOUT_MS);
+    let upstream;
+    let payload;
+    try {
+      upstream = await fetch(VOICE_TTS_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: VOICE_TTS_MODEL,
+          input: { text },
+          parameters: {
+            text_type: 'PlainText',
+            voice: VOICE_TTS_ID,
+            format: 'mp3',
+            sample_rate: 22050,
+          },
+        }),
+        signal: controller.signal,
+      });
+      const raw = await upstream.text();
+      try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {}; }
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!upstream.ok) {
+      console.error('[voice] synthesis provider error', upstream.status, payload?.code || payload?.error?.code || 'unknown');
+      sendJson(res, upstream.status === 429 ? 429 : 502, {
+        error: upstream.status === 429 ? 'voice_rate_limited' : 'voice_provider_error',
+        message: upstream.status === 429 ? '声音生成请求太多，请稍后重试。' : '声音服务暂时不可用，请稍后重试。',
+      });
+      return;
+    }
+
+    const audioUrl = String(payload?.output?.audio?.url || '').trim();
+    let parsedAudioUrl;
+    try { parsedAudioUrl = new URL(audioUrl); } catch { parsedAudioUrl = null; }
+    const isAliyunAudioUrl = parsedAudioUrl
+      && ['http:', 'https:'].includes(parsedAudioUrl.protocol)
+      && (/(^|\.)aliyuncs\.com$/i.test(parsedAudioUrl.hostname)
+        || /(^|\.)aliyun\.com$/i.test(parsedAudioUrl.hostname));
+    if (!isAliyunAudioUrl) {
+      console.error('[voice] synthesis provider returned no audio url');
+      sendJson(res, 502, { error: 'voice_result_missing', message: '声音生成没有返回音频，请稍后重试。' });
+      return;
+    }
+
+    const audioController = new AbortController();
+    const audioTimer = setTimeout(() => audioController.abort(), VOICE_TTS_TIMEOUT_MS);
+    let audioResponse;
+    try {
+      audioResponse = await fetch(audioUrl, { signal: audioController.signal });
+    } finally {
+      clearTimeout(audioTimer);
+    }
+    if (!audioResponse.ok) {
+      console.error('[voice] audio download error', audioResponse.status);
+      sendJson(res, 502, { error: 'voice_download_failed', message: '生成的音频暂时无法下载，请重试。' });
+      return;
+    }
+    const audioBytes = Buffer.from(await audioResponse.arrayBuffer());
+    if (!audioBytes.length) {
+      sendJson(res, 502, { error: 'voice_empty_audio', message: '生成的音频为空，请重试。' });
+      return;
+    }
+
+    recordUsage(user.id, 'voice_synthesis');
+    setSecurityHeaders(res);
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBytes.length,
+      'Content-Disposition': "inline; filename*=UTF-8''dangxiaoshi-voice.mp3",
+      'Cache-Control': 'no-store',
+    });
+    res.end(audioBytes);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      sendJson(res, 504, { error: 'voice_timeout', message: '声音生成等待超时，请稍后重试。' });
+      return;
+    }
+    console.error('[voice] synthesis failed', error?.message || error);
+    sendJson(res, 502, { error: 'voice_unavailable', message: '声音服务暂时不可用，请稍后重试。' });
+  } finally {
+    activeVoiceSynthesisUsers.delete(user.id);
+  }
+}
+
 async function serveStatic(req, res, url) {
   const aliasedPath = resolveStaticAlias(url.pathname);
-  const pathname = decodeURIComponent(aliasedPath);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(aliasedPath);
+  } catch {
+    sendJson(res, 400, { error: 'invalid_path', message: '请求路径格式不正确。' });
+    return;
+  }
   const normalizedPathname = path.posix.normalize(pathname);
   if (normalizedPathname === '/data' || normalizedPathname.startsWith('/data/')) {
     sendJson(res, 403, { error: 'forbidden' });
@@ -3110,7 +3631,11 @@ function initializeDatabase(database) {
       visibility TEXT NOT NULL DEFAULT 'public',
       assignee_refs TEXT NOT NULL DEFAULT '',
       published INTEGER NOT NULL DEFAULT 0,
-      max_claims INTEGER NOT NULL DEFAULT 5,
+      max_claims INTEGER NOT NULL DEFAULT 2,
+      status TEXT NOT NULL DEFAULT 'open',
+      completed_claim_id INTEGER,
+      completed_at TEXT,
+      completed_by INTEGER,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -3124,6 +3649,7 @@ function initializeDatabase(database) {
       user_id INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'in_progress',
       claimed_at TEXT NOT NULL,
+      claim_expires_at TEXT,
       updated_at TEXT NOT NULL,
       submitted_at TEXT,
       reviewed_at TEXT,
@@ -3142,6 +3668,20 @@ function initializeDatabase(database) {
       ON dispatch_claims(task_id, status);
     CREATE INDEX IF NOT EXISTS idx_dispatch_claims_user
       ON dispatch_claims(user_id, status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS dispatch_notifications (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT '',
+      entity_type TEXT NOT NULL DEFAULT '',
+      entity_id INTEGER,
+      title TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      read_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_dispatch_notifications_user
+      ON dispatch_notifications(user_id, read_at, created_at DESC);
   `);
   try { database.exec(`ALTER TABLE users ADD COLUMN nickname TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE users ADD COLUMN day1_complete INTEGER NOT NULL DEFAULT 0`); } catch {}
@@ -3152,13 +3692,85 @@ function initializeDatabase(database) {
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_review'`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE review_snapshots ADD COLUMN reviewed_by INTEGER`); } catch {}
-  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN max_claims INTEGER NOT NULL DEFAULT 5`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN max_claims INTEGER NOT NULL DEFAULT 2`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN assignee_refs TEXT NOT NULL DEFAULT ''`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'open'`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN completed_claim_id INTEGER`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN completed_at TEXT`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_tasks ADD COLUMN completed_by INTEGER`); } catch {}
+  try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN claim_expires_at TEXT`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submission_json TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submission_url TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_tool TEXT NOT NULL DEFAULT ''`); } catch {}
   try { database.exec(`ALTER TABLE dispatch_claims ADD COLUMN external_submitted_at TEXT`); } catch {}
+  database.exec(`
+    UPDATE dispatch_claims
+    SET claim_expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+120 hours')
+    WHERE status IN ('in_progress', 'returned')
+      AND (claim_expires_at IS NULL OR claim_expires_at = '');
+
+    UPDATE dispatch_tasks
+    SET max_claims = 2
+    WHERE max_claims IS NULL OR max_claims <= 0 OR max_claims > 2;
+
+    UPDATE dispatch_tasks
+    SET status = 'completed',
+        completed_claim_id = (
+          SELECT c.id
+          FROM dispatch_claims c
+          WHERE c.task_id = dispatch_tasks.id
+            AND c.status = 'completed'
+          ORDER BY c.completed_at DESC, c.id DESC
+          LIMIT 1
+        ),
+        completed_at = (
+          SELECT COALESCE(c.completed_at, c.reviewed_at, c.updated_at)
+          FROM dispatch_claims c
+          WHERE c.task_id = dispatch_tasks.id
+            AND c.status = 'completed'
+          ORDER BY c.completed_at DESC, c.id DESC
+          LIMIT 1
+        )
+    WHERE status != 'completed'
+      AND EXISTS (
+        SELECT 1
+        FROM dispatch_claims c
+        WHERE c.task_id = dispatch_tasks.id
+          AND c.status = 'completed'
+      );
+
+    UPDATE dispatch_claims
+    SET status = 'closed_by_task_completed',
+        reviewed_at = COALESCE(reviewed_at, (
+          SELECT completed_at
+          FROM dispatch_tasks t
+          WHERE t.id = dispatch_claims.task_id
+        )),
+        completed_at = COALESCE(completed_at, (
+          SELECT completed_at
+          FROM dispatch_tasks t
+          WHERE t.id = dispatch_claims.task_id
+        )),
+        updated_at = COALESCE((
+          SELECT completed_at
+          FROM dispatch_tasks t
+          WHERE t.id = dispatch_claims.task_id
+        ), updated_at),
+        claim_expires_at = NULL,
+        review_note = CASE
+          WHEN review_note IS NULL OR review_note = '' THEN '本单已采用其他作品，订单已完结。'
+          ELSE review_note
+        END
+    WHERE status IN ('in_progress', 'returned', 'submitted')
+      AND EXISTS (
+        SELECT 1
+        FROM dispatch_tasks t
+        WHERE t.id = dispatch_claims.task_id
+          AND t.status = 'completed'
+          AND COALESCE(t.completed_claim_id, 0) != dispatch_claims.id
+      );
+  `);
   database.exec(`
     UPDATE users
     SET day1_complete = 1,
@@ -4458,6 +5070,11 @@ async function handleCut(req, res, url) {
   setCors(req, res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  if (req.method === 'GET' && url.pathname.startsWith('/api/cut/download/')) {
+    await sendCutDownload(req, res, url, optionalAuthUser(req), { allowAnonymousTicket: true });
+    return;
+  }
+
   const user = requireAuth(req, res);
   if (!user) return;
 
@@ -4692,97 +5309,131 @@ async function handleCut(req, res, url) {
   }
 
   if (req.method === 'GET' && url.pathname.startsWith('/api/cut/download/')) {
-    const jobId = url.pathname.replace('/api/cut/download/', '');
-    const job = cutJobs.get(jobId);
-    if (!job) {
-      recordDownloadEvent(req, user, {
+    await sendCutDownload(req, res, url, user);
+    return;
+  }
+
+  sendJson(res, 404, { error: 'not_found' });
+}
+
+async function sendCutDownload(req, res, url, user, options = {}) {
+  const jobId = url.pathname.replace('/api/cut/download/', '');
+  const job = cutJobs.get(jobId);
+  const eventUser = user || (job?.userId ? { id: job.userId } : null);
+  const viaTicket = !user && Boolean(options.allowAnonymousTicket);
+
+  if (!job) {
+    if (!viaTicket) {
+      recordDownloadEvent(req, eventUser, {
         jobId,
         eventType: 'failed',
         stage: 'download',
         status: 'not_found',
         message: '导出任务不存在',
       });
-      sendJson(res, 404, { error: '任务不存在' });
-      return;
     }
-    if (job.userId !== user.id) { sendJson(res, 403, { error: 'forbidden' }); return; }
-    if (job.stage !== 'done') {
-      recordDownloadEvent(req, user, {
+    sendJson(res, 404, { error: '任务不存在' });
+    return;
+  }
+  if (user && job.userId !== user.id) {
+    sendJson(res, 403, { error: 'forbidden' });
+    return;
+  }
+  if (!user && !options.allowAnonymousTicket) {
+    sendJson(res, 401, { error: 'unauthorized', message: '请先登录。' });
+    return;
+  }
+  if (viaTicket && job.stage === 'done') {
+    const finishedAt = Number(job.completedAt || job.updatedAt || job.createdAt || 0);
+    if (!finishedAt || Date.now() - finishedAt > CUT_JOB_TTL) {
+      recordDownloadEvent(req, eventUser, {
         jobId,
         eventType: 'failed',
         stage: 'download',
-        status: 'not_ready',
-        message: '下载文件尚未就绪',
-      });
-      sendJson(res, 409, { error: '文件尚未就绪' });
-      return;
-    }
-
-    const basename = path.basename(job.filename, path.extname(job.filename));
-    const dlName = encodeURIComponent(`${basename}_精剪版.mp3`);
-
-    if (oss.isOssEnabled() && job.outputObjectKey) {
-      // 产物在 OSS：302 重定向到公网签名下载链接，下载流量绕开 ECS
-      try {
-        const signed = oss.signPublicUrl(job.outputObjectKey, 600, { filename: `${basename}_精剪版.mp3` });
-        recordDownloadEvent(req, user, {
-          jobId,
-          eventType: 'download_redirect',
-          stage: 'download',
-          status: '302',
-          message: '已生成 OSS 下载跳转',
-          detail: { outputObjectKey: 'present' },
-        });
-        res.writeHead(302, { Location: signed, 'Access-Control-Allow-Origin': '*' });
-        res.end();
-      } catch (error) {
-        console.error('[cut] OSS 下载签名失败', error && error.message);
-        recordDownloadEvent(req, user, {
-          jobId,
-          eventType: 'failed',
-          stage: 'download',
-          status: 'sign_failed',
-          message: error.message || '下载链接生成失败',
-        });
-        sendJson(res, 500, { error: '下载链接生成失败' });
-      }
-      return;
-    }
-
-    if (!fs.existsSync(job.outputPath)) {
-      recordDownloadEvent(req, user, {
-        jobId,
-        eventType: 'failed',
-        stage: 'download',
-        status: 'expired',
-        message: '导出文件已过期',
+        status: 'ticket_expired',
+        message: '导出下载票据已过期',
+        detail: { auth: 'ticket' },
       });
       sendJson(res, 410, { error: '文件已过期' });
       return;
     }
-    const stat = fs.statSync(job.outputPath);
-    recordDownloadEvent(req, user, {
+  }
+  if (job.stage !== 'done') {
+    recordDownloadEvent(req, eventUser, {
       jobId,
-      eventType: 'download_started',
+      eventType: 'failed',
       stage: 'download',
-      status: '200',
-      message: '已开始本地文件下载',
-      detail: { bytes: stat.size },
+      status: 'not_ready',
+      message: '下载文件尚未就绪',
+      detail: viaTicket ? { auth: 'ticket' } : {},
     });
-    res.writeHead(200, {
-      'Content-Type': 'audio/mpeg',
-      'Content-Disposition': `attachment; filename*=UTF-8''${dlName}`,
-      'Content-Length': stat.size,
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'X-Frame-Options': 'DENY',
-    });
-    fs.createReadStream(job.outputPath).pipe(res);
+    sendJson(res, 409, { error: '文件尚未就绪' });
     return;
   }
 
-  sendJson(res, 404, { error: 'not_found' });
+  const basename = path.basename(job.filename, path.extname(job.filename));
+  const dlName = encodeURIComponent(`${basename}_精剪版.mp3`);
+
+  if (oss.isOssEnabled() && job.outputObjectKey) {
+    // 微信下载器可能不带登录 Cookie；导出 jobId 本身是 2 小时临时票据，OSS 链接再限 10 分钟。
+    try {
+      const signed = oss.signPublicUrl(job.outputObjectKey, 600, { filename: `${basename}_精剪版.mp3` });
+      recordDownloadEvent(req, eventUser, {
+        jobId,
+        eventType: 'download_redirect',
+        stage: 'download',
+        status: '302',
+        message: '已生成 OSS 下载跳转',
+        detail: { outputObjectKey: 'present', auth: viaTicket ? 'ticket' : 'session' },
+      });
+      res.writeHead(302, { Location: signed, 'Access-Control-Allow-Origin': '*' });
+      res.end();
+    } catch (error) {
+      console.error('[cut] OSS 下载签名失败', error && error.message);
+      recordDownloadEvent(req, eventUser, {
+        jobId,
+        eventType: 'failed',
+        stage: 'download',
+        status: 'sign_failed',
+        message: error.message || '下载链接生成失败',
+        detail: viaTicket ? { auth: 'ticket' } : {},
+      });
+      sendJson(res, 500, { error: '下载链接生成失败' });
+    }
+    return;
+  }
+
+  if (!fs.existsSync(job.outputPath)) {
+    recordDownloadEvent(req, eventUser, {
+      jobId,
+      eventType: 'failed',
+      stage: 'download',
+      status: 'expired',
+      message: '导出文件已过期',
+      detail: viaTicket ? { auth: 'ticket' } : {},
+    });
+    sendJson(res, 410, { error: '文件已过期' });
+    return;
+  }
+  const stat = fs.statSync(job.outputPath);
+  recordDownloadEvent(req, eventUser, {
+    jobId,
+    eventType: 'download_started',
+    stage: 'download',
+    status: '200',
+    message: '已开始本地文件下载',
+    detail: { bytes: stat.size, auth: viaTicket ? 'ticket' : 'session' },
+  });
+  res.writeHead(200, {
+    'Content-Type': 'audio/mpeg',
+    'Content-Disposition': `attachment; filename*=UTF-8''${dlName}`,
+    'Content-Length': stat.size,
+    'Access-Control-Allow-Origin': '*',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Frame-Options': 'DENY',
+  });
+  fs.createReadStream(job.outputPath).pipe(res);
 }
 
 function countPendingCutJobs(userId) {
@@ -6074,6 +6725,14 @@ function parseRefineBoolean(value) {
 // ── End Audio Refine ──────────────────────────────────────────────────────────
 
 async function sendSmsCode(phone, code) {
+  if (AUTH_CODE_DELIVERY_MODE === 'page') {
+    console.warn(`[page-code] skipped SMS delivery for ${maskPhone(phone)}`);
+    return {
+      message: '请使用页面下方的绿色验证码登录。',
+      devCode: code,
+    };
+  }
+
   if (!smsClient || !process.env.ALIYUN_SMS_SIGN || !process.env.ALIYUN_SMS_TEMPLATE) {
     if (!DEV_SEND_CODE_FALLBACK) {
       throw new Error('短信配置不完整：请先设置阿里云 AK/SK、短信签名和模板 ID。');

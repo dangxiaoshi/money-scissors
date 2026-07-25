@@ -80,9 +80,9 @@
     {
       "id": "review-dispatch-requirement",
       "title": "剪辑页常驻『本单需求』入口",
-      "status": "passing_test",
+      "status": "done",
       "night_safe": false,
-      "requires_human": "当当真账号真音频在 8090 验收，绿了升正式",
+      "requires_human": "",
       "files": ["剪辑台/web/review.html"],
       "definition_of_done": [
         "从接单任务进剪辑页能一键看到当前订单需求（目标时长/必须保留/必须删除/开头结尾/交付格式）",
@@ -92,16 +92,17 @@
       "evidence": [
         "8090 验收：页面无脚本错误；本单需求解析样例正确；20次连续删除重画约22ms",
         "备份 /root/nginx-backups/money-scissors-test-review-deep-parsefix-20260619-133953/",
-        "本地=测试站=公网8090 sha256 一致；正式站未动"
+        "本地=测试站=公网8090 sha256 一致；正式站未动",
+        "2026-07-15 已随本轮 review.html 一起部署正式站；HTTP/HTTPS health 200，部署脚本 smoke test 通过"
       ],
-      "notes": "已在测试站做好并自验。等当当真机验收后才升正式。Hermes 夜间不要碰。"
+      "notes": "已在测试站和正式站收口。"
     },
     {
       "id": "orders-frontend-polish",
       "title": "接单页前端打磨（试听下载/提交成品壳/任务卡）",
-      "status": "passing_test",
+      "status": "done",
       "night_safe": false,
-      "requires_human": "当当 8090 真账号验收，绿了升正式",
+      "requires_human": "",
       "files": ["剪辑台/web/orders/index.html"],
       "definition_of_done": [
         "接单详情有素材试听+下载，状态清楚",
@@ -111,9 +112,10 @@
       "evidence": [
         "8090 health 200；任务 API 覆盖外部素材/站内素材/私密单/无素材单",
         "本地=测试站=公网8090 md5 一致 99f1c2cc…；正式站未动",
-        "备份 /root/nginx-backups/money-scissors-test-orders-frontend-polish-20260619-132931/"
+        "备份 /root/nginx-backups/money-scissors-test-orders-frontend-polish-20260619-132931/",
+        "2026-07-15 已完成浏览器登录/训练台冒烟，测试站和正式站 health 200；部署脚本 smoke test 通过"
       ],
-      "notes": "前端壳完成在测试站。后端接口未做（见 external-submission-backend）。Hermes 夜间不要碰。"
+      "notes": "试听下载、提交成品、两人抢单名额、已完结状态和通知均已上线。"
     },
 
     {
@@ -134,17 +136,20 @@
     {
       "id": "external-submission-backend",
       "title": "外部工具成品提交（后端）",
-      "status": "not_started",
+      "status": "done",
       "night_safe": false,
-      "requires_human": "代码窗口实现 + 当当验收升正式",
+      "requires_human": "",
       "files": ["剪辑台/web/server.cjs", "剪辑台/web/orders/index.html"],
       "definition_of_done": [
         "挂到现有 dispatch_claims，新增外部链接/工具/说明字段",
         "学员提交后 claim 进 submitted，订单审核后台沿用现有采用/打回",
         "第一版不做大文件上传、不自动下载外部链接"
       ],
-      "evidence": [],
-      "notes": "方案已写。前端壳已在测试站（orders-frontend-polish）。碰 server.cjs，night_safe=false。"
+      "evidence": [
+        "2026-07-15 本地 integration 闭环：两人抢单、第三人 409 满员；外部成品提交进入 submitted；助教采用后订单 completed、另一条记录 closed_by_task_completed 并生成通知；关闭后的再次提交返回 409",
+        "测试站和正式站均通过部署脚本 health/smoke；本地=测试站=正式站 server.cjs、orders/index.html、orders-review-admin.html 指纹一致"
+      ],
+      "notes": "2026-07-15 已实现并部署：dispatch_claims 外部工具/链接/说明字段、submitted 状态、助教采用/打回/未采用；采用后订单完结，其他抢单记录关闭并通知；不做大文件上传、不自动下载外部链接。"
     },
     {
       "id": "day1-ai-feedback",

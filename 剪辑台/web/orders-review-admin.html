@@ -227,6 +227,11 @@
       transform: translateY(-1px);
     }
 
+    .order-row.completed {
+      background: #f0eadb;
+      border-color: rgba(95, 82, 48, 0.25);
+    }
+
     .order-no {
       align-items: center;
       background: var(--gold);
@@ -357,6 +362,11 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       overflow: hidden;
+    }
+
+    .submission.completed {
+      background: #f1ecdd;
+      border-color: rgba(95, 82, 48, 0.22);
     }
 
     .submission-head {
@@ -608,11 +618,16 @@
 
     function normalizeTask(task, claims = []) {
       const demand = String(task.demand || '').trim();
-      const sections = parseDemand(demand);
-      const claimCount = Number(task.claimCount || task.claim_count || 0);
-      const reviewingCount = Number(task.reviewingCount || task.reviewing_count || 0);
-      const maxClaims = Number(task.maxClaims || task.max_claims || 5);
       const taskId = String(task.id);
+      const taskClaims = claims.filter((claim) => String(claim.taskId) === taskId);
+      const claimCount = Math.max(Number(task.claimCount || task.claim_count || 0), taskClaims.length);
+      const reviewingCount = Math.max(
+        Number(task.reviewingCount || task.reviewing_count || 0),
+        taskClaims.filter((claim) => claim.status === 'submitted').length,
+      );
+      const maxClaims = Number(task.maxClaims || task.max_claims || 2);
+      const status = task.status || (task.completed ? 'completed' : 'open');
+      const completed = Boolean(task.completed || status === 'completed' || task.completedAt || task.completed_at);
       return {
         id: taskId,
         title: task.title || `接单任务 ${task.id}`,
@@ -625,11 +640,11 @@
         claimCount,
         reviewingCount,
         maxClaims,
-        claims: claims.filter((claim) => String(claim.taskId) === taskId),
-        target: [sections.intro, sections.target].filter(Boolean).join('\n\n') || demand || '后台还没有填写任务需求。',
-        keep: sections.keep || '按任务需求保留核心信息。',
-        remove: sections.remove || '删掉直播语境、重复废话和影响听感的部分。',
-        submit: sections.submit || sections.ad || '提交前确认符合任务需求，并能顺畅收听。',
+        status,
+        completed,
+        completedClaimId: String(task.completedClaimId || task.completed_claim_id || ''),
+        completedAt: task.completedAt || task.completed_at || '',
+        claims: taskClaims,
       };
     }
 
@@ -644,6 +659,14 @@
         claimedAt: claim.claimedAt || claim.claimed_at || '',
         updatedAt: claim.updatedAt || claim.updated_at || '',
         submittedAt: claim.submittedAt || claim.submitted_at || '',
+        reviewedAt: claim.reviewedAt || claim.reviewed_at || '',
+        completedAt: claim.completedAt || claim.completed_at || '',
+        claimExpiresAt: claim.claimExpiresAt || claim.claim_expires_at || '',
+        taskStatus: claim.taskStatus || claim.task_status || (claim.taskCompleted ? 'completed' : 'open'),
+        taskCompleted: Boolean(claim.taskCompleted || claim.task_completed),
+        taskCompletedClaimId: String(claim.taskCompletedClaimId || claim.task_completed_claim_id || ''),
+        taskCompletedAt: claim.taskCompletedAt || claim.task_completed_at || '',
+        reviewNote: claim.reviewNote || claim.review_note || '',
         projectId: claim.projectId || claim.project_id || '',
         snapshotId: claim.snapshotId || claim.snapshot_id || '',
         snapshot: claim.snapshot || null,
@@ -672,7 +695,7 @@
     function render() {
       els.notice.classList.add('hidden');
       els.workspace.classList.remove('hidden');
-      els.metricOrders.textContent = String(tasks.length);
+      els.metricOrders.textContent = String(tasks.filter((task) => !task.completed && task.reviewingCount > 0).length);
       els.metricClaims.textContent = String(tasks.reduce((sum, task) => sum + task.claimCount, 0));
       els.metricReviewing.textContent = String(tasks.reduce((sum, task) => sum + task.reviewingCount, 0));
       renderList();
@@ -685,7 +708,7 @@
         return;
       }
       els.orderList.innerHTML = tasks.map((task, index) => `
-        <button class="order-row ${task.id === selectedId ? 'active' : ''}" type="button" data-id="${escapeAttr(task.id)}">
+        <button class="order-row ${task.id === selectedId ? 'active' : ''} ${task.completed ? 'completed' : ''}" type="button" data-id="${escapeAttr(task.id)}">
           <div class="order-no">${String(task.id).padStart(3, '0')}</div>
           <div>
             <div class="order-title">${escapeHtml(task.title)}</div>
@@ -693,7 +716,9 @@
               <span class="chip">${escapeHtml(task.type)}</span>
               <span class="chip">${escapeHtml(task.price)}</span>
               <span class="chip">${task.claimCount}/${task.maxClaims} 已抢</span>
-              <span class="chip warn">${task.reviewingCount ? `${task.reviewingCount} 待审核` : '待提交'}</span>
+              ${task.completed
+                ? '<span class="chip good">已完结</span>'
+                : `<span class="chip warn">${task.reviewingCount ? `${task.reviewingCount} 待审核` : '待提交'}</span>`}
             </div>
           </div>
           <div class="count-box">
@@ -722,13 +747,11 @@
       }
 
       els.detailTitle.textContent = `订单 ${task.id} · ${task.title}`;
-      els.detailSubtitle.textContent = `${task.type} / ${task.price} / ${task.claimCount}/${task.maxClaims} 人已抢`;
+      els.detailSubtitle.textContent = `${task.type} / ${task.price} / ${task.claimCount}/${task.maxClaims} 人已抢${task.completed ? ' / 已完结' : ''}`;
       els.briefPanel.innerHTML = `
         <h2>订单要求</h2>
-        ${block('剪辑目标', task.target)}
-        ${block('必须保留', task.keep)}
-        ${block('必须删除 / 压缩', task.remove)}
-        ${block('提交重点', task.submit)}
+        ${task.completed ? '<div class="notice">本单已完结：已有作品被采用，其他抢单记录不能再提交这单。</div>' : ''}
+        ${block('任务需求', task.demand || '后台还没有填写任务需求。')}
         ${block('AI参考意见', buildAiHint(task))}
         ${block('素材', task.materialLink ? `<a class="btn secondary" href="${escapeAttr(task.materialLink)}" target="_blank" rel="noopener">打开素材</a>` : '这条订单暂未挂素材链接。', true)}
       `;
@@ -742,22 +765,28 @@
         const bTime = Date.parse(b.claimedAt || b.updatedAt || '') || 0;
         return aTime - bTime || Number(a.id || 0) - Number(b.id || 0);
       });
-      const emptySlots = Math.max(Math.min(task.maxClaims || 5, 3) - claims.length, 0);
+      const emptySlots = Math.max(Math.min(task.maxClaims || 2, 2) - claims.length, 0);
       const realItems = claims.map((claim, index) => {
         const no = index + 1;
         const status = claimStatusLabel(claim.status);
+        const isWinner = claim.status === 'completed'
+          || String(task.completedClaimId || '') === String(claim.id)
+          || String(claim.taskCompletedClaimId || '') === String(claim.id);
         const isReviewing = claim.status === 'submitted';
         const hasSnapshot = Boolean(claim.snapshotId);
         const hasExternal = Boolean(claim.externalSubmission?.url);
         const hasSubmission = hasSnapshot || hasExternal;
-        const canReview = isReviewing && hasSubmission;
+        const canReview = !task.completed && isReviewing && hasSubmission;
         const external = claim.externalSubmission || {};
+        const adoptLabel = isWinner ? '已采用' : task.completed ? '本单已结' : '采用这个';
+        const rowCompleted = task.completed || ['completed', 'rejected', 'closed_by_task_completed', 'expired'].includes(claim.status);
         return `
-          <article class="submission">
+          <article class="submission ${rowCompleted ? 'completed' : ''}">
             <div class="submission-head">
               <div class="student"><span class="work-no">${no}号</span><span>${escapeHtml(claim.editorName)}</span></div>
               <div class="chips">
-                <span class="chip ${isReviewing ? 'warn' : ''}">${escapeHtml(status)}</span>
+                <span class="chip ${isWinner ? 'good' : isReviewing ? 'warn' : ''}">${escapeHtml(isWinner ? '已采用' : status)}</span>
+                ${task.completed && !isWinner ? '<span class="chip good">本单已结</span>' : ''}
                 ${claim.editorPhone ? `<span class="chip">${escapeHtml(claim.editorPhone)}</span>` : ''}
               </div>
             </div>
@@ -765,6 +794,7 @@
               <div class="note">
                 <h4>学员剪辑说明</h4>
                 <p>${hasSubmission ? `已提交审核：${escapeHtml(formatTime(claim.submittedAt || claim.snapshot?.createdAt || external.submittedAt || claim.updatedAt))}` : `已抢单：${escapeHtml(formatTime(claim.claimedAt))}。还没有提交审核作品。`}</p>
+                ${task.completed && !isWinner ? '<p>本单已有其他作品被采用，这条记录已结束，学员不能再提交这单。</p>' : ''}
                 ${claim.snapshot ? `<p>项目：${escapeHtml(claim.snapshot.fileName || '未命名音频')}；粗剪约 ${formatDuration(claim.snapshot.roughcutDuration)}。</p>` : ''}
                 ${hasExternal ? `<p>外部工具：${escapeHtml(external.toolLabel || external.tool || '未填写工具')}；成品链接已提交。</p>` : ''}
                 ${hasExternal && external.description ? `<p>${escapeHtml(external.description)}</p>` : ''}
@@ -781,7 +811,7 @@
             <div class="submission-actions">
               ${hasExternal ? `<a class="btn secondary" href="${escapeAttr(external.url)}" target="_blank" rel="noopener">打开成品</a>` : '<button class="btn secondary" type="button" disabled>试听成品</button>'}
               ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : (!hasExternal ? '<button class="btn secondary" type="button" disabled>未提交</button>' : '')}
-              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${canReview ? '' : 'disabled'}>采用这个</button>
+              <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${canReview ? '' : 'disabled'}>${escapeHtml(adoptLabel)}</button>
               <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="returned" ${canReview ? '' : 'disabled'}>打回修改</button>
               <button class="btn secondary" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${canReview ? '' : 'disabled'}>标记未采用</button>
             </div>
@@ -796,6 +826,10 @@
 
     async function reviewClaim(claimId, status) {
       if (!claimId || !status) return;
+      if (status === 'approved') {
+        const confirmed = window.confirm('确认采用这个作品吗？采用后，本订单将标记为已完结，其他抢单学员会收到“本单已结，不能再提交”的提醒。');
+        if (!confirmed) return;
+      }
       const isReturned = status === 'returned';
       const isRejected = status === 'rejected';
       const note = isReturned
@@ -826,6 +860,8 @@
         returned: '打回修改',
         completed: '已采用',
         rejected: '未采用',
+        closed_by_task_completed: '本单已结',
+        expired: '已超时',
       };
       return labels[status] || status || '制作中';
     }
@@ -869,25 +905,6 @@
         return '直播课订单重点看：是否去掉直播现场废话，保留课程主线、关键案例和行动步骤。';
       }
       return '先检查三件事：符合派单需求，开头结尾完整，音频听感顺畅。AI只给参考，最终由助教判断。';
-    }
-
-    function parseDemand(text) {
-      const result = {};
-      const firstHeading = text.search(/\n\s*(成品目标|必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]/);
-      if (firstHeading > 0) result.intro = text.slice(0, firstHeading).trim();
-      const pairs = [
-        ['target', /成品目标[:：]([\s\S]*?)(?=\n\s*(必须保留|必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['keep', /必须保留[:：]([\s\S]*?)(?=\n\s*(必须删除|广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['remove', /必须删除[:：]([\s\S]*?)(?=\n\s*(广告\/引流口径|广告|提交重点)[:：]|$)/],
-        ['ad', /广告\/引流口径[:：]([\s\S]*?)(?=\n\s*提交重点[:：]|$)/],
-        ['submit', /提交重点[:：]([\s\S]*?)$/],
-      ];
-      pairs.forEach(([key, pattern]) => {
-        const match = text.match(pattern);
-        if (match?.[1]) result[key] = match[1].trim();
-      });
-      if (result.ad && result.submit) result.submit = `${result.ad}\n\n${result.submit}`;
-      return result;
     }
 
     function extractPrice(text) {

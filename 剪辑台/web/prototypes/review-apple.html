@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>金钱剪刀 · 审稿（苹果风样板）</title>
+<style>
+/* =========================================================
+   金钱剪刀 · 审稿页「高级苹果风」样板
+   纯视觉原型 · 不接后端 · 不动任何剪辑逻辑
+   目的：给当当看方向，满意后再把这套系统铺回真页面
+   ========================================================= */
+:root{
+  /* —— 底色：大面积白 + 一层极浅灰，制造纸面呼吸感 —— */
+  --bg:#f5f5f7;            /* 苹果官网同款背景灰 */
+  --surface:#ffffff;
+  --surface-2:#fbfbfd;
+  --hairline:#e8e8ed;
+  --hairline-strong:#d2d2d7;
+
+  /* —— 墨阶：靠字重和灰度拉层级，不靠颜色 —— */
+  --ink:#1d1d1f;
+  --ink-2:#48484a;
+  --muted:#86868b;
+  --light:#a1a1a6;
+
+  /* —— 唯一强调色：金黄，只留给「唯一主动作」和「正在编辑」 —— */
+  --accent:#F5A623;
+  --accent-hover:#e6991a;
+  --accent-deep:#b8760a;
+  --accent-soft:rgba(245,166,35,.10);
+
+  --danger:#ff3b30;
+  --keep:#34c759;         /* 保留/已就绪的绿 */
+
+  /* —— 深度：极轻、分层，越靠上阴影越散 —— */
+  --shadow-1:0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
+  --shadow-2:0 4px 20px rgba(0,0,0,.06);
+  --shadow-float:0 12px 40px rgba(0,0,0,.14);
+
+  --radius:14px;
+  --radius-sm:10px;
+  --radius-pill:980px;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --sidebar-w:352px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  font-size:16px;
+  line-height:1.7;
+}
+.mono{font-family:"SF Mono","Fira Code",Consolas,monospace;font-variant-numeric:tabular-nums;}
+
+/* =================== 顶栏：毛玻璃 =================== */
+.topbar{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  height:52px;
+  display:flex;align-items:center;gap:16px;padding:0 22px;
+  background:rgba(255,255,255,.72);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(0,0,0,.06);
+}
+.brand{font-size:16px;font-weight:600;letter-spacing:-.02em;}
+.brand .cut{color:var(--accent);}
+.proj{font-size:13px;color:var(--muted);letter-spacing:-.01em;}
+.fill{flex:1}
+
+.iconbtn{
+  width:34px;height:34px;border-radius:9px;border:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;color:var(--ink-2);font-size:16px;cursor:pointer;
+  transition:background .18s var(--ease);
+}
+.iconbtn:hover{background:rgba(0,0,0,.05);}
+
+/* 唯一主动作按钮 —— 全页只有它是金黄实心 */
+.cta{
+  height:34px;padding:0 18px;border:none;border-radius:var(--radius-pill);
+  background:var(--accent);color:#fff;font-size:14px;font-weight:600;letter-spacing:-.01em;
+  cursor:pointer;transition:transform .15s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease);
+  box-shadow:0 2px 8px rgba(245,166,35,.35);
+}
+.cta:hover{background:var(--accent-hover);box-shadow:0 6px 18px rgba(245,166,35,.45);}
+.cta:active{transform:scale(.97);}
+
+/* =================== 布局 =================== */
+.wrap{display:flex;padding-top:52px;}
+
+/* ---------- 左侧栏 ---------- */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  height:calc(100vh - 52px);overflow-y:auto;
+  padding:24px 20px 60px;
+  border-right:1px solid var(--hairline);
+  background:var(--surface-2);
+}
+.sidebar::-webkit-scrollbar{width:8px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--hairline-strong);border-radius:4px}
+
+/* 时长卡：一张干净的 stat 卡 */
+.stat-card{
+  background:var(--surface);border-radius:var(--radius);padding:20px;
+  box-shadow:var(--shadow-1);border:1px solid var(--hairline);
+  margin-bottom:22px;
+}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+.stat-main{display:flex;align-items:baseline;gap:10px;}
+.stat-from{font-size:22px;font-weight:600;color:var(--light);letter-spacing:-.02em;}
+.stat-arrow{color:var(--light);font-size:16px;}
+.stat-to{font-size:34px;font-weight:700;color:var(--ink);letter-spacing:-.03em;line-height:1;}
+.stat-sub{margin-top:12px;font-size:13px;color:var(--muted);}
+.stat-sub b{color:var(--accent-deep);font-weight:600;}
+.stat-bar{height:6px;border-radius:3px;background:var(--surface-2);margin-top:14px;overflow:hidden;border:1px solid var(--hairline);}
+.stat-bar > i{display:block;height:100%;width:57%;background:linear-gradient(90deg,var(--accent),var(--accent-hover));border-radius:3px;}
+
+/* 分区小标题 */
+.sec-title{font-size:13px;font-weight:600;color:var(--ink);letter-spacing:-.01em;margin:0 4px 12px;display:flex;align-items:center;gap:8px;}
+.sec-title .count{font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--radius-pill);padding:1px 8px;}
+
+/* 说话人 pill */
+.sp-list{display:flex;flex-direction:column;gap:6px;margin-bottom:26px;}
+.sp-row{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:10px 12px;border-radius:var(--radius-sm);border:1px solid transparent;
+  background:transparent;cursor:pointer;text-align:left;
+  transition:background .16s var(--ease),border-color .16s var(--ease);
+}
+.sp-row:hover{background:var(--surface);border-color:var(--hairline);}
+.sp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.sp-name{font-size:14px;font-weight:500;color:var(--ink);flex:1;}
+.sp-val{font-size:12px;color:var(--muted);}
+
+/* 剪辑决策：折叠卡 */
+.dec{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-1);}
+.dec-hd{display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;user-select:none;}
+.dec-ic{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.dec-t{font-size:13.5px;font-weight:600;color:var(--ink);flex:1;letter-spacing:-.01em;}
+.dec-chev{color:var(--light);font-size:12px;transition:transform .2s var(--ease);}
+.dec.open .dec-chev{transform:rotate(90deg);}
+.dec-bd{padding:0 14px 14px;font-size:13px;color:var(--ink-2);line-height:1.65;display:none;}
+.dec.open .dec-bd{display:block;}
+.dec-bd li{margin:6px 0 6px 2px;list-style:none;padding-left:16px;position:relative;}
+.dec-bd li::before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--accent);}
+
+/* ---------- 中间正文 ---------- */
+.main{flex:1;min-width:0;height:calc(100vh - 52px);overflow-y:auto;}
+.main::-webkit-scrollbar{width:10px}
+.main::-webkit-scrollbar-thumb{background:var(--hairline-strong);border-radius:5px}
+
+.doc{max-width:760px;margin:0 auto;padding:36px 40px 160px;}
+
+/* 工具行：分段控件 + 搜索 */
+.toolrow{
+  display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:20;
+  padding:16px 0 18px;margin-bottom:8px;
+  background:linear-gradient(var(--bg) 72%,transparent);
+}
+.segment{display:inline-flex;background:var(--surface-2);border:1px solid var(--hairline);border-radius:10px;padding:2px;gap:2px;}
+.segment button{
+  border:none;background:transparent;font-size:13px;font-weight:500;color:var(--ink-2);
+  padding:6px 16px;border-radius:8px;cursor:pointer;transition:all .18s var(--ease);letter-spacing:-.01em;
+}
+.segment button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1);font-weight:600;}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--hairline);border-radius:10px;padding:0 12px;height:36px;transition:border-color .18s,box-shadow .18s;}
+.search:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+.search input{flex:1;border:none;outline:none;font-size:14px;color:var(--ink);background:transparent;}
+.search input::placeholder{color:var(--placeholder,#c7c7cc);}
+.search .mag{color:var(--light);font-size:15px;}
+
+.chapter{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:38px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--hairline);}
+.chapter:first-of-type{margin-top:8px;}
+
+/* 一句话 */
+.line{display:flex;gap:14px;margin:2px 0;padding:9px 12px;border-radius:12px;transition:background .15s var(--ease);cursor:default;}
+.line:hover{background:var(--surface);}
+.ts{font-size:12px;color:var(--light);flex-shrink:0;width:44px;padding-top:5px;text-align:right;}
+.who{font-size:12px;font-weight:600;flex-shrink:0;width:52px;padding-top:4px;letter-spacing:-.01em;}
+.who.host{color:#0a84ff;}
+.who.guest{color:#af52de;}
+.say{font-size:16.5px;line-height:1.72;color:var(--ink);letter-spacing:-.006em;}
+
+/* 词级样式 */
+.del{color:var(--light);text-decoration:line-through;text-decoration-color:var(--hairline-strong);text-decoration-thickness:1.5px;}
+.koupi{color:var(--light);text-decoration:line-through;text-decoration-color:rgba(255,59,48,.4);cursor:pointer;padding:0 1px;border-radius:3px;transition:background .15s;}
+.koupi:hover{background:rgba(255,59,48,.08);}
+.breath{display:inline-block;font-size:11px;color:var(--light);background:var(--surface-2);border:1px solid var(--hairline);border-radius:6px;padding:0 6px;margin:0 3px;vertical-align:1px;line-height:1.5;cursor:pointer;transition:all .15s;}
+.breath:hover{border-color:var(--accent);color:var(--accent-deep);}
+.gold{background:linear-gradient(transparent 62%,var(--accent-soft) 62%);border-radius:2px;padding:0 1px;font-weight:500;}
+
+/* 底部浮条：粗剪试听 */
+.player{
+  position:fixed;left:var(--sidebar-w);right:0;bottom:0;z-index:40;
+  display:flex;align-items:center;gap:16px;padding:14px 40px;
+  background:rgba(255,255,255,.8);
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid rgba(0,0,0,.06);
+}
+.play{width:42px;height:42px;border-radius:50%;border:none;background:var(--ink);color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;transition:transform .15s var(--ease);display:flex;align-items:center;justify-content:center;}
+.play:hover{transform:scale(1.06);}
+.ptime{font-size:12px;color:var(--muted);width:44px;}
+.ptrack{flex:1;height:5px;border-radius:3px;background:var(--hairline);position:relative;overflow:hidden;}
+.ptrack > i{position:absolute;left:0;top:0;bottom:0;width:34%;background:var(--ink-2);border-radius:3px;}
+.phint{font-size:12px;color:var(--muted);}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .player{left:0}
+  .doc{padding:24px 20px 160px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar">
+  <div class="brand">金钱<span class="cut">✂</span>剪刀</div>
+  <div class="proj">开营直播.m4a · 审稿</div>
+  <div class="fill"></div>
+  <button class="iconbtn" title="撤销">↩</button>
+  <button class="iconbtn" title="重做">↪</button>
+  <button class="iconbtn" title="工具">⚙</button>
+  <button class="cta">提交审核</button>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ 左侧栏 ============ -->
+  <aside class="sidebar">
+
+    <!-- 时长卡 -->
+    <div class="stat-card">
+      <div class="stat-label">剪后时长</div>
+      <div class="stat-main">
+        <span class="stat-from mono">50:00</span>
+        <span class="stat-arrow">→</span>
+        <span class="stat-to mono">28:24</span>
+      </div>
+      <div class="stat-sub">删减内容主要包括 <b>口癖 · 气口 · 跑题</b></div>
+      <div class="stat-bar"><i></i></div>
+    </div>
+
+    <!-- 说话人 -->
+    <div class="sec-title">说话人 <span class="count">2</span></div>
+    <div class="sp-list">
+      <button class="sp-row"><span class="sp-dot" style="background:#0a84ff"></span><span class="sp-name">播客主</span><span class="sp-val">64% · 18:11</span></button>
+      <button class="sp-row"><span class="sp-dot" style="background:#af52de"></span><span class="sp-name">瑶瑶</span><span class="sp-val">36% · 10:13</span></button>
+    </div>
+
+    <!-- 剪辑决策 -->
+    <div class="sec-title">剪辑决策</div>
+
+    <div class="dec open">
+      <div class="dec-hd" onclick="this.parentNode.classList.toggle('open')">
+        <span class="dec-ic">🎯</span><span class="dec-t">整体判断</span><span class="dec-chev">›</span>
+      </div>
+      <div class="dec-bd">
+        <ul>
+          <li>这是一期开营直播，核心是讲清楚 21 天怎么走</li>
+          <li>建议剪到 25–30 分钟，先不用片头片尾音乐</li>
+          <li>前 3 分钟寒暄和调试可整段删</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="dec">
+      <div class="dec-hd" onclick="this.parentNode.classList.toggle('open')">
+        <span class="dec-ic">✂️</span><span class="dec-t">建议删减</span><span class="dec-chev">›</span>
+      </div>
+      <div class="dec-bd">
+        <ul>
+          <li>口癖 270 处（就是 / 那个 / 然后）</li>
+          <li>超过 1.5s 的气口 42 处</li>
+          <li>14:20–15:40 跑题聊了周末，整段删</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="dec">
+      <div class="dec-hd" onclick="this.parentNode.classList.toggle('open')">
+        <span class="dec-ic">⭐</span><span class="dec-t">金句候选</span><span class="dec-chev">›</span>
+      </div>
+      <div class="dec-bd">
+        <ul>
+          <li>「先抢资格，采用才发钱」</li>
+          <li>「剪辑不是删废话，是把最好的留下来」</li>
+        </ul>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ============ 中间正文 ============ -->
+  <main class="main">
+    <div class="doc">
+
+      <div class="toolrow">
+        <div class="segment">
+          <button class="on">剪辑模式</button>
+          <button>粗剪试听</button>
+        </div>
+        <div class="search">
+          <span class="mag">⌕</span>
+          <input placeholder="搜索这份逐字稿…">
+        </div>
+      </div>
+
+      <div class="chapter">开场 · 欢迎</div>
+
+      <div class="line">
+        <span class="ts mono">0:03</span>
+        <span class="who host">播客主</span>
+        <span class="say"><span class="del">呃那个，大家能听到我说话吗，先调一下麦。</span></span>
+      </div>
+
+      <div class="line">
+        <span class="ts mono">0:18</span>
+        <span class="who host">播客主</span>
+        <span class="say">好，<span class="koupi">就是</span>欢迎大家来到剪辑营开营直播<span class="breath">气口 1.8s</span>今天我们<span class="koupi">就是</span>把 21 天怎么走讲清楚。</span>
+      </div>
+
+      <div class="line">
+        <span class="ts mono">0:41</span>
+        <span class="who guest">瑶瑶</span>
+        <span class="say">对，<span class="koupi">然后</span>我先自我介绍一下，我是这次的助教瑶瑶。</span>
+      </div>
+
+      <div class="chapter">主线 · 21 天怎么走</div>
+
+      <div class="line">
+        <span class="ts mono">1:12</span>
+        <span class="who host">播客主</span>
+        <span class="say">我先说一句最重要的：<span class="gold">剪辑不是删废话，是把最好的留下来。</span></span>
+      </div>
+
+      <div class="line">
+        <span class="ts mono">1:34</span>
+        <span class="who host">播客主</span>
+        <span class="say"><span class="koupi">那个</span>第一步是登录进训练台<span class="breath">气口 2.1s</span>完成 Day1 自我介绍解锁剪辑台。</span>
+      </div>
+
+      <div class="line">
+        <span class="ts mono">2:02</span>
+        <span class="who guest">瑶瑶</span>
+        <span class="say">接单台这边的规则也很简单——<span class="gold">先抢资格，采用才发钱。</span></span>
+      </div>
+
+      <div class="line">
+        <span class="ts mono">2:26</span>
+        <span class="who host">播客主</span>
+        <span class="say"><span class="del">诶我们周末那个火锅是不是还没约，等下私聊哈——</span>回到正题。</span>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============ 底部播放浮条 ============ -->
+<div class="player">
+  <button class="play">▶</button>
+  <span class="ptime mono">9:41</span>
+  <div class="ptrack"><i></i></div>
+  <span class="ptime mono">28:24</span>
+  <span class="phint">粗剪试听 · 已跳过删除段</span>
+</div>
+
+</body>
+</html>

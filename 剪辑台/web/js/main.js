@@ -12,6 +12,7 @@ import {
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 const MAX_FILES = 10;
+const DECISION_BUNDLE_TIMEOUT_MS = 6 * 60 * 1000;
 const PRACTICE_MATERIAL = {
   id: 'practice-launch-live-20260612',
   title: 'D2 练习素材｜开营直播',
@@ -477,7 +478,7 @@ async function runPipeline() {
     setProgress(94);
     let openLocalReviewOnly = false;
     try {
-      const decisionBundle = await generateDecisionBundle(sentences, { timeoutMs: 25000 });
+      const decisionBundle = await generateDecisionBundle(sentences, { timeoutMs: DECISION_BUNDLE_TIMEOUT_MS });
       if (decisionBundle.decisionReport) {
         payload.decisionReport = decisionBundle.decisionReport;
         payload.CHAPS = decisionBundle.chapters;
@@ -855,52 +856,24 @@ JSON 格式必须是：
 - startIdx 要尽量选这一幕真正开始的句子编号，不要全都写 0
 - body 要具体，不能只写空话；引用原文金句时可以摘短句，但不要大段复制`;
 
-async function generateDecisionBundle(sentences, { timeoutMs = 25000 } = {}) {
+async function generateDecisionBundle(sentences, { timeoutMs = DECISION_BUNDLE_TIMEOUT_MS } = {}) {
   try {
     const transcriptText = formatIndexedTranscript(sentences);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch('https://chuanjiabao.vip/ai/', {
+    const data = await apiJson('/api/deepseek/chat', {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'deepseek-chat',
+        purpose: 'decision_bundle',
         max_tokens: 6500,
-        stream: true,
+        response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: ANALYSIS_PROMPT + '\n\n以下是播客逐字稿：\n\n' + transcriptText }],
       }),
     }).finally(() => clearTimeout(timeoutId));
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(readAiProxyError(err, res.status));
-    }
-
-    let fullText = '';
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6);
-        if (jsonStr === '[DONE]') continue;
-        try {
-          const event = JSON.parse(jsonStr);
-          if (event.choices?.[0]?.delta?.content) {
-            fullText += event.choices[0].delta.content;
-          }
-        } catch (_) {}
-      }
-    }
-
+    const fullText = String(data?.choices?.[0]?.message?.content || '').trim();
     if (!fullText) throw new Error('未收到分析内容');
     const parsed = parseJsonFromAi(fullText);
     const sections = normalizeDecisionSections(parsed?.sections, sentences);
@@ -1063,13 +1036,6 @@ function fallbackDecisionSections(sentences) {
       ].join('\n'),
     },
   ];
-}
-
-function readAiProxyError(data, status) {
-  if (typeof data?.error?.message === 'string' && data.error.message.trim()) return data.error.message;
-  if (typeof data?.message === 'string' && data.message.trim()) return data.message;
-  if (typeof data?.error === 'string' && data.error.trim()) return data.error;
-  return `AI 服务暂时没有正常返回（HTTP ${status}）`;
 }
 
 function formatErrorMessage(error) {

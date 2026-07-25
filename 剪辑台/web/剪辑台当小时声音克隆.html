@@ -153,7 +153,7 @@
   <p class="subtitle">输入旁白文字，生成当小时声音的音频</p>
 
   <label>旁白文字</label>
-  <textarea id="text" placeholder="在这里粘贴旁白内容……" oninput="updateCount()"></textarea>
+  <textarea id="text" maxlength="500" placeholder="在这里粘贴旁白内容……" oninput="updateCount()"></textarea>
   <div class="char-count"><span id="count">0</span> 字</div>
 
   <button id="btn" onclick="generate()">生成音频</button>
@@ -166,13 +166,15 @@
   </div>
 
   <div class="tips">
-    · 建议每段不超过 500 字，太长可分段生成<br>
-    · 生成时间约 5–15 秒，请耐心等待<br>
+    · 每段最多 500 字，太长请分段生成<br>
+    · 使用已经克隆好的当小时声音，生成时间约 5–15 秒<br>
     · 生成的音频仅用于播客课程剪辑练习
   </div>
 </div>
 
 <script>
+window.location.replace('https://voice.podvid.uk');
+
 function readToolAuthToken() {
   try {
     const auth = JSON.parse(localStorage.getItem('jinqian_token') || '{}');
@@ -198,6 +200,7 @@ if (!readToolAuthToken()) {
 }
 
 let audioBlob = null;
+let audioUrl = '';
 function updateCount() {
   document.getElementById("count").textContent = document.getElementById("text").value.length;
 }
@@ -207,10 +210,58 @@ function setStatus(type, msg) {
   el.textContent = msg;
 }
 async function generate() {
-  setStatus("error", "声音克隆涉及本人授权和接口成本，当前只作为内部授权入口保留。需要使用请联系助教开通。");
+  const text = document.getElementById("text").value.trim();
+  if (!text) { setStatus("error", "请先输入旁白文字"); return; }
+  if (text.length > 500) { setStatus("error", "单段最多 500 字，请分段生成"); return; }
+
+  const token = readToolAuthToken();
+  if (!token) { location.href = getToolLoginUrl(); return; }
+  const btn = document.getElementById("btn");
+  btn.disabled = true;
+  document.getElementById("audioWrap").style.display = "none";
+  setStatus("loading", "⏳ 正在用当小时声音生成，请稍候…");
+  try {
+    const response = await fetch('/api/voice/synthesize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      let error = {};
+      try { error = await response.json(); } catch (_) {}
+      if (response.status === 401) {
+        localStorage.removeItem('jinqian_token');
+        location.href = getToolLoginUrl();
+        return;
+      }
+      throw new Error(error.message || '声音生成失败，请稍后重试');
+    }
+    const blob = await response.blob();
+    if (!blob.size || !String(blob.type || '').toLowerCase().includes('audio')) {
+      throw new Error('没有收到有效音频，请稍后重试');
+    }
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    audioBlob = blob;
+    audioUrl = URL.createObjectURL(blob);
+    document.getElementById("player").src = audioUrl;
+    document.getElementById("audioWrap").style.display = "block";
+    setStatus("success", "✅ 生成成功，可以直接试听或下载");
+  } catch (error) {
+    setStatus("error", error.message || "声音生成失败，请稍后重试");
+  } finally {
+    btn.disabled = false;
+  }
 }
 function download() {
-  setStatus("error", "当前没有可下载音频。需要声音生成请联系助教开通内部授权。");
+  if (!audioBlob || !audioUrl) { setStatus("error", "当前没有可下载音频，请先生成"); return; }
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const link = document.createElement('a');
+  link.href = audioUrl;
+  link.download = `当小时旁白_${stamp}.mp3`;
+  link.click();
 }
 </script>
 </body>

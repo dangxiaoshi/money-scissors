@@ -1056,6 +1056,8 @@ body.readonly .star { display: none; }
 .r-sp { font-size: 14px; font-weight: 700; min-width: 56px; flex-shrink:0; margin-right: 12px; padding-top: 4px; color: var(--ink-2); }
 .r-tm { display: none; }
 .r-txt { font-size: 16px; line-height: 1.8; color: var(--ink); flex:1; min-width:0; }
+/* 纯逐字稿文字容器：只包住参与字符偏移计算的正文，气口/原因标签在它之外 */
+.r-txt .r-transcript-text { display: inline; }
 .r-num { font-family:"SF Mono",monospace; font-size: 11px; color: var(--light); min-width: 32px; flex-shrink:0; margin-right: 8px; padding-top: 6px; text-align:right; user-select:none; font-variant-numeric: tabular-nums; }
 
 /* Half-sentence deletion */
@@ -1175,6 +1177,23 @@ body.readonly .star { display: none; }
 .info-popup.vis { display: block; }
 .info-popup-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; color: var(--ink); }
 .info-popup p { margin-bottom: 8px; }
+.fb-popup { width: 360px; }
+.fb-hint { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.fb-textarea, .fb-input {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--hairline);
+  border-radius: 8px; padding: 9px 10px; font-size: 13px; color: var(--ink);
+  background: var(--bg, #fff); font-family: inherit; resize: vertical;
+}
+.fb-textarea { margin-bottom: 10px; }
+.fb-textarea:focus, .fb-input:focus { outline: none; border-color: var(--accent); }
+.fb-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; cursor: pointer; }
+.fb-check input { width: auto; }
+.fb-input { margin-bottom: 12px; }
+.fb-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.fb-actions .info-close, .fb-actions .gear-action { margin: 0; width: auto; }
+.fb-result { margin-top: 10px; font-size: 13px; min-height: 18px; }
+.fb-result.ok { color: #1a7f4b; }
+.fb-result.err { color: #c0392b; }
 .info-close {
   margin-top: 8px; padding: 8px 16px; background: var(--accent); color: #fff;
   border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -1506,6 +1525,7 @@ body.readonly .star { display: none; }
     <button class="gear-action" id="manual-save-btn" onclick="manualSaveNow()">保存</button>
     <button class="gear-action" onclick="doExport({next:'cut'})">导出 MP3（去外部软件）</button>
     <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交/导出说明</button>
+    <button class="gear-action" onclick="openFeedbackDialog()">问题反馈</button>
   </div>
   <div class="gear-popup-title">音频精修</div>
   <label class="refine-option">
@@ -1529,6 +1549,20 @@ body.readonly .star { display: none; }
   <p>「导出 MP3」是把站内粗剪结果下载到电脑，方便去剪映、AU、Logic、Audacity 等外部软件继续精修/交付。</p>
   <p>两条流程不互相替代：要交给助教看，点「提交审核」；要拿到音频文件去外部软件，点「导出 MP3」。</p>
 <button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
+</div>
+
+<!-- Problem feedback -->
+<div class="info-popup fb-popup" id="fb-popup">
+  <div class="info-popup-title">问题反馈</div>
+  <p class="fb-hint">遇到卡顿、删了还播、导出对不上、页面报错等问题，写一句就行。会自动带上当前项目和你的剪辑情况，方便助教定位。</p>
+  <textarea id="fb-desc" class="fb-textarea" rows="4" placeholder="你遇到了什么问题？越具体越好，比如「点删除后卡了三四秒」。"></textarea>
+  <label class="fb-check"><input type="checkbox" id="fb-blocking"> 这个问题挡住我了，剪不下去</label>
+  <input id="fb-shot" class="fb-input" type="text" placeholder="截图/录屏链接（可选，先上传到微信/网盘再贴链接）">
+  <div class="fb-actions">
+    <button class="info-close fb-cancel" onclick="document.getElementById('fb-popup').classList.remove('vis')">取消</button>
+    <button class="gear-action primary fb-submit" id="fb-submit" onclick="submitReviewFeedback()">提交反馈</button>
+  </div>
+  <div class="fb-result" id="fb-result"></div>
 </div>
 
 <!-- Dispatch task requirements -->
@@ -2028,9 +2062,15 @@ function txtHtml(x, breathByPrev){
     html += esc(full.slice(i, nx));
     i = nx;
   }
-  const after = breathGapAfterSentence(x.idx, breathByPrev);
-  if(after) html += breathGapHtml(after);
+  // 纯逐字稿文字返回给 .r-transcript-text；气口标签由调用方放在容器之外，
+  // 避免气口文字进入跨句选区的字符偏移计算。
   return html;
+}
+
+// 句末气口标签 HTML（渲染在 .r-transcript-text 容器之外）
+function breathHtmlAfterSentence(idx, breathByPrev){
+  const after = breathGapAfterSentence(idx, breathByPrev);
+  return after ? breathGapHtml(after) : '';
 }
 
 function introRangesForSentence(idx){
@@ -2132,6 +2172,7 @@ function switchSideTab(name){
 // 单个口癖词 → 写进 pdel（半句删除），完全复用现有机制
 function kpKillHit(hit){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再标删口癖'); return; }
   const idx=Number(hit&&hit.idx), wi=Number(hit&&hit.wi);
   const x=S.find(s=>s.idx===idx); if(!x||!x.w||!x.w[wi]) return;
   const cs=Number(hit.cs), ce=Number(hit.ce);
@@ -2144,6 +2185,7 @@ function kpKillHit(hit){
 // 一键全标删：整句都是口癖 → 删整句(del)，否则逐词进 pdel
 function kpKillAll(){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再标删口癖'); return; }
   const hits=kpAllHits();
   if(!hits.length){ toast('没有检测到口癖'); return; }
   kpPushUndo();
@@ -2286,6 +2328,7 @@ function breathRestore(id){
 }
 function breathToggle(id){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再缩短或恢复气口'); return; }
   const g=breathCandidates().find(item=>item.id===id);
   if(!g) return;
   breathCurId=id;
@@ -2332,6 +2375,7 @@ function breathShortenGap(g){
 }
 function breathShortenAll(){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再缩短气口'); return; }
   const pending=breathPendingCandidates();
   if(!pending.length){ toast('没有检测到长气口'); return; }
   kpPushUndo();
@@ -2366,6 +2410,7 @@ function kpPushUndo(){
 }
 function kpUndo(){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再撤销'); return; }
   if(!kpUndoStack.length){ toast('没有可撤销的操作'); return; }
   kpRedoStack.push(kpSnap());
   kpApply(kpUndoStack.pop());
@@ -2373,6 +2418,7 @@ function kpUndo(){
 }
 function kpRedo(){
   if(window.__READ_ONLY) return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再前进'); return; }
   if(!kpRedoStack.length){ toast('没有可前进的操作'); return; }
   kpUndoStack.push(kpSnap());
   kpApply(kpRedoStack.pop());
@@ -2383,8 +2429,8 @@ function kpCanRedo(){ return kpRedoStack.length>0; }
 function updateTopbarHistoryButtons(){
   const undoBtn=document.getElementById('undo-btn');
   const redoBtn=document.getElementById('redo-btn');
-  if(undoBtn) undoBtn.disabled=window.__READ_ONLY || !kpCanUndo();
-  if(redoBtn) redoBtn.disabled=window.__READ_ONLY || !kpCanRedo();
+  if(undoBtn) undoBtn.disabled=window.__READ_ONLY || previewMode || !kpCanUndo();
+  if(redoBtn) redoBtn.disabled=window.__READ_ONLY || previewMode || !kpCanRedo();
 }
 // 键盘：⌘/Ctrl+Z 撤销，⌘/Ctrl+Shift+Z 或 Ctrl+Y 前进
 document.addEventListener('keydown', e=>{
@@ -3129,7 +3175,8 @@ function renderTx(options = {}) {
     if(isLast) cl+=' sp-last';
     const reasonTag = (isSug && x.sugReason) ? `<span class="sug-reason">${esc(x.sugReason)}</span>` : '';
     const goldBtn = SHOW_GOLDEN ? `<div class="star ${ig?'on':''}" title="${ig?'取消金句':'设为金句（开头播放）'}" onclick="event.stopPropagation();tgG(${x.idx})">★</div>` : '';
-    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div>${goldBtn}</div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${esc(displaySp(x.sp))}</div><div class="r-tm">${x.ts}</div><div class="r-txt">${txtHtml(x, breathByPrev)}${reasonTag}</div></div>`;
+    const breathHtml = breathHtmlAfterSentence(x.idx, breathByPrev);
+    h+=`<div class="${cl}" id="r${x.idx}" onclick="goTo(${x.idx})"><div class="r-chk"><div class="chk ${id?'on':''}" onclick="event.stopPropagation();tgS(${x.idx})">✕</div>${goldBtn}</div><div class="r-num mono">${x.idx+1}</div><div class="r-sp">${esc(displaySp(x.sp))}</div><div class="r-tm">${x.ts}</div><div class="r-txt"><span class="r-transcript-text">${txtHtml(x, breathByPrev)}</span>${breathHtml}${reasonTag}</div></div>`;
   });
   c.innerHTML=h;
 }
@@ -3158,6 +3205,7 @@ async function openIntroMaker(){
 // ===== INTERACTIONS =====
 function tgS(i){
   if(window.__READ_ONLY)return;
+  if(previewMode){ toast('粗剪试听只用于回听，请切回剪辑模式再删除或恢复'); return; }
   kpPushUndo();
   let restoreAt=null;
   if(del.has(i)){
@@ -3234,37 +3282,80 @@ function parseJsonObject(text){
   if(match){try{return JSON.parse(match[0])}catch{}}
   return null;
 }
-function tgB(id){if(window.__READ_ONLY)return;kpPushUndo();const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAllKeepingSentenceSearchFresh();sv()}
+function tgB(id){if(window.__READ_ONLY)return;if(previewMode){toast('粗剪试听只用于回听，请切回剪辑模式再删除或恢复');return}kpPushUndo();const b=BLK.find(x=>x.id===id);if(!b)return;const ad=isBD(b);for(let i=b.r[0];i<=b.r[1];i++){if(ad){del.delete(i)}else{del.add(i);gold.delete(i)}um.add(i)}renderAllKeepingSentenceSearchFresh();sv()}
 
 // ===== 半句删除（选区 → 词 → 时间段）=====
 const selbtn=document.createElement('div');
 selbtn.id='selbtn';
-selbtn.innerHTML='<button type="button" data-act="delete">✂ 删除选中</button><button type="button" data-act="intro">★ 加入片头</button>';
 selbtn.onmousedown=e=>e.preventDefault();   // 防止点按钮时清空选区
 selbtn.onclick=e=>{
   const act=e.target && e.target.dataset ? e.target.dataset.act : '';
   if(act==='intro') addIntroFromSelection();
-  else delSel();
+  else if(act==='restore') handleSelRestore();
+  else if(act==='delete') handleSelDelete();
 };
 document.body.appendChild(selbtn);
 function hideSelBtn(){ selbtn.style.display='none'; }
 document.addEventListener('mousedown',e=>{ if(!selbtn.contains(e.target)) hideSelBtn(); });
 
+// 选区起止点是否落在不同 .row（即使只与一个正文容器相交，例如从说话人名拖到下一行说话人名）
+function selectionSpansMultipleRows(){
+  const sel=window.getSelection();
+  if(!sel || !sel.rangeCount) return false;
+  const r=sel.getRangeAt(0);
+  const rowOf=n=>{ const el=n&&(n.nodeType===1?n:n.parentElement); return el?el.closest('.row'):null; };
+  const a=rowOf(r.startContainer), b=rowOf(r.endContainer);
+  return !!(a && b && a!==b);
+}
+
+// 浮层与执行必须共用同一个“是否跨行”口径：正文命中多行，或选区端点落在不同 row，都算跨行。
+function selectionIsMultiRow(rows=[]){
+  return rows.length>=2 || selectionSpansMultipleRows();
+}
+
+// 依据当前选区动态构建浮层按钮：
+// 单句未删=删除+片头；多句=删除（片头隐藏）；含已删文字=额外恢复选中；全为已删=恢复选中为主
+function buildSelBtn(rows){
+  if(previewMode){ selbtn.innerHTML=''; return; }
+  const info=selectedDeletedInfo(rows);
+  const multi=selectionIsMultiRow(rows);
+  const btns=[];
+  // 第一阶段只开放单句“恢复选中”。跨多句恢复先隐藏，避免混合 del/pdel 状态未经完整验收就对外开放。
+  if(multi){
+    if(!info.allDeleted) btns.push('<button type="button" data-act="delete">✂ 删除选中</button>');
+    selbtn.innerHTML=btns.join('');
+    return;
+  }
+  if(info.allDeleted){
+    btns.push('<button type="button" data-act="restore">↺ 恢复选中</button>');
+  } else {
+    btns.push('<button type="button" data-act="delete">✂ 删除选中</button>');
+    if(info.anyDeleted) btns.push('<button type="button" data-act="restore">↺ 恢复选中</button>');
+    if(!multi && !info.anyDeleted) btns.push('<button type="button" data-act="intro">★ 加入片头</button>');
+  }
+  selbtn.innerHTML=btns.join('');
+}
+
 document.getElementById('tx').addEventListener('mouseup',e=>{
   if (window.__READ_ONLY) return;
-  // 点到已划掉的词 → 恢复该段
+  // 粗剪试听只负责回听。已删行虽被视觉折叠但仍在 DOM 中，因此该模式不允许执行删除/恢复选区。
+  if (previewMode){ hideSelBtn(); return; }
+  // 点到已划掉的词：纯点击 → 整块恢复；正在划选 → 放行给下面的“恢复选中”选区逻辑
   if(e.target.classList && e.target.classList.contains('pd')){
-    const row=e.target.closest('.row'); if(!row) return;
-    const idx=+row.id.slice(1), ri=+e.target.dataset.ri;
-    const restored=pdel[idx]&&pdel[idx][ri] ? {...pdel[idx][ri]} : null;
-    if(pdel[idx]){
-      kpPushUndo();
-      pdel[idx].splice(ri,1);
-      if(!pdel[idx].length) delete pdel[idx];
+    const pdSel=window.getSelection();
+    if(!pdSel || pdSel.isCollapsed || !pdSel.toString().trim()){
+      const row=e.target.closest('.row'); if(!row) return;
+      const idx=+row.id.slice(1), ri=+e.target.dataset.ri;
+      const restored=pdel[idx]&&pdel[idx][ri] ? {...pdel[idx][ri]} : null;
+      if(pdel[idx]){
+        kpPushUndo();
+        pdel[idx].splice(ri,1);
+        if(!pdel[idx].length) delete pdel[idx];
+      }
+      renderAll(); sv(); hideSelBtn();
+      if(restored) previewRestoredAudio(restored.s);
+      return;
     }
-    renderAll(); sv(); hideSelBtn();
-    if(restored) previewRestoredAudio(restored.s);
-    return;
   }
   // 点口癖词（灰虚线）→ 单个标删，写进 pdel。仅纯点击触发；正在划选则放行给选区删除逻辑
   if(e.target.classList && e.target.classList.contains('kp')){
@@ -3284,8 +3375,9 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
   setTimeout(()=>{
     const sel=window.getSelection();
     if(!sel||sel.isCollapsed||!sel.toString().trim()){ hideSelBtn(); return; }
-    const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
-    const txt=el&&el.closest('.r-txt'); if(!txt){ hideSelBtn(); return; }
+    const rows=collectSelectionRows();
+    if(!rows.length){ hideSelBtn(); return; }
+    buildSelBtn(rows);
     const rect=sel.getRangeAt(0).getBoundingClientRect();
     selbtn.style.display='flex';
     const popWidth=selbtn.offsetWidth || 260;
@@ -3294,32 +3386,42 @@ document.getElementById('tx').addEventListener('mouseup',e=>{
   },10);
 });
 
+// 单句选区（供“加入片头”用）：复用 collectSelectionRows，起点落在说话人/序号等非正文节点也能正确取到正文行，
+// 避免浮层出现“加入片头”但点击无反应（anchor 不在 .r-transcript-text 的情况）。
 function selectedSentenceRange(){
   if (window.__READ_ONLY) return;
-  const sel=window.getSelection(); if(!sel||sel.isCollapsed) return;
-  const range=sel.getRangeAt(0);
-  const an=sel.anchorNode; const el=(an&&an.nodeType===1?an:an&&an.parentElement);
-  const txt=el&&el.closest('.r-txt'); if(!txt){ hideSelBtn(); return; }
-  const idx=+txt.closest('.row').id.slice(1);
-  const x=S.find(s=>s.idx===idx); if(!x||!x.w){ hideSelBtn(); return; }
-  const selText=sel.toString(); if(!selText.trim()){ hideSelBtn(); return; }
+  const rows=collectSelectionRows();
+  if(rows.length!==1 || selectionIsMultiRow(rows)){ hideSelBtn(); return; }   // 只有真正的单句选区才允许加入片头
+  const r=rows[0];
+  const entry=pdelEntryFromChars(r.x, r.cs, r.ce);
+  if(!entry){ hideSelBtn(); return; }
+  return {sel:window.getSelection(), idx:r.idx, x:r.x, cs:entry.cs, ce:entry.ce, s:entry.s, e:entry.e, text:entry.text};
+}
 
-  // 精确字符偏移：从 r-txt 起点到选区起点的文本长度（不依赖 indexOf，避免同字误匹配）
-  const pre=document.createRange(); pre.setStart(txt,0); pre.setEnd(range.startContainer, range.startOffset);
-  const pos=pre.toString().length;
+// 取 DOM 点在 .r-transcript-text 容器内的字符偏移；点不在容器内时回退到 fallback（首行取 0，末行取全长）
+function rangeCharOffsetInContainer(container, node, offset, fallback, fullLen){
+  if(!container.contains(node)) return fallback;
+  const r=document.createRange();
+  r.setStart(container, 0);
+  r.setEnd(node, offset);
+  return Math.max(0, Math.min(r.toString().length, fullLen));
+}
+
+// 共用「字符区间 → 音频区间」：删除、恢复、区间拆分统一走这里，避免同一段文字出现两套时间算法
+function pdelEntryFromChars(x, cs, ce){
+  if(!x || !x.w || !x.w.length) return null;
   const wt=x.w.map(w=>w.t); const full=wt.join('');
-  const delEnd=Math.min(pos+selText.length, full.length);
-  if(pos<0 || delEnd<=pos){ hideSelBtn(); return; }
-
-  // 字符区间 [pos,delEnd) → 词 + 词内偏移
+  cs=Math.max(0, Math.min(Number(cs), full.length));
+  ce=Math.max(0, Math.min(Number(ce), full.length));
+  if(!(ce>cs)) return null;
   let cc=0, sW=null, eW=null, sOff=0, eOff=0;
   for(let i=0;i<wt.length;i++){
     const wS=cc, wE=cc+wt[i].length;
-    if(sW===null && wE>pos){ sW=i; sOff=pos-wS; }
-    if(wE>=delEnd){ eW=i; eOff=wE-delEnd; break; }
+    if(sW===null && wE>cs){ sW=i; sOff=cs-wS; }
+    if(wE>=ce){ eW=i; eOff=wE-ce; break; }
     cc=wE;
   }
-  if(sW===null||eW===null){ hideSelBtn(); return; }
+  if(sW===null||eW===null) return null;
   const sw=x.w[sW], ew=x.w[eW];
   // 词内按字符比例插值时间（ASR 合词时也能切准）
   let st=(sOff>0 && wt[sW].length>0) ? sw.s+(sw.e-sw.s)*(sOff/wt[sW].length) : sw.s;
@@ -3327,17 +3429,161 @@ function selectedSentenceRange(){
   // 有条件边界扩展（仅当选区正好落在词边界时）：起点 gap<0.2s 前移，终点 gap<2s 延后，吃掉死气间隙
   if(sOff===0 && sW>0){ const pv=x.w[sW-1]; const g=st-pv.e; if(g>=0&&g<0.20) st=pv.e; }
   if(eOff===0 && eW<x.w.length-1){ const nx=x.w[eW+1]; const g=nx.s-et; if(g>=0&&g<2.0) et=nx.s; }
-
-  return {sel, idx, x, cs:pos, ce:delEnd, s:r3(st), e:r3(et), text:full.slice(pos, delEnd)};
+  return { cs, ce, s:r3(st), e:r3(et), text:full.slice(cs, ce) };
 }
 
-function delSel(){
-  const hit=selectedSentenceRange();
-  if(!hit) return;
+// 逐行收集与当前选区相交的句子，返回每行的局部字符区间 [cs,ce)（按句子顺序归一，正/反向拖选一致）
+function collectSelectionRows(){
+  if(previewMode) return [];
+  const sel=window.getSelection();
+  if(!sel || sel.isCollapsed || !sel.rangeCount) return [];
+  const range=sel.getRangeAt(0);
+  const rows=[];
+  document.querySelectorAll('#tx .r-transcript-text').forEach(container=>{
+    if(!range.intersectsNode(container)) return;
+    const row=container.closest('.row'); if(!row) return;
+    const idx=+row.id.slice(1);
+    const x=S.find(s=>s.idx===idx); if(!x||!x.w) return;
+    const full=x.w.map(w=>w.t).join('');
+    const cs=rangeCharOffsetInContainer(container, range.startContainer, range.startOffset, 0, full.length);
+    const ce=rangeCharOffsetInContainer(container, range.endContainer, range.endOffset, full.length, full.length);
+    if(!(ce>cs)) return;
+    if(!full.slice(cs, ce).trim()) return;   // 只框到空格/标点：跳过，不生成零长度删除
+    rows.push({ idx, x, full, cs, ce, fullLen:full.length });
+  });
+  rows.sort((a,b)=>a.idx-b.idx);
+  return rows;
+}
+
+// 选区涉及的删除态：是否含已删文字、是否全部是已删文字
+function selectedDeletedInfo(rows){
+  let anyDeleted=false, anyKept=false;
+  rows.forEach(r=>{
+    if(del.has(r.idx)){ anyDeleted=true; return; }
+    const ranges=pdel[r.idx]||[];
+    for(let p=r.cs; p<r.ce; p++){
+      if(ranges.some(g=>p>=g.cs && p<g.ce)) anyDeleted=true; else anyKept=true;
+    }
+  });
+  return { anyDeleted, allDeleted: anyDeleted && !anyKept };
+}
+
+// 归一化某句 pdel：只有字符与音频时间都连续时才合并。
+// 字符相邻不代表音频相邻；若中间有数秒气口，合并时间并集会无提示扩大实际删除范围。
+function normalizePdelForSentence(idx){
+  const x=S.find(s=>s.idx===Number(idx));
+  const fullLen=(x&&x.w)?x.w.map(w=>w.t).join('').length:Infinity;   // 越界旧数据按句长夹紧
+  const list=(pdel[idx]||[])
+    .map(r=>({ cs:Math.max(0,Math.min(Number(r.cs),fullLen)), ce:Math.max(0,Math.min(Number(r.ce),fullLen)), s:Number(r.s), e:Number(r.e) }))
+    .filter(r=>Number.isFinite(r.cs)&&Number.isFinite(r.ce)&&r.ce>r.cs&&Number.isFinite(r.s)&&Number.isFinite(r.e)&&r.e>r.s)
+    .sort((a,b)=>a.cs-b.cs||a.ce-b.ce);
+  const merged=[];
+  list.forEach(r=>{
+    const last=merged[merged.length-1];
+    const charsTouch=last && r.cs<=last.ce;
+    const audioTouches=last && r.s<=last.e+0.001 && r.e>=last.s-0.001;
+    if(last && charsTouch && audioTouches){
+      last.ce=Math.max(last.ce, r.ce);
+      last.s=Math.min(last.s, r.s);
+      last.e=Math.max(last.e, r.e);
+    } else merged.push({ ...r });
+  });
+  if(merged.length) pdel[idx]=merged; else delete pdel[idx];
+}
+
+function addPdelEntry(idx, entry){
+  if(!entry) return;
+  (pdel[idx]=pdel[idx]||[]).push({ cs:entry.cs, ce:entry.ce, s:entry.s, e:entry.e });
+  normalizePdelForSentence(idx);
+}
+
+// 删除选中：单句沿用局部删除；跨多句时首末句局部删除、中间整句进 del
+function handleSelDelete(){
+  if(previewMode){ hideSelBtn(); toast('粗剪试听只用于回听，请切回剪辑模式再修改'); return; }
+  const rows=collectSelectionRows();
+  if(!rows.length){ hideSelBtn(); return; }
+  const sel=window.getSelection();
+  const multi=selectionIsMultiRow(rows);
+  // 已经整句删除、或选区已经被局部删除完整覆盖的行再次参与“删除选中”属于 no-op。
+  // 先确认选区里仍有至少一个保留字符，避免制造空撤销、清空 redo 和无意义保存。
+  const selectionHasKeptChars=r=>{
+    let cursor=r.cs;
+    const covered=(pdel[r.idx]||[])
+      .map(g=>({ cs:Math.max(r.cs,Number(g.cs)), ce:Math.min(r.ce,Number(g.ce)) }))
+      .filter(g=>Number.isFinite(g.cs)&&Number.isFinite(g.ce)&&g.ce>g.cs)
+      .sort((a,b)=>a.cs-b.cs||a.ce-b.ce);
+    for(const g of covered){
+      if(g.ce<=cursor) continue;
+      if(g.cs>cursor) return true;
+      cursor=Math.max(cursor,g.ce);
+      if(cursor>=r.ce) return false;
+    }
+    return cursor<r.ce;
+  };
+  const actionable=rows.filter(r=>!del.has(r.idx)&&selectionHasKeptChars(r));
+  if(!actionable.length){ if(sel)sel.removeAllRanges(); hideSelBtn(); return; }
   kpPushUndo();
-  (pdel[hit.idx]=pdel[hit.idx]||[]).push({cs:hit.cs, ce:hit.ce, s:hit.s, e:hit.e});
-  um.add(hit.idx);
-  hit.sel.removeAllRanges(); hideSelBtn(); renderAll(); sv();
+  if(!multi && actionable.length===1){
+    const r=actionable[0];
+    addPdelEntry(r.idx, pdelEntryFromChars(r.x, r.cs, r.ce));
+    um.add(r.idx);
+  } else {
+    actionable.forEach(r=>{
+      if(r.cs===0 && r.ce===r.fullLen){        // 整句被完整覆盖 → 整句删除，等价于逐句点 ✕
+        del.add(r.idx); gold.delete(r.idx); delete pdel[r.idx];
+      } else {                                  // 首/末句局部 → 局部删除
+        addPdelEntry(r.idx, pdelEntryFromChars(r.x, r.cs, r.ce));
+      }
+      um.add(r.idx);
+    });
+  }
+  if(sel) sel.removeAllRanges();
+  hideSelBtn(); renderAll(); sv();
+}
+
+// 恢复选中：只恢复选区覆盖的已删文字；整句 del 被局部恢复时转成 pdel 保留其余删除
+function handleSelRestore(){
+  if(previewMode){ hideSelBtn(); toast('粗剪试听只用于回听，请切回剪辑模式再修改'); return; }
+  const rows=collectSelectionRows();
+  if(!rows.length){ hideSelBtn(); return; }
+  if(selectionIsMultiRow(rows)){ hideSelBtn(); toast('恢复选中暂只支持单句，请切回剪辑模式逐句恢复'); return; }
+  const sel=window.getSelection();
+  let touched=false, firstStart=null;
+  kpPushUndo();
+  rows.forEach(r=>{
+    const x=r.x;
+    if(del.has(r.idx)){
+      // 整句删除：恢复 [cs,ce)，其余转成 pdel 继续删除
+      del.delete(r.idx);
+      const rest=[];
+      if(r.cs>0) rest.push([0, r.cs]);
+      if(r.ce<r.fullLen) rest.push([r.ce, r.fullLen]);
+      delete pdel[r.idx];
+      rest.forEach(([a,b])=>addPdelEntry(r.idx, pdelEntryFromChars(x, a, b)));
+      um.add(r.idx); touched=true;
+      const kept=pdelEntryFromChars(x, r.cs, r.ce);
+      if(kept && firstStart===null) firstStart=kept.s;
+    } else if(pdel[r.idx] && pdel[r.idx].length){
+      // 局部删除：从每条区间里减去选区交集，可能拆成左右两段
+      const next=[];
+      pdel[r.idx].forEach(g=>{
+        const interStart=Math.max(g.cs, r.cs), interEnd=Math.min(g.ce, r.ce);
+        if(interEnd<=interStart){ next.push({ cs:g.cs, ce:g.ce, s:g.s, e:g.e }); return; }
+        touched=true;
+        if(firstStart===null){ const k=pdelEntryFromChars(x, interStart, interEnd); if(k) firstStart=k.s; }
+        // 左段：外侧边界(g.s)保持原值不重算，只按新的内侧切点更新终点，避免恢复中间几字连带改动左侧试听/导出切点
+        if(g.cs<interStart){ const e=pdelEntryFromChars(x, g.cs, interStart); if(e) next.push({ cs:g.cs, ce:interStart, s:g.s, e:e.e }); }
+        // 右段：外侧边界(g.e)保持原值，只按新的内侧切点更新起点
+        if(interEnd<g.ce){ const e=pdelEntryFromChars(x, interEnd, g.ce); if(e) next.push({ cs:interEnd, ce:g.ce, s:e.s, e:g.e }); }
+      });
+      if(next.length) pdel[r.idx]=next; else delete pdel[r.idx];
+      normalizePdelForSentence(r.idx);
+      um.add(r.idx);
+    }
+  });
+  if(sel) sel.removeAllRanges();
+  hideSelBtn();
+  if(touched){ renderAll(); sv(); if(firstStart!==null) previewRestoredAudio(firstStart); }
 }
 
 function addIntroFromSelection(){
@@ -3490,9 +3736,28 @@ function mergeDeletionRanges(ranges, extendFirstToZero=true){
   return segs;
 }
 
+// 只有第一条删除前没有任何保留文字时，才允许把它延伸到音频 0 秒。
+// 例如首句整句删除后又恢复句头，恢复文字就是明确的保留内容，不能再被“开头防杂音”规则盖回去。
+function shouldExtendFirstDeletionToZero(ranges){
+  const valid=(ranges||[])
+    .map(r=>Array.isArray(r)?[Number(r[0]),Number(r[1])]:[Number(r?.start),Number(r?.end)])
+    .filter(r=>Number.isFinite(r[0])&&Number.isFinite(r[1])&&r[1]>r[0])
+    .sort((a,b)=>a[0]-b[0]);
+  if(!valid.length || valid[0][0]>=5) return false;
+  const firstStart=valid[0][0];
+  // 不复用 currentKeptWordTimeline：它为试听切段会丢弃 <=40ms 的碎片，
+  // 但“是否存在恢复文字”是语义判断，哪怕只恢复了极短词头也必须阻止扩到 0 秒。
+  const hasRetainedTextBefore=S.some(sentence=>{
+    if(!sentence || del.has(sentence.idx) || !Array.isArray(sentence.w)) return false;
+    return sentence.w.some(word=>Number.isFinite(Number(word.s))&&Number(word.s)<firstStart-0.000001);
+  });
+  return !hasRetainedTextBefore;
+}
+
 function currentExportDeleteSegments(){
   if(cachedPreviewDeletionRanges) return cachedPreviewDeletionRanges;
-  const textCuts=mergeDeletionRanges(snapDeletionRanges(rawDeletionRanges(false)), true);
+  const snappedTextCuts=snapDeletionRanges(rawDeletionRanges(false));
+  const textCuts=mergeDeletionRanges(snappedTextCuts, shouldExtendFirstDeletionToZero(snappedTextCuts));
   cachedPreviewDeletionRanges=mergeDeletionRanges(textCuts.concat(breathRanges()), false);
   return cachedPreviewDeletionRanges;
 }
@@ -4066,11 +4331,16 @@ function setMode(mode) {
   previewMode = (mode === 'preview');
   if (wasPreview === previewMode) return;
 
+  const selection=window.getSelection();
+  if(selection) selection.removeAllRanges();
+  hideSelBtn();
+
   const anchorIdx = findVisibleSentenceIdx();
 
   document.body.classList.toggle('preview', previewMode);
   document.getElementById('mode-edit').classList.toggle('active', !previewMode);
   document.getElementById('mode-preview').classList.toggle('active', previewMode);
+  updateTopbarHistoryButtons();
   positionSlider();
 
   if(sentenceSearch.needle) updateSentenceSearchFromInput(false);
@@ -4405,6 +4675,72 @@ function buildJsonHeaders(){
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
+// —— 问题反馈：自动带上当前项目和剪辑情况，复用已有 /api/feedback/reports ——
+function feedbackEditSummary(){
+  const cnt = (v) => { try { return Array.isArray(v) ? v.length : Object.keys(v || {}).length; } catch { return 0; } };
+  return {
+    整句删除: cnt(typeof del !== 'undefined' ? del : []),
+    半句删除: cnt(typeof pdel !== 'undefined' ? pdel : []),
+    气口切段: cnt(typeof breathCuts !== 'undefined' ? breathCuts : []),
+    金句片段: cnt(typeof gold !== 'undefined' ? gold : []),
+    片头片段: cnt(typeof introClips !== 'undefined' ? introClips : []),
+  };
+}
+function openFeedbackDialog(){
+  const pop = document.getElementById('fb-popup');
+  if (!pop) return;
+  document.getElementById('gear-popup')?.classList.remove('vis');
+  const res = document.getElementById('fb-result');
+  if (res) { res.textContent = ''; res.className = 'fb-result'; }
+  pop.classList.add('vis');
+  document.getElementById('fb-desc')?.focus();
+}
+async function submitReviewFeedback(){
+  const desc = document.getElementById('fb-desc').value.trim();
+  const res = document.getElementById('fb-result');
+  const btn = document.getElementById('fb-submit');
+  if (!desc){ res.className = 'fb-result err'; res.textContent = '先写一句你遇到的问题吧。'; return; }
+  const shot = document.getElementById('fb-shot').value.trim();
+  const blocking = document.getElementById('fb-blocking').checked;
+  const body = {
+    station: 'editor',
+    page: 'review',
+    pageUrl: location.pathname + location.search,
+    title: (window.__FILE_NAME ? `[${window.__FILE_NAME}] ` : '') + '审稿页问题反馈',
+    description: desc,
+    severity: blocking ? 'blocking' : 'normal',
+    projectId: window.__PROJECT_ID || '',
+    snapshotId: window.__SNAPSHOT_ID || '',
+    context: {
+      projectName: window.__FILE_NAME || '',
+      readOnly: !!window.__READ_ONLY,
+      edit: feedbackEditSummary(),
+      screen: `${window.innerWidth}x${window.innerHeight}`,
+      userAgent: navigator.userAgent,
+    },
+    attachments: shot ? [shot] : [],
+  };
+  try {
+    btn.disabled = true;
+    res.className = 'fb-result'; res.textContent = '提交中…';
+    const r = await fetch('/api/feedback/reports', { method:'POST', headers: buildJsonHeaders(), body: JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.message || '提交失败，请稍后再试。');
+    res.className = 'fb-result ok';
+    res.textContent = '收到！已转给助教，编号：' + (data.report?.id || '已记录');
+    document.getElementById('fb-desc').value = '';
+    document.getElementById('fb-shot').value = '';
+    document.getElementById('fb-blocking').checked = false;
+    setTimeout(() => document.getElementById('fb-popup')?.classList.remove('vis'), 1600);
+  } catch (e){
+    res.className = 'fb-result err';
+    res.textContent = e.message || String(e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+window.openFeedbackDialog = openFeedbackDialog;
+window.submitReviewFeedback = submitReviewFeedback;
 window.addEventListener('pagehide', () => {
   if (window.__READ_ONLY || !window.__PROJECT_ID) return;
   const payload = persistCurrentPayload();
