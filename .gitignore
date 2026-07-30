@@ -14,6 +14,12 @@ venv/
 # 系统文件
 .DS_Store
 .gstack/
+.codex/
+
+# 本机旧资料与验收材料（保留在磁盘，不进入源码仓库）
+金钱剪刀_旧资料_待整理_20260610/
+验收截图/
+紫花海.html
 
 # 构建产物
 dist/
@@ -24,6 +30,15 @@ out/
 # 日志
 *.log
 npm-debug.log*
+
+# 运行数据与私密文件
+剪辑台/web/uploads/
+剪辑台/web/logs/
+剪辑台/web/data/cut-jobs/
+剪辑台/web/data/*.db
+剪辑台/web/data/*.db-*
+剪辑台/web/*-private/
+**/secrets/
 
 # 编辑器
 .idea/

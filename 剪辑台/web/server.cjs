@@ -47,6 +47,7 @@ const VOICE_TTS_ID = process.env.DASHSCOPE_VOICE_ID || 'cosyvoice-v2-vd-dxs-4040
 const VOICE_TTS_TIMEOUT_MS = Number(process.env.VOICE_TTS_TIMEOUT_MS || 60 * 1000);
 const VOICE_MAX_TEXT_CHARS = Number(process.env.VOICE_MAX_TEXT_CHARS || 500);
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
+const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 const DEEPSEEK_TIMEOUT_MS = Number(process.env.DEEPSEEK_TIMEOUT_MS || 60 * 1000);
 const DEEPSEEK_DECISION_TIMEOUT_MS = Number(process.env.DEEPSEEK_DECISION_TIMEOUT_MS || 5 * 60 * 1000);
 const FFMPEG_TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS || 90 * 60 * 1000);
@@ -2520,7 +2521,7 @@ async function handleAdmin(req, res, url) {
     let draftText = '';
     try {
       const ai = await fetchDeepseekChatJson({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         max_tokens: 1800,
         response_format: { type: 'json_object' },
         messages,
@@ -2545,7 +2546,7 @@ async function handleAdmin(req, res, url) {
       ai_draft: draftText,
       confirmed_text: existing?.confirmed_text || '',
       status: 'draft',
-      model: 'deepseek-chat',
+      model: DEEPSEEK_MODEL,
       prompt_version: 'day1_intro_feedback_v1',
       created_at: existing?.created_at || now,
       updated_at: now,
@@ -2632,7 +2633,7 @@ async function handleAdmin(req, res, url) {
         Authorization: `Bearer ${DEEPSEEK_KEY}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         max_tokens: 4096,
         response_format: { type: 'json_object' },
         messages,
@@ -3016,7 +3017,7 @@ async function handleDeepSeek(req, res) {
       Authorization: `Bearer ${DEEPSEEK_KEY}`,
     },
     body: JSON.stringify({
-      model: body.model || 'deepseek-chat',
+      model: body.model || DEEPSEEK_MODEL,
       max_tokens: Number(body.max_tokens || body.maxTokens || 8192),
       response_format: body.response_format || { type: 'json_object' },
       messages,

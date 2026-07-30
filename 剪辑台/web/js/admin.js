@@ -9,7 +9,6 @@ let users = [];
 let snapshots = [];
 let feedbackReports = [];
 let downloadHealth = null;
-let visitStats = null;
 let filter = 'all';
 let view = 'users';
 let modalUserId = null;
@@ -42,11 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     downloadHealthStrip: document.getElementById('download-health-strip'),
     downloadHealthTbody: document.getElementById('download-health-table-body'),
     downloadHealthRefresh: document.getElementById('download-health-refresh'),
-    visitsPanel: document.getElementById('visits-panel'),
-    visitsSummary: document.getElementById('visits-summary'),
-    visitsStrip: document.getElementById('visits-strip'),
-    visitsTbody: document.getElementById('visits-table-body'),
-    visitsRefresh: document.getElementById('visits-refresh'),
     userFilterRow: document.getElementById('user-filter-row'),
     modalMask: document.getElementById('modal-mask'),
     modalTitle: document.getElementById('modal-title'),
@@ -62,13 +56,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.exportBtn.addEventListener('click', exportCsv);
   els.feedbackCopyBtn?.addEventListener('click', copyFeedbackDigest);
   els.downloadHealthRefresh?.addEventListener('click', loadDownloadHealth);
-  els.visitsRefresh?.addEventListener('click', loadVisitStats);
 
   await loadUsers();
   await loadSnapshots();
   await loadFeedbackReports();
   await loadDownloadHealth();
-  await loadVisitStats();
 });
 
 async function loadUsers() {
@@ -111,16 +103,6 @@ async function loadDownloadHealth() {
   }
 }
 
-async function loadVisitStats() {
-  try {
-    const data = await apiJson('/api/admin/visit-stats?days=7');
-    visitStats = data;
-    renderVisitStats();
-  } catch (error) {
-    showError(error.message || String(error));
-  }
-}
-
 function bindViews() {
   els.views.forEach((button) => {
     button.addEventListener('click', () => {
@@ -145,20 +127,16 @@ function renderView() {
   const isSnapshots = view === 'snapshots';
   const isFeedback = view === 'feedback';
   const isDownloadHealth = view === 'downloadHealth';
-  const isVisits = view === 'visits';
-  const isSecondary = isSnapshots || isFeedback || isDownloadHealth || isVisits;
-  els.usersPanel.hidden = isSecondary;
+  els.usersPanel.hidden = isSnapshots || isFeedback || isDownloadHealth;
   els.snapshotsPanel.hidden = !isSnapshots;
   els.feedbackPanel.hidden = !isFeedback;
   els.downloadHealthPanel.hidden = !isDownloadHealth;
-  if (els.visitsPanel) els.visitsPanel.hidden = !isVisits;
-  els.userFilterRow.hidden = isSecondary;
-  els.exportBtn.hidden = isSecondary;
+  els.userFilterRow.hidden = isSnapshots || isFeedback || isDownloadHealth;
+  els.exportBtn.hidden = isSnapshots || isFeedback || isDownloadHealth;
   if (els.feedbackCopyBtn) els.feedbackCopyBtn.hidden = !isFeedback;
   if (isSnapshots) renderSnapshots();
   else if (isFeedback) renderFeedbackReports();
   else if (isDownloadHealth) renderDownloadHealth();
-  else if (isVisits) renderVisitStats();
   else renderRows();
 }
 
@@ -362,56 +340,6 @@ function renderDownloadHealth() {
       <td>${escapeHtml(event.stage || event.status || '-')}</td>
       <td>${escapeHtml(event.message || '-')}</td>
       <td>${escapeHtml(event.browser || '-')}</td>
-    </tr>
-  `).join('');
-}
-
-function renderVisitStats() {
-  if (!els.visitsSummary) return;
-  if (!visitStats) {
-    els.visitsSummary.innerHTML = '';
-    if (els.visitsStrip) els.visitsStrip.textContent = '访问统计还没有加载。';
-    if (els.visitsTbody) els.visitsTbody.innerHTML = '<tr><td colspan="3">加载中。</td></tr>';
-    return;
-  }
-  const totals = visitStats.totals || {};
-  const avgOnline = totals.visitors ? Math.round((totals.onlineSeconds || 0) / totals.visitors) : 0;
-  const cards = [
-    ['现在在线', visitStats.onlineNow ?? 0],
-    ['近7天访客', totals.visitors ?? 0],
-    ['登录学员', totals.loggedInUsers ?? 0],
-    ['总浏览量', totals.pageviews ?? 0],
-    ['人均在线', formatDuration(avgOnline)],
-  ];
-  els.visitsSummary.innerHTML = cards.map(([label, value]) => `
-    <div class="health-card">
-      <div class="health-num">${escapeHtml(value)}</div>
-      <div class="health-label">${escapeHtml(label)}</div>
-    </div>
-  `).join('');
-
-  const dayLines = (visitStats.summary || []).map((row) =>
-    `${escapeHtml(row.day)}：访客 ${escapeHtml(row.visitors)} · 登录 ${escapeHtml(row.loggedInUsers)} · 浏览 ${escapeHtml(row.pageviews)} · 人均在线 ${escapeHtml(formatDuration(row.avgOnlineSeconds))}`
-  );
-  const topPages = (visitStats.topPages || []).map((item) =>
-    `${escapeHtml(item.path)}（${escapeHtml(item.count)}）`
-  );
-  els.visitsStrip.innerHTML = [
-    '每天明细：',
-    dayLines.length ? dayLines.join('<br>') : '最近 7 天还没有访问记录。',
-    topPages.length ? `热门页面：${topPages.join('、')}` : '',
-  ].filter(Boolean).join('<br>');
-
-  const recent = visitStats.recentUsers || [];
-  if (!recent.length) {
-    els.visitsTbody.innerHTML = '<tr><td colspan="3">最近还没有登录学员的访问记录。</td></tr>';
-    return;
-  }
-  els.visitsTbody.innerHTML = recent.map((user) => `
-    <tr>
-      <td>${escapeHtml(user.name || '-')}</td>
-      <td>${escapeHtml(formatDate(user.lastSeenAt))}</td>
-      <td>${escapeHtml(user.path || '-')}</td>
     </tr>
   `).join('');
 }

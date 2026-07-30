@@ -22,11 +22,54 @@ export async function analyzeEditing(sentences, { onProgress } = {}) {
     const result = await callJson(roughSystemPrompt(), roughUserPrompt(roughBatches[i]), {
       fallback: { blocks: [], sentences: [] },
     });
-    if (Array.isArray(result.sentences)) sentenceDecisions.push(...result.sentences);
+    const batchDecisions = Array.isArray(result.sentences) ? result.sentences : [];
+    const guardedDecisions = guardSetupAnswerPairs(roughBatches[i], batchDecisions);
+    sentenceDecisions.push(...guardedDecisions);
     if (Array.isArray(result.blocks)) blocks.push(...result.blocks);
   }
 
   return { blocks, sentenceDecisions, fineEdits: [] };
+}
+
+// 铺垫/开放式提问句的常见收尾模式：这种句子说到一半，等着下一句具体展开回答。
+// 只收窄到这几种明确、低误伤的模式，避免把正常完整句（比如"我今天没有去"）误判成铺垫句。
+const SETUP_ENDING_PATTERNS = [
+  /是什么\s*[。.!?！？]*$/,
+  /有哪些\s*[。.!?！？]*$/,
+  /有几个\s*[。.!?！？]*$/,
+  /怎么样\s*[。.!?！？]*$/,
+  /是有\s*[。.!?！？]*$/,
+  /就是有\s*[。.!?！？]*$/,
+];
+
+function looksLikeOpenSetup(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  return SETUP_ENDING_PATTERNS.some((re) => re.test(t));
+}
+
+// 依赖关系兜底：如果 AI 把一句"铺垫/提问"判成保留（没出现在 delete 列表），
+// 但紧跟着它的下一句被判成删除，这种"问了没有答"的组合不允许出现。
+// 只做"少删"（把答案句从 delete 列表里摘掉），不做"多删"，避免影响整体删减比例。
+// 只处理同一批次内、idx 紧挨着的相邻句，不做跨句/跨段的连锁保留。
+function guardSetupAnswerPairs(batch, sentenceDecisions) {
+  if (!Array.isArray(sentenceDecisions) || !sentenceDecisions.length) return sentenceDecisions || [];
+  const deletedSet = new Set(
+    sentenceDecisions.filter((d) => d && d.action === 'delete').map((d) => Number(d.sentenceIdx))
+  );
+  const sorted = [...batch].sort((a, b) => a.idx - b.idx);
+  const guardedNextIdx = new Set();
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    const cur = sorted[i];
+    const next = sorted[i + 1];
+    if (deletedSet.has(cur.idx)) continue; // 铺垫句本身都被删了，不存在"保留铺垫、删答案"的问题
+    if (!looksLikeOpenSetup(cur.text)) continue;
+    if (deletedSet.has(next.idx)) guardedNextIdx.add(next.idx);
+  }
+  if (!guardedNextIdx.size) return sentenceDecisions;
+  return sentenceDecisions.filter(
+    (d) => !(d && d.action === 'delete' && guardedNextIdx.has(Number(d.sentenceIdx)))
+  );
 }
 
 export function applyAnalysisToReviewPayload(payload, analysis) {
@@ -56,7 +99,7 @@ async function analyzeEditingStrategy(sentences) {
   const data = await apiJson('/api/deepseek/chat', {
     method: 'POST',
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       max_tokens: 4096,
       messages: [
         {
@@ -74,7 +117,7 @@ async function callJson(system, user, { fallback = null } = {}) {
   const data = await apiJson('/api/deepseek/chat', {
     method: 'POST',
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [
@@ -136,6 +179,10 @@ function roughSystemPrompt() {
     '任务：判断哪些句子或连续段落应该整段删除，目标是去掉录前准备、技术调试、闲聊寒暄、隐私信息、制作讨论、重复观点、低密度内容。',
     '不要删除承载观点、故事、情绪推进、关键信息的句子。',
     `type 只能从这些值中选择：${ROUGH_TYPES.join(', ')}。`,
+    '',
+    '上下句依赖检查（重要）：有些句子是开放式铺垫或提问，比如说到"有哪些""是什么""怎么样""可以是有"这类话只说了一半，明显在等下一句具体展开回答。',
+    '如果你打算保留这种铺垫/提问句，就要检查紧跟在它后面的句子是不是正好是这个铺垫的具体答案；如果是，不要把答案句删掉，否则会变成"问了没有答"，听众会听不懂后面接的是哪个话题。要么把答案句也保留，要么把铺垫句本身也一起删掉，不要出现"铺垫留、答案删"的组合。',
+    '',
     '输出格式：{"blocks":[{"range":[startIdx,endIdx],"type":"tech_debug","reason":"..."}],"sentences":[{"sentenceIdx":12,"action":"delete","type":"tech_debug","reason":"..."}]}',
   ].join('\n');
 }

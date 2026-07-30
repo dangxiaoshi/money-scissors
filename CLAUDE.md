@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-07-17 下午
+> 更新：2026-07-30
 
 ## 最终消息硬闸门（所有窗口必守）
 
@@ -31,11 +31,13 @@
 
 | 模块 | 本地位置 | 说明 |
 |---|---|---|
-| 总目录 | `/Users/dang/Desktop/金钱剪刀` | 正式源头只保留 `剪辑台/web` 这一套 |
-| 剪辑台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web` | 核心，全栈都在这里 |
-| 训练台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web/training` | 正式训练台：课表、SOP、Day1 自我介绍 |
-| 接单台 | `/Users/dang/Desktop/金钱剪刀/剪辑台/web/orders` | 正式接单台：接单大厅、排行榜、派单 |
-| 旧资料 | `/Users/dang/Desktop/金钱剪刀/金钱剪刀_旧资料_待整理_20260610/` | 旧独立 `训练台/`、`接单台/` 与历史剪辑音频留档，别当现状 |
+| 总目录 | `/Users/dang/Desktop/金钱剪刀/V1` | 正式源头只保留 `剪辑台/web` 这一套 |
+| 剪辑台 | `/Users/dang/Desktop/金钱剪刀/V1/剪辑台/web` | 核心，全栈都在这里 |
+| 训练台 | `/Users/dang/Desktop/金钱剪刀/V1/剪辑台/web/training` | 正式训练台：课表、SOP、Day1 自我介绍 |
+| 接单台 | `/Users/dang/Desktop/金钱剪刀/V1/剪辑台/web/orders` | 正式接单台：接单大厅、排行榜、派单 |
+| 旧资料 | `/Users/dang/Desktop/金钱剪刀/V1/金钱剪刀_旧资料_待整理_20260610/` | 旧独立 `训练台/`、`接单台/` 与历史剪辑音频留档，别当现状 |
+
+**唯一 Git 主线是 `main`。** 过去的 `day1`—`day19` 与功能分支只保留在已验证恢复包中；今后的源码提交和推送都只进入 `main`。
 
 ## 服务器和入口
 
@@ -57,7 +59,7 @@
 
 | 优先级 | 事项 | 状态 |
 |---|---|---|
-| A | ✅ H2 真短信 + 删除验证码后门 | **已收口。** 2026-07-06 从 Codex/Claude 本地会话归档找回有效短信 Secret：AccessKey ID `LTAI5tAGSf1nPh9MKk7gsUW1` 查询短信签名 `成都当前文化` 返回 OK，Secret 已存 macOS 钥匙串 `money-scissors-aliyun-sms`（Obsidian 不记明文）。2026-07-07 运营商报备验证跑通：移动 `15882401030`、联通 `18582488035` 测试站发码均 `DELIVERED`。已配置测试站和正式站 `.env` 四项短信配置，并把两站 `ALLOW_DEV_SEND_CODE_FALLBACK=0`；正式站备份 `/root/nginx-backups/money-scissors-prod-sms-secret-20260707-111339/`，测试站备份 `/root/nginx-backups/money-scissors-test-sms-carrier-verify-20260707-111015/`。正式域名 health 200，正式站给 `15882401030` 发码 `hasDevCode=false`，阿里云回执 `DELIVERED`，正式登录接口已返回登录令牌。 |
+| A | ✅ H2 真短信 + 删除验证码后门 | **已收口。** 2026-07-06 从 Codex/Claude 本地会话归档找回有效短信 Secret：AccessKey ID 已存钥匙串，文档不记录具体值；查询短信签名 `成都当前文化` 返回 OK，Secret 已存 macOS 钥匙串 `money-scissors-aliyun-sms`（Obsidian 不记明文）。2026-07-07 运营商报备验证跑通：移动 `15882401030`、联通 `18582488035` 测试站发码均 `DELIVERED`。已配置测试站和正式站 `.env` 四项短信配置，并把两站 `ALLOW_DEV_SEND_CODE_FALLBACK=0`；正式站备份 `/root/nginx-backups/money-scissors-prod-sms-secret-20260707-111339/`，测试站备份 `/root/nginx-backups/money-scissors-test-sms-carrier-verify-20260707-111015/`。正式域名 health 200，正式站给 `15882401030` 发码 `hasDevCode=false`，阿里云回执 `DELIVERED`，正式登录接口已返回登录令牌。 |
 | A | 🟡 OSS 正式灰度·观察期 | 6/19 正式站已切 OSS（`STORAGE_BACKEND=oss / OSS_PREFIX=prod`），上传 storage=oss、签名下载 200、ffmpeg 可解码。**观察 1-2 天**：盯上传/转写/生成MP3/下载/ECS 带宽。注意 RAM key 当前**无 delete 权限**，测试对象暂留 `prod/uploads`。观察期是运维盯防，不是开发任务。 |
 | A | ✅ 派单需求在剪辑页常驻可见 | `review.html` 已上线“本单需求”入口，支持目标时长/必须保留/必须删除/开头结尾/交付格式；刷新后可从任务接口重新读取。 |
 | B | ✅ 磁吸复查 | 跨句删除/恢复、粗剪试听只读与 pdel 音频连续性回归均已收口；本轮 61 项脚本回归通过。 |
@@ -65,7 +67,7 @@
 | B | ✅ 外部工具成品提交入口 | 2026-06-22 已修复粗剪后补交链路：接单提交粗剪进入待审核后，仍可补交/修改外部工具成品链接；粗剪快照和外部成品链接可同时保留，助教后台可同时看。Codex 复查发现“粗剪被打回后再补交外部成品，后台可能仍显示打回”的状态坑，已补修。 |
 | B | 🟡 技术债剩余闸门 | T1 自动清理正式 cron 仍等磁盘观察；T4/T5 删除段格式归一+后端校验已随本轮回归并上线。 |
 | B | 🔴 公安备案盯防 | 金钱剪刀、传家宝、主体已提交锦江区网安大队待审。风险：公安主体个人 vs ICP 公司，可能退回重报。号下来后页脚加川公网安备号。属人工/控制台，非开发窗口。 |
-| B | GitHub 恢复点 | day7 已推。后续每个大收口继续留恢复点。 |
+| B | GitHub 主线 | 唯一远端分支为 `main`；后续每个大收口继续在 `main` 留提交恢复点。 |
 | B | 浏览器侧操作卡顿 | 服务器侧导出卡死已根治；剪辑页点删除/气口缩短前端卡顿只缓解一部分，后续深优化。 |
 | P2 | Day1 作业 AI 反馈 + 助教确认 | 训练体验增强，非交付阻断，最后做。 |
 
@@ -73,16 +75,17 @@
 
 | 备份点 | 位置 | 时间 |
 |---|---|---|
-| GitHub 分支 `day1`（开营第一晚全量） | `dangxiaoshi/money-scissors` 提交 `816432b` | 2026-06-13 |
+| GitHub 历史提交 `day1`（开营第一晚全量） | `dangxiaoshi/money-scissors` 提交 `816432b` | 2026-06-13 |
 | GitHub 标签 `开营前定稿版` | 提交 `47c3499` | 2026-06-12 |
 | 服务器保险包 | `/opt/money-scissors-m2.releases/manual-*.tgz`（代码）；学员数据 `data/users.db` 不在包里，单独保护 | 每次上线前 |
 
-**规则**：每收口一件事，存一个命名 GitHub 恢复点再继续；所有改动只走 本地→服务器 一条路，禁止直接改服务器文件。部署前后跑 `sh 剪辑台/web/scripts/check_sync.sh` 对账，确认本地/测试/正式三边一致。
+**规则**：每收口一件事，在唯一 `main` 留提交恢复点再继续；所有改动只走 本地→服务器 一条路，禁止直接改服务器文件。部署前后跑 `sh 剪辑台/web/scripts/check_sync.sh` 对账，确认本地/测试/正式三边一致。
 
 ## 最近完成
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-07-25 | **三个旧 AI 工具页与内部模型失效修复正式上线** | 学员反馈工具台 Show Notes 报 `[object Object]`。根因一是 DeepSeek 供应商已不再接受旧模型 `deepseek-chat`，而代理默认、剪辑决策、旧分析链路、Day1 反馈和助教 AI 批改仍有硬编码；根因二是 Show Notes、剪辑决策、旁白生成三个旧工具页都把对象型 `error` 直接传给 `Error`。已统一改为 `deepseek-v4-flash`，三个旧工具页均提取字符串或嵌套 `message`，无法解析时显示中文兜底。首批白名单同步测试/正式 4 个运行文件，补批白名单同步另外 2 个工具页，未碰 `.env`、`data/`、`uploads/`；首批测试/正式备份分别为 `/root/nginx-backups/money-scissors-test-shownote-model-20260725-195739/`、`/root/nginx-backups/money-scissors-prod-shownote-model-20260725-195844/`，补批备份分别为 `/root/nginx-backups/money-scissors-test-ai-tool-errors-20260725-200519/`、`/root/nginx-backups/money-scissors-prod-ai-tool-errors-20260725-200519/`。两站 health 200、PM2 online/unstable restarts=0，测试/正式部署文件 sha256 一致，运行代码中显式旧模型计数为 0；测试站与正式站均用真实账号和短逐字稿生成成功，HTTP 200，供应商回包模型为 `deepseek-v4-flash`。本地 `server.cjs` 另有并发中的声音克隆 payload 改动，部署时已隔离，未随本次上线。 |
 | 2026-07-18 | **已克隆的当小时声音生成 MP3 正式上线** | 按最终口径，学员不录音、不创建新音色，只输入旁白文字，服务端调用现有 `cosyvoice-v2` 当小时音色。登录用户开放；单段最多 500 字；同一用户单次生成锁；浏览器不接触百炼密钥，服务端校验音频临时地址后回传 MP3。测试站与正式站均用真实账号完成登录→输入→生成→试听→下载；正式站 MP3 `audio/mpeg`、60,277 bytes、ffprobe 时长约 3.76 秒。正式备份 `/opt/money-scissors-m2.releases/voice-clone-20260718-1528/`，本地/正式两文件 sha256 一致。 |
 | 2026-07-15 | 订单闭环、审稿保护、训练台去日期上线 | 派单最多 2 人领取并有 5 天自动释放；外部成品提交进入 `dispatch_claims`，采用后订单统一已完结，其他抢单记录关闭并站内通知；完结后后端阻止再次抢单/提交/审核。`review.html` 跨句选区、粗剪试听只读、AI 决策超时和本单需求入口同步上线；训练台去掉过期日期并将 D14/D19 改为回放整理中。测试站先验收，正式部署 smoke/health 通过。畸形 URL/路径改为 400，避免污染 PM2 错误日志。 |
 | 2026-07-04 | 接单订单“已完结”闭环推测试站/正式站并出截图 | 按当当拍板，不做“仅练手”，采用后统一“已完结 / 本单已采用 / 已结单”。已白名单同步测试站和正式站 3 文件：`server.cjs`、`orders/index.html`、`orders-review-admin.html`；测试备份 `/root/nginx-backups/money-scissors-test-order-completed-20260704-120231/`，正式备份 `/root/nginx-backups/money-scissors-prod-order-completed-20260704-121126/`。两站重启后 health 200，本地/测试/正式 3 文件 md5 一致。已生成 4 张给朱娇看的演示截图，保存在本地 `验收截图/订单已完结_20260704/`。 |

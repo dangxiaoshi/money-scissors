@@ -360,6 +360,15 @@ DeepSeek和豆包免费的时代，这款付费命理产品让老外疯狂买单
           return { ...headers, Authorization: `Bearer ${token}` };
         }
 
+        function getAIErrorMessage(data) {
+          const candidate = data?.message ?? data?.error;
+          if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+          if (candidate && typeof candidate.message === 'string' && candidate.message.trim()) {
+            return candidate.message.trim();
+          }
+          return 'AI 服务繁忙，请稍后重试';
+        }
+
         async function callSafeAI(messages, { maxTokens = 4096 } = {}) {
           const res = await fetch('/api/deepseek/chat', {
             method: 'POST',
@@ -374,7 +383,7 @@ DeepSeek和豆包免费的时代，这款付费命理产品让老外疯狂买单
             })
           });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.message || data.error || 'AI 服务繁忙，请稍后重试');
+          if (!res.ok) throw new Error(getAIErrorMessage(data));
           const content = data?.choices?.[0]?.message?.content || '';
           try {
             const parsed = JSON.parse(content);

@@ -865,7 +865,7 @@ async function generateDecisionBundle(sentences, { timeoutMs = DECISION_BUNDLE_T
       method: 'POST',
       signal: controller.signal,
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         purpose: 'decision_bundle',
         max_tokens: 6500,
         response_format: { type: 'json_object' },

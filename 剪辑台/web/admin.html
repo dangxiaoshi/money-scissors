@@ -6,9 +6,6 @@
   <title>金钱剪刀 · 后台</title>
   <link rel="stylesheet" href="css/shared.css?v=20260529b">
   <style>
-    /* hidden 必须真隐藏：.toolbar-row/.inline-btn 的 display 会盖过 [hidden]，
-       导致切到非用户列表页签时筛选行/导出按钮仍漏出。这里统一兜底。 */
-    [hidden] { display: none !important; }
     .cell-link { color:#C8820A; font-weight:700; cursor:pointer; text-decoration:none; background:none; border:none; padding:0; font-size:inherit; }
     .cell-link:hover { text-decoration:underline; }
     .cell-muted { color:#9a9a9a; }
@@ -89,7 +86,6 @@
           <button class="segmented-btn" data-view="snapshots" type="button">审核快照</button>
           <button class="segmented-btn" data-view="feedback" type="button">问题反馈</button>
           <button class="segmented-btn" data-view="downloadHealth" type="button">导出健康</button>
-          <button class="segmented-btn" data-view="visits" type="button">访问统计</button>
         </div>
         <button class="secondary-btn inline-btn" id="export-btn" type="button">导出 CSV</button>
         <button class="secondary-btn inline-btn" id="feedback-copy-btn" type="button" hidden>复制今日晨报</button>
@@ -177,25 +173,6 @@
               </tr>
             </thead>
             <tbody id="download-health-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-      <div id="visits-panel" hidden>
-        <div class="health-summary" id="visits-summary"></div>
-        <div class="health-strip" id="visits-strip"></div>
-        <div class="toolbar-row">
-          <button class="secondary-btn inline-btn" id="visits-refresh" type="button">刷新访问统计</button>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>最近活跃学员</th>
-                <th>最后出现</th>
-                <th>所在页面</th>
-              </tr>
-            </thead>
-            <tbody id="visits-table-body"></tbody>
           </table>
         </div>
       </div>

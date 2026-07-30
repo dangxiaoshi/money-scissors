@@ -1177,23 +1177,6 @@ body.readonly .star { display: none; }
 .info-popup.vis { display: block; }
 .info-popup-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; color: var(--ink); }
 .info-popup p { margin-bottom: 8px; }
-.fb-popup { width: 360px; }
-.fb-hint { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-.fb-textarea, .fb-input {
-  width: 100%; box-sizing: border-box; border: 1px solid var(--hairline);
-  border-radius: 8px; padding: 9px 10px; font-size: 13px; color: var(--ink);
-  background: var(--bg, #fff); font-family: inherit; resize: vertical;
-}
-.fb-textarea { margin-bottom: 10px; }
-.fb-textarea:focus, .fb-input:focus { outline: none; border-color: var(--accent); }
-.fb-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; cursor: pointer; }
-.fb-check input { width: auto; }
-.fb-input { margin-bottom: 12px; }
-.fb-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.fb-actions .info-close, .fb-actions .gear-action { margin: 0; width: auto; }
-.fb-result { margin-top: 10px; font-size: 13px; min-height: 18px; }
-.fb-result.ok { color: #1a7f4b; }
-.fb-result.err { color: #c0392b; }
 .info-close {
   margin-top: 8px; padding: 8px 16px; background: var(--accent); color: #fff;
   border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -1525,7 +1508,6 @@ body.readonly .star { display: none; }
     <button class="gear-action" id="manual-save-btn" onclick="manualSaveNow()">保存</button>
     <button class="gear-action" onclick="doExport({next:'cut'})">导出 MP3（去外部软件）</button>
     <button class="gear-action" onclick="document.getElementById('info-tip').classList.toggle('vis');document.getElementById('gear-popup').classList.remove('vis')">提交/导出说明</button>
-    <button class="gear-action" onclick="openFeedbackDialog()">问题反馈</button>
   </div>
   <div class="gear-popup-title">音频精修</div>
   <label class="refine-option">
@@ -1549,20 +1531,6 @@ body.readonly .star { display: none; }
   <p>「导出 MP3」是把站内粗剪结果下载到电脑，方便去剪映、AU、Logic、Audacity 等外部软件继续精修/交付。</p>
   <p>两条流程不互相替代：要交给助教看，点「提交审核」；要拿到音频文件去外部软件，点「导出 MP3」。</p>
 <button class="info-close" onclick="document.getElementById('info-tip').classList.remove('vis')">明白了</button>
-</div>
-
-<!-- Problem feedback -->
-<div class="info-popup fb-popup" id="fb-popup">
-  <div class="info-popup-title">问题反馈</div>
-  <p class="fb-hint">遇到卡顿、删了还播、导出对不上、页面报错等问题，写一句就行。会自动带上当前项目和你的剪辑情况，方便助教定位。</p>
-  <textarea id="fb-desc" class="fb-textarea" rows="4" placeholder="你遇到了什么问题？越具体越好，比如「点删除后卡了三四秒」。"></textarea>
-  <label class="fb-check"><input type="checkbox" id="fb-blocking"> 这个问题挡住我了，剪不下去</label>
-  <input id="fb-shot" class="fb-input" type="text" placeholder="截图/录屏链接（可选，先上传到微信/网盘再贴链接）">
-  <div class="fb-actions">
-    <button class="info-close fb-cancel" onclick="document.getElementById('fb-popup').classList.remove('vis')">取消</button>
-    <button class="gear-action primary fb-submit" id="fb-submit" onclick="submitReviewFeedback()">提交反馈</button>
-  </div>
-  <div class="fb-result" id="fb-result"></div>
 </div>
 
 <!-- Dispatch task requirements -->
@@ -4675,72 +4643,6 @@ function buildJsonHeaders(){
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
-// —— 问题反馈：自动带上当前项目和剪辑情况，复用已有 /api/feedback/reports ——
-function feedbackEditSummary(){
-  const cnt = (v) => { try { return Array.isArray(v) ? v.length : Object.keys(v || {}).length; } catch { return 0; } };
-  return {
-    整句删除: cnt(typeof del !== 'undefined' ? del : []),
-    半句删除: cnt(typeof pdel !== 'undefined' ? pdel : []),
-    气口切段: cnt(typeof breathCuts !== 'undefined' ? breathCuts : []),
-    金句片段: cnt(typeof gold !== 'undefined' ? gold : []),
-    片头片段: cnt(typeof introClips !== 'undefined' ? introClips : []),
-  };
-}
-function openFeedbackDialog(){
-  const pop = document.getElementById('fb-popup');
-  if (!pop) return;
-  document.getElementById('gear-popup')?.classList.remove('vis');
-  const res = document.getElementById('fb-result');
-  if (res) { res.textContent = ''; res.className = 'fb-result'; }
-  pop.classList.add('vis');
-  document.getElementById('fb-desc')?.focus();
-}
-async function submitReviewFeedback(){
-  const desc = document.getElementById('fb-desc').value.trim();
-  const res = document.getElementById('fb-result');
-  const btn = document.getElementById('fb-submit');
-  if (!desc){ res.className = 'fb-result err'; res.textContent = '先写一句你遇到的问题吧。'; return; }
-  const shot = document.getElementById('fb-shot').value.trim();
-  const blocking = document.getElementById('fb-blocking').checked;
-  const body = {
-    station: 'editor',
-    page: 'review',
-    pageUrl: location.pathname + location.search,
-    title: (window.__FILE_NAME ? `[${window.__FILE_NAME}] ` : '') + '审稿页问题反馈',
-    description: desc,
-    severity: blocking ? 'blocking' : 'normal',
-    projectId: window.__PROJECT_ID || '',
-    snapshotId: window.__SNAPSHOT_ID || '',
-    context: {
-      projectName: window.__FILE_NAME || '',
-      readOnly: !!window.__READ_ONLY,
-      edit: feedbackEditSummary(),
-      screen: `${window.innerWidth}x${window.innerHeight}`,
-      userAgent: navigator.userAgent,
-    },
-    attachments: shot ? [shot] : [],
-  };
-  try {
-    btn.disabled = true;
-    res.className = 'fb-result'; res.textContent = '提交中…';
-    const r = await fetch('/api/feedback/reports', { method:'POST', headers: buildJsonHeaders(), body: JSON.stringify(body) });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.message || '提交失败，请稍后再试。');
-    res.className = 'fb-result ok';
-    res.textContent = '收到！已转给助教，编号：' + (data.report?.id || '已记录');
-    document.getElementById('fb-desc').value = '';
-    document.getElementById('fb-shot').value = '';
-    document.getElementById('fb-blocking').checked = false;
-    setTimeout(() => document.getElementById('fb-popup')?.classList.remove('vis'), 1600);
-  } catch (e){
-    res.className = 'fb-result err';
-    res.textContent = e.message || String(e);
-  } finally {
-    btn.disabled = false;
-  }
-}
-window.openFeedbackDialog = openFeedbackDialog;
-window.submitReviewFeedback = submitReviewFeedback;
 window.addEventListener('pagehide', () => {
   if (window.__READ_ONLY || !window.__PROJECT_ID) return;
   const payload = persistCurrentPayload();
