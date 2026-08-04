@@ -77,6 +77,10 @@ const DEV_SEND_CODE_FALLBACK = process.env.ALLOW_DEV_SEND_CODE_FALLBACK === '1';
 const AUTH_CODE_DELIVERY_MODE = String(process.env.AUTH_CODE_DELIVERY_MODE || 'sms').trim().toLowerCase();
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/g, '');
 const AUTH_COOKIE_NAME = 'jinqian_token';
+const GUEST_REVIEW_COOKIE_NAME = 'jinqian_guest_review';
+const GUEST_REVIEW_DEFAULT_DAYS = 7;
+const GUEST_REVIEW_MAX_DAYS = 30;
+const GUEST_REVIEW_SESSION_SECONDS = 2 * 60 * 60;
 const ADMIN_PHONES = new Set(
   String(process.env.ADMIN_PHONES || '')
     .split(',')
@@ -464,6 +468,55 @@ const statements = {
       reviewed_by = @reviewed_by
     WHERE id = @id
   `),
+  insertGuestReviewShare: db.prepare(`
+    INSERT INTO guest_review_shares (
+      id, snapshot_id, token_hash, created_by, created_at, expires_at, revoked_at, last_opened_at
+    ) VALUES (
+      @id, @snapshot_id, @token_hash, @created_by, @created_at, @expires_at, NULL, NULL
+    )
+  `),
+  revokeGuestReviewSharesForSnapshot: db.prepare(`
+    UPDATE guest_review_shares
+    SET revoked_at = @revoked_at
+    WHERE snapshot_id = @snapshot_id AND revoked_at IS NULL
+  `),
+  findGuestReviewShareByTokenHash: db.prepare(`
+    SELECT
+      g.id AS share_id,
+      g.snapshot_id,
+      g.expires_at,
+      g.revoked_at,
+      s.file_name,
+      s.original_duration,
+      s.roughcut_duration,
+      s.removed_duration,
+      s.created_at AS snapshot_created_at,
+      s.data_path AS snapshot_data_path
+    FROM guest_review_shares g
+    INNER JOIN review_snapshots s ON s.id = g.snapshot_id
+    WHERE g.token_hash = ?
+  `),
+  findGuestReviewShareById: db.prepare(`
+    SELECT
+      g.id AS share_id,
+      g.snapshot_id,
+      g.expires_at,
+      g.revoked_at,
+      s.file_name,
+      s.original_duration,
+      s.roughcut_duration,
+      s.removed_duration,
+      s.created_at AS snapshot_created_at,
+      s.data_path AS snapshot_data_path
+    FROM guest_review_shares g
+    INNER JOIN review_snapshots s ON s.id = g.snapshot_id
+    WHERE g.id = ?
+  `),
+  touchGuestReviewShare: db.prepare(`
+    UPDATE guest_review_shares
+    SET last_opened_at = @last_opened_at
+    WHERE id = @id
+  `),
 
   listDispatchTasks: db.prepare('SELECT * FROM dispatch_tasks ORDER BY sort_order ASC, id DESC'),
   listPublishedDispatchTasks: db.prepare(`
@@ -766,6 +819,11 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname.startsWith('/api/projects')) {
       await handleProjects(req, res, url);
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/guest-review/')) {
+      await handleGuestReview(req, res, url);
       return;
     }
 
@@ -2388,6 +2446,113 @@ async function handleProjects(req, res, url) {
   sendJson(res, 404, { error: 'not_found' });
 }
 
+async function handleGuestReview(req, res, url) {
+  setCors(req, res);
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  if (url.pathname === '/api/guest-review/audio') {
+    handleGuestReviewAudio(req, res);
+    return;
+  }
+  if (req.method !== 'POST' || url.pathname !== '/api/guest-review/open') {
+    sendJson(res, 404, { error: 'not_found' });
+    return;
+  }
+
+  const body = await readJson(req, 16 * 1024);
+  const token = String(body.token || '').trim();
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    sendJson(res, 404, { error: 'share_not_found', message: '这个审核链接无效。' });
+    return;
+  }
+  const share = statements.findGuestReviewShareByTokenHash.get(hashGuestReviewToken(token));
+  if (!share) {
+    sendJson(res, 404, { error: 'share_not_found', message: '这个审核链接无效。' });
+    return;
+  }
+  const expiresAt = Date.parse(share.expires_at || '');
+  if (share.revoked_at || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    sendJson(res, 410, { error: 'share_expired', message: '这个审核链接已过期或已停用。' });
+    return;
+  }
+
+  const data = readJsonFile(share.snapshot_data_path, null);
+  if (!data || typeof data !== 'object') {
+    sendJson(res, 404, { error: 'snapshot_not_found', message: '这份审核内容暂时无法读取。' });
+    return;
+  }
+  const review = buildGuestReviewPayload(share, data);
+  statements.touchGuestReviewShare.run({
+    id: share.share_id,
+    last_opened_at: new Date().toISOString(),
+  });
+  setGuestReviewCookie(res, share);
+  sendJson(res, 200, { review });
+}
+
+function handleGuestReviewAudio(req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return;
+  }
+  const sessionToken = readCookie(req.headers.cookie, GUEST_REVIEW_COOKIE_NAME);
+  let session;
+  try {
+    session = jwt.verify(sessionToken, JWT_SECRET);
+  } catch {
+    sendJson(res, 401, { error: 'guest_review_unauthorized', message: '请从完整的嘉宾审核链接重新打开。' });
+    return;
+  }
+  if (session?.kind !== 'guest_review' || !session.shareId || !session.snapshotId) {
+    sendJson(res, 401, { error: 'guest_review_unauthorized', message: '请从完整的嘉宾审核链接重新打开。' });
+    return;
+  }
+  const share = statements.findGuestReviewShareById.get(String(session.shareId));
+  const expiresAt = Date.parse(share?.expires_at || '');
+  if (
+    !share
+    || share.revoked_at
+    || String(share.snapshot_id) !== String(session.snapshotId)
+    || !Number.isFinite(expiresAt)
+    || expiresAt <= Date.now()
+  ) {
+    sendJson(res, 410, { error: 'share_expired', message: '这个审核链接已过期或已停用。' });
+    return;
+  }
+  const data = readJsonFile(share.snapshot_data_path, null);
+  const audioUrl = guestReviewSourceAudioUrl(data);
+  if (!audioUrl) {
+    sendJson(res, 404, { error: 'audio_not_found', message: '这份初剪暂时没有可试听的音频。' });
+    return;
+  }
+  let redirectUrl = audioUrl;
+  if (audioUrl.startsWith('/api/orders/material/')) {
+    if (!oss.isOssEnabled()) {
+      sendJson(res, 404, { error: 'audio_not_found', message: '试听音频暂时不可用。' });
+      return;
+    }
+    try {
+      redirectUrl = oss.signPublicUrl(readOrderMaterialObjectKeyFromPath(new URL(audioUrl, 'http://local').pathname));
+    } catch (error) {
+      console.error('[guest-review] 试听音频签名失败', error && error.message);
+      sendJson(res, 404, { error: 'audio_not_found', message: '试听音频暂时不可用。' });
+      return;
+    }
+  }
+  res.writeHead(302, {
+    Location: redirectUrl,
+    'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end();
+}
+
 async function handleAdmin(req, res, url) {
   setCors(req, res);
   if (req.method === 'OPTIONS') {
@@ -2593,6 +2758,63 @@ async function handleAdmin(req, res, url) {
       confirmed_by: status === 'confirmed' ? user.id : null,
     });
     sendJson(res, 200, { feedback: publicDay1FeedbackForAdmin(statements.findDay1FeedbackById.get(row.id)) });
+    return;
+  }
+
+  const guestShareMatch = url.pathname.match(/^\/api\/admin\/snapshots\/([A-Za-z0-9_-]+)\/guest-share$/);
+  if (guestShareMatch && req.method === 'POST') {
+    const snapshot = statements.findSnapshotById.get(guestShareMatch[1]);
+    if (!snapshot) {
+      sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
+      return;
+    }
+    const body = await readJson(req).catch(() => ({}));
+    const requestedDays = Number(body.expiresInDays);
+    const expiresInDays = Number.isFinite(requestedDays)
+      ? clampNumber(Math.round(requestedDays), 1, GUEST_REVIEW_MAX_DAYS)
+      : GUEST_REVIEW_DEFAULT_DAYS;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+    const token = crypto.randomBytes(32).toString('base64url');
+    const shareId = buildPublicId('share');
+    const createShare = db.transaction(() => {
+      statements.revokeGuestReviewSharesForSnapshot.run({
+        snapshot_id: snapshot.id,
+        revoked_at: now.toISOString(),
+      });
+      statements.insertGuestReviewShare.run({
+        id: shareId,
+        snapshot_id: snapshot.id,
+        token_hash: hashGuestReviewToken(token),
+        created_by: user.id,
+        created_at: now.toISOString(),
+        expires_at: expiresAt,
+      });
+    });
+    createShare();
+    res.setHeader('Cache-Control', 'no-store');
+    sendJson(res, 201, {
+      share: {
+        id: shareId,
+        path: `/guest-review.html#${token}`,
+        expiresAt,
+      },
+    });
+    return;
+  }
+
+  if (guestShareMatch && req.method === 'DELETE') {
+    const snapshot = statements.findSnapshotById.get(guestShareMatch[1]);
+    if (!snapshot) {
+      sendJson(res, 404, { error: 'snapshot_not_found', message: '没有找到这份审核快照。' });
+      return;
+    }
+    const result = statements.revokeGuestReviewSharesForSnapshot.run({
+      snapshot_id: snapshot.id,
+      revoked_at: new Date().toISOString(),
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    sendJson(res, 200, { ok: true, revoked: Number(result.changes || 0) });
     return;
   }
 
@@ -3612,6 +3834,19 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_review_snapshots_created
       ON review_snapshots(created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS guest_review_shares (
+      id TEXT PRIMARY KEY,
+      snapshot_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      last_opened_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_guest_review_shares_snapshot
+      ON guest_review_shares(snapshot_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS oss_uploads (
       object_key TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
@@ -3858,6 +4093,22 @@ function setAuthCookie(res, token, expiresAtSeconds) {
   if (!maxAge) return;
   const secure = /^https:\/\//i.test(PUBLIC_BASE_URL) ? '; Secure' : '';
   res.setHeader('Set-Cookie', `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${secure}`);
+}
+
+function setGuestReviewCookie(res, share) {
+  if (!res || res.headersSent || !share?.share_id || !share?.snapshot_id || !JWT_SECRET) return;
+  const secondsUntilShareExpires = Math.floor((Date.parse(share.expires_at || '') - Date.now()) / 1000);
+  const maxAge = Math.max(1, Math.min(GUEST_REVIEW_SESSION_SECONDS, secondsUntilShareExpires));
+  const token = jwt.sign({
+    kind: 'guest_review',
+    shareId: share.share_id,
+    snapshotId: share.snapshot_id,
+  }, JWT_SECRET, { expiresIn: maxAge });
+  const secure = /^https:\/\//i.test(PUBLIC_BASE_URL) ? '; Secure' : '';
+  res.setHeader(
+    'Set-Cookie',
+    `${GUEST_REVIEW_COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=${maxAge}; Path=/api/guest-review/audio; HttpOnly; SameSite=Strict${secure}`,
+  );
 }
 
 function clearAuthCookie(res) {
@@ -4452,6 +4703,109 @@ function publicSnapshot(row) {
   };
 }
 
+function buildGuestReviewPayload(share, data) {
+  const payload = data.payload && typeof data.payload === 'object' ? data.payload : {};
+  const cutPayload = data.cutPayload && typeof data.cutPayload === 'object' ? data.cutPayload : {};
+  const editState = payload.editState && typeof payload.editState === 'object' ? payload.editState : {};
+  const deletedIds = new Set(
+    (Array.isArray(editState.d) ? editState.d : [])
+      .map((value) => Number(value))
+      .filter(Number.isFinite),
+  );
+  const partialState = editState.p && typeof editState.p === 'object' && !Array.isArray(editState.p)
+    ? editState.p
+    : {};
+  const sentences = (Array.isArray(payload.S) ? payload.S : []).map((sentence, position) => {
+    const idValue = Number(sentence?.idx);
+    const id = Number.isFinite(idValue) ? idValue : position;
+    const wordText = Array.isArray(sentence?.w)
+      ? sentence.w.map((word) => String(word?.t || '')).join('')
+      : '';
+    const text = String(wordText || sentence?.t || '').slice(0, 20000);
+    const rawPartials = partialState[id] || partialState[String(id)] || [];
+    const partialCuts = (Array.isArray(rawPartials) ? rawPartials : [])
+      .map((range) => ({
+        startChar: Math.max(0, Math.round(Number(range?.cs) || 0)),
+        endChar: Math.max(0, Math.round(Number(range?.ce) || 0)),
+      }))
+      .filter((range) => range.endChar > range.startChar && range.startChar < text.length)
+      .map((range) => ({ ...range, endChar: Math.min(text.length, range.endChar) }));
+    return {
+      id,
+      speaker: String(sentence?.sp || '嘉宾').trim().slice(0, 80) || '嘉宾',
+      text,
+      start: round3(Math.max(0, Number(sentence?.s) || 0)),
+      end: round3(Math.max(0, Number(sentence?.e) || 0)),
+      deleted: deletedIds.has(id),
+      partialCuts,
+    };
+  });
+  const duration = Math.max(
+    0,
+    Number(share.original_duration) || Number(cutPayload.original_duration) || Number(sentences.at(-1)?.end) || 0,
+  );
+  let cuts = [];
+  try {
+    cuts = normalizeCutSegments(cutPayload.segments || [], {
+      duration,
+      label: '审核删减段',
+      allowEmpty: true,
+    });
+  } catch (error) {
+    console.warn('[guest-review] 审核删减段读取失败', error && error.message);
+  }
+  const sourceAudioUrl = guestReviewSourceAudioUrl(data);
+  const rawChapters = Array.isArray(payload.CHAPS)
+    ? payload.CHAPS
+    : Array.isArray(payload.chapters)
+      ? payload.chapters
+      : [];
+  const chapters = rawChapters.slice(0, 200).map((chapter) => ({
+    startId: Math.max(0, Math.round(Number(chapter?.startIdx ?? chapter?.startId) || 0)),
+    title: String(chapter?.title || '').trim().slice(0, 300),
+    description: String(chapter?.desc || chapter?.description || '').trim().slice(0, 500),
+  })).filter((chapter) => chapter.title);
+
+  return {
+    title: String(share.file_name || '播客初剪').trim().slice(0, 180) || '播客初剪',
+    createdAt: share.snapshot_created_at || null,
+    expiresAt: share.expires_at,
+    originalDuration: Math.round(duration),
+    roughcutDuration: Math.max(0, Math.round(Number(share.roughcut_duration) || 0)),
+    removedDuration: Math.max(0, Math.round(Number(share.removed_duration) || 0)),
+    audioUrl: sourceAudioUrl ? '/api/guest-review/audio' : '',
+    cuts,
+    chapters,
+    sentences,
+  };
+}
+
+function guestReviewSourceAudioUrl(data) {
+  if (!data || typeof data !== 'object') return '';
+  const payload = data.payload && typeof data.payload === 'object' ? data.payload : {};
+  const cutPayload = data.cutPayload && typeof data.cutPayload === 'object' ? data.cutPayload : {};
+  const audioSource = projectPayloadForResponse({
+    storage: cutPayload.storage || payload.storage || '',
+    objectKey: cutPayload.objectKey || payload.objectKey || '',
+    audioUrl: cutPayload.audioUrl || payload.audioUrl || '',
+    bucket: cutPayload.bucket || payload.bucket || '',
+    region: cutPayload.region || payload.region || '',
+  }) || {};
+  return safeGuestMediaUrl(audioSource.audioUrl);
+}
+
+function safeGuestMediaUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  try {
+    const parsed = new URL(raw);
+    return /^https?:$/.test(parsed.protocol) ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
 function publicDay1FeedbackForAdmin(row) {
   if (!row) return null;
   return {
@@ -4983,6 +5337,10 @@ function readProjectMetrics(payload, metrics = {}) {
 function buildPublicId(prefix) {
   const random = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
   return `${prefix}_${random.replace(/-/g, '').slice(0, 20)}`;
+}
+
+function hashGuestReviewToken(token) {
+  return crypto.createHash('sha256').update(String(token || ''), 'utf8').digest('hex');
 }
 
 function cleanTitle(value, maxLength) {

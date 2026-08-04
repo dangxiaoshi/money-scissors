@@ -587,6 +587,16 @@
     };
 
     els.submissionStack.addEventListener('click', (event) => {
+      const createShareBtn = event.target.closest('[data-create-guest-share]');
+      if (createShareBtn && !createShareBtn.disabled) {
+        createGuestShare(createShareBtn.dataset.createGuestShare, createShareBtn);
+        return;
+      }
+      const revokeShareBtn = event.target.closest('[data-revoke-guest-share]');
+      if (revokeShareBtn && !revokeShareBtn.disabled) {
+        revokeGuestShare(revokeShareBtn.dataset.revokeGuestShare, revokeShareBtn);
+        return;
+      }
       const btn = event.target.closest('[data-review-claim]');
       if (!btn || btn.disabled) return;
       reviewClaim(btn.dataset.reviewClaim, btn.dataset.reviewStatus);
@@ -811,6 +821,8 @@
             <div class="submission-actions">
               ${hasExternal ? `<a class="btn secondary" href="${escapeAttr(external.url)}" target="_blank" rel="noopener">打开成品</a>` : '<button class="btn secondary" type="button" disabled>试听成品</button>'}
               ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : (!hasExternal ? '<button class="btn secondary" type="button" disabled>未提交</button>' : '')}
+              ${hasSnapshot ? `<button class="btn secondary" type="button" data-create-guest-share="${escapeAttr(claim.snapshotId)}">生成嘉宾审核链接</button>` : ''}
+              ${hasSnapshot ? `<button class="btn secondary" type="button" data-revoke-guest-share="${escapeAttr(claim.snapshotId)}">停用嘉宾链接</button>` : ''}
               <button class="btn good" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="approved" ${canReview ? '' : 'disabled'}>${escapeHtml(adoptLabel)}</button>
               <button class="btn bad" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="returned" ${canReview ? '' : 'disabled'}>打回修改</button>
               <button class="btn secondary" type="button" data-review-claim="${escapeAttr(claim.id)}" data-review-status="rejected" ${canReview ? '' : 'disabled'}>标记未采用</button>
@@ -822,6 +834,58 @@
         <div class="empty">${claims.length + index + 1}号位置还没有学员抢单或提交。</div>
       `);
       return [...realItems, ...emptyItems].join('') || '<div class="empty">这条订单还没有真实抢单记录。</div>';
+    }
+
+    async function createGuestShare(snapshotId, button) {
+      if (!snapshotId) return;
+      const confirmed = window.confirm('生成一条 7 天有效的嘉宾审核链接？这会让此前为同一快照生成的链接立即失效。');
+      if (!confirmed) return;
+      button.disabled = true;
+      const originalLabel = button.textContent;
+      button.textContent = '正在生成…';
+      try {
+        const data = await apiJson(`/api/admin/snapshots/${encodeURIComponent(snapshotId)}/guest-share`, {
+          method: 'POST',
+          body: JSON.stringify({ expiresInDays: 7 }),
+        });
+        const sharePath = String(data?.share?.path || '');
+        if (!sharePath.startsWith('/guest-review.html#')) throw new Error('服务器没有返回有效链接。');
+        const shareUrl = new URL(sharePath, location.origin).toString();
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          copied = true;
+        } catch (_) {}
+        const expiry = formatTime(data?.share?.expiresAt);
+        if (copied) {
+          window.alert(`嘉宾审核链接已复制。有效至 ${expiry}。请只发给对应嘉宾。`);
+        } else {
+          window.prompt(`请复制嘉宾审核链接（有效至 ${expiry}）`, shareUrl);
+        }
+      } catch (error) {
+        window.alert(error?.message || '嘉宾审核链接生成失败，请稍后重试。');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+
+    async function revokeGuestShare(snapshotId, button) {
+      if (!snapshotId) return;
+      const confirmed = window.confirm('确认停用这份快照已经生成的嘉宾审核链接吗？停用后，嘉宾再次打开会看到链接已失效。');
+      if (!confirmed) return;
+      button.disabled = true;
+      try {
+        const data = await apiJson(`/api/admin/snapshots/${encodeURIComponent(snapshotId)}/guest-share`, {
+          method: 'DELETE',
+        });
+        const revoked = Number(data?.revoked || 0);
+        window.alert(revoked ? '嘉宾审核链接已停用。' : '当前没有仍然有效的嘉宾审核链接。');
+      } catch (error) {
+        window.alert(error?.message || '停用失败，请稍后重试。');
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function reviewClaim(claimId, status) {

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>嘉宾初剪审核 · 金钱剪刀</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --paper: #f6f1e8;
+      --surface: #fffdf8;
+      --surface-soft: #f1ebe0;
+      --ink: #24201b;
+      --ink-soft: #665f56;
+      --muted: #968d82;
+      --line: #ded5c8;
+      --accent: #9d6730;
+      --accent-dark: #6d421d;
+      --accent-soft: #ecdfcc;
+      --keep: #45634e;
+      --danger-soft: #ebe5dd;
+      --shadow: 0 18px 48px rgba(74, 57, 39, 0.10);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background:
+        radial-gradient(circle at 8% 0%, rgba(190, 145, 91, 0.13), transparent 28rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+    [hidden] { display: none !important; }
+
+    .shell {
+      margin: 0 auto;
+      max-width: 1240px;
+      padding: 28px 22px 56px;
+    }
+
+    .state-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      margin: 12vh auto 0;
+      max-width: 560px;
+      padding: 42px 34px;
+      text-align: center;
+    }
+
+    .state-card h1 { font-size: 24px; margin: 0 0 12px; }
+    .state-card p { color: var(--ink-soft); line-height: 1.75; margin: 0; }
+
+    .loader {
+      animation: spin 0.9s linear infinite;
+      border: 3px solid var(--accent-soft);
+      border-radius: 50%;
+      border-top-color: var(--accent);
+      height: 34px;
+      margin: 0 auto 20px;
+      width: 34px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hero {
+      align-items: start;
+      display: flex;
+      gap: 28px;
+      justify-content: space-between;
+      padding: 12px 2px 24px;
+    }
+
+    .eyebrow {
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      margin-bottom: 13px;
+      text-transform: uppercase;
+    }
+
+    .hero h1 {
+      font-family: "Songti SC", "STSong", serif;
+      font-size: clamp(30px, 5vw, 52px);
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 1.13;
+      margin: 0;
+      max-width: 820px;
+    }
+
+    .hero-copy {
+      color: var(--ink-soft);
+      font-size: 15px;
+      line-height: 1.75;
+      margin: 16px 0 0;
+      max-width: 720px;
+    }
+
+    .readonly-badge {
+      background: var(--accent-soft);
+      border: 1px solid rgba(157, 103, 48, 0.22);
+      border-radius: 999px;
+      color: var(--accent-dark);
+      flex: 0 0 auto;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 14px;
+    }
+
+    .metrics {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      background: rgba(255, 253, 248, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      display: block;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .metric strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 22px;
+      font-weight: 650;
+    }
+
+    .player-card {
+      align-items: center;
+      background: #27231e;
+      border-radius: 20px;
+      box-shadow: 0 16px 38px rgba(44, 34, 24, 0.22);
+      color: #fffaf2;
+      display: grid;
+      gap: 17px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      margin-bottom: 18px;
+      padding: 20px 22px;
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+    }
+
+    .play-button {
+      align-items: center;
+      background: #f1dfc6;
+      border: 0;
+      border-radius: 50%;
+      cursor: pointer;
+      display: inline-flex;
+      font-size: 18px;
+      height: 48px;
+      justify-content: center;
+      padding: 0 0 0 2px;
+      width: 48px;
+    }
+
+    .play-button:disabled { cursor: not-allowed; opacity: 0.45; }
+    .player-main { min-width: 0; }
+
+    .player-label {
+      color: #d7c9b7;
+      font-size: 12px;
+      margin-bottom: 9px;
+    }
+
+    .progress {
+      accent-color: #dfb575;
+      cursor: pointer;
+      display: block;
+      margin: 0;
+      width: 100%;
+    }
+
+    .player-time {
+      color: #e9dece;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .player-note {
+      color: #cfbea8;
+      font-size: 12px;
+      grid-column: 2 / -1;
+      margin-top: -8px;
+    }
+
+    .review-layout {
+      align-items: start;
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 300px minmax(0, 1fr);
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 14px;
+      position: sticky;
+      top: 112px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 8px 24px rgba(74, 57, 39, 0.06);
+      overflow: hidden;
+    }
+
+    .panel-body { padding: 20px; }
+    .panel h2 { font-size: 16px; margin: 0 0 13px; }
+
+    .focus-list {
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.7;
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .focus-list li + li { margin-top: 7px; }
+
+    .expiry {
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 16px;
+      padding-top: 14px;
+    }
+
+    .chapter-list { display: grid; gap: 5px; }
+
+    .chapter-button {
+      background: transparent;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 42px minmax(0, 1fr);
+      padding: 10px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .chapter-button:hover { background: var(--surface-soft); }
+    .chapter-time { color: var(--accent); font-family: ui-monospace, monospace; font-size: 11px; padding-top: 2px; }
+    .chapter-title { font-size: 13px; line-height: 1.45; }
+
+    .transcript-head {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      padding: 20px 22px;
+    }
+
+    .transcript-head h2 { margin: 0 0 5px; }
+    .transcript-summary { color: var(--muted); font-size: 12px; }
+
+    .view-toggle {
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 650;
+      padding: 9px 13px;
+      white-space: nowrap;
+    }
+
+    .view-toggle:hover { border-color: #c8b59c; }
+
+    .legend {
+      align-items: center;
+      background: #faf7f1;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink-soft);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 12px;
+      gap: 18px;
+      padding: 11px 22px;
+    }
+
+    .legend-item { align-items: center; display: inline-flex; gap: 7px; }
+    .legend-mark { background: var(--keep); border-radius: 50%; height: 8px; width: 8px; }
+    .legend-mark.deleted { background: #aaa096; }
+
+    .sentence-list { padding: 6px 0; }
+
+    .sentence {
+      border-left: 3px solid transparent;
+      cursor: pointer;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 56px 74px minmax(0, 1fr);
+      padding: 14px 22px 14px 19px;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+
+    .sentence:hover { background: #faf7f1; }
+    .sentence.active { background: #f5ecdf; border-left-color: var(--accent); }
+    .sentence.is-deleted { background: #f8f5f0; color: var(--muted); cursor: default; }
+
+    .sentence-time {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      padding-top: 3px;
+    }
+
+    .sentence-speaker {
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.55;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sentence-text { font-size: 15px; line-height: 1.85; }
+    .sentence-text del { color: #9a9188; text-decoration-color: #93877b; text-decoration-thickness: 1px; }
+
+    .cut-label {
+      background: var(--danger-soft);
+      border-radius: 999px;
+      color: #83786d;
+      display: inline-block;
+      font-size: 10px;
+      margin-left: 9px;
+      padding: 2px 7px;
+      vertical-align: 2px;
+    }
+
+    .kept-only .sentence.is-deleted { display: none; }
+    .kept-only .sentence-text del { display: none; }
+
+    .empty-transcript {
+      color: var(--muted);
+      line-height: 1.7;
+      padding: 42px 24px;
+      text-align: center;
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 22px 4px 0;
+      text-align: center;
+    }
+
+    @media (max-width: 860px) {
+      .shell { padding: 20px 14px 42px; }
+      .hero { display: block; }
+      .readonly-badge { display: inline-block; margin-top: 18px; }
+      .review-layout { grid-template-columns: 1fr; }
+      .side-stack { position: static; }
+      .chapter-panel { display: none; }
+      .player-card { top: 8px; }
+    }
+
+    @media (max-width: 560px) {
+      .metrics { grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+      .metric { padding: 12px 10px; }
+      .metric strong { font-size: 17px; }
+      .player-card { gap: 12px; grid-template-columns: auto minmax(0, 1fr); padding: 16px; }
+      .player-time { grid-column: 2; }
+      .player-note { grid-column: 1 / -1; margin-top: 0; }
+      .transcript-head { align-items: start; padding: 17px 16px; }
+      .legend { padding: 10px 16px; }
+      .sentence { gap: 8px; grid-template-columns: 44px 58px minmax(0, 1fr); padding: 13px 14px 13px 11px; }
+      .sentence-text { font-size: 14px; line-height: 1.8; }
+      .cut-label { display: block; margin: 5px 0 0; width: fit-content; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="state-card" id="loading-state">
+      <div class="loader" aria-hidden="true"></div>
+      <h1>正在打开初剪审核</h1>
+      <p>只读取这一份作品，不需要登录。</p>
+    </section>
+
+    <section class="state-card" id="error-state" hidden>
+      <h1 id="error-title">审核链接无法打开</h1>
+      <p id="error-message">请联系把链接发给你的人，重新生成一条审核链接。</p>
+    </section>
+
+    <div id="app" hidden>
+      <header class="hero">
+        <div>
+          <div class="eyebrow">金钱剪刀 · 嘉宾初剪审核</div>
+          <h1 id="review-title">播客初剪</h1>
+          <p class="hero-copy">请重点确认内容框架、事实表达，以及是否存在不能公开的内容。灰色划线是本版删减；试听会自动跳过这些段落。</p>
+        </div>
+        <div class="readonly-badge">只读预览</div>
+      </header>
+
+      <section class="metrics" aria-label="初剪时长">
+        <div class="metric"><span>原始录音</span><strong id="original-duration">--:--</strong></div>
+        <div class="metric"><span>初剪版本</span><strong id="rough-duration">--:--</strong></div>
+        <div class="metric"><span>本版删去</span><strong id="removed-duration">--:--</strong></div>
+      </section>
+
+      <section class="player-card" aria-label="初剪试听">
+        <button class="play-button" id="play-button" type="button" aria-label="播放初剪">▶</button>
+        <div class="player-main">
+          <div class="player-label">初剪连续试听 · 自动跳过灰色删减</div>
+          <input class="progress" id="progress" type="range" min="0" max="1000" value="0" aria-label="播放进度">
+        </div>
+        <div class="player-time"><span id="current-time">00:00</span> / <span id="total-time">00:00</span></div>
+        <div class="player-note" id="player-note">点击逐字稿中的保留段落，也可以从对应位置开始试听。</div>
+      </section>
+
+      <section class="review-layout">
+        <aside class="side-stack">
+          <section class="panel">
+            <div class="panel-body">
+              <h2>这次只需确认三件事</h2>
+              <ol class="focus-list">
+                <li>整体内容顺序和重点是否准确。</li>
+                <li>姓名、事实和观点有没有表达错误。</li>
+                <li>有没有明确不能公开、必须删除的内容。</li>
+              </ol>
+              <div class="expiry" id="expiry-copy"></div>
+            </div>
+          </section>
+
+          <section class="panel chapter-panel" id="chapter-panel" hidden>
+            <div class="panel-body">
+              <h2>内容框架</h2>
+              <div class="chapter-list" id="chapter-list"></div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="panel transcript-panel" id="transcript-panel">
+          <div class="transcript-head">
+            <div>
+              <h2>逐字稿删留对照</h2>
+              <div class="transcript-summary" id="transcript-summary"></div>
+            </div>
+            <button class="view-toggle" id="view-toggle" type="button">只看保留版</button>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><i class="legend-mark"></i>正常文字：本版保留</span>
+            <span class="legend-item"><i class="legend-mark deleted"></i><del>灰色划线</del>：本版删减</span>
+          </div>
+          <div class="sentence-list" id="sentence-list"></div>
+        </section>
+      </section>
+
+      <footer class="footer">此页面只用于本次初剪审核，不提供编辑、评论、提交或下载功能。如需修改，请直接联系把链接发给你的人。</footer>
+    </div>
+  </main>
+
+  <audio id="audio" preload="metadata"></audio>
+
+  <script>
+    const TOKEN_KEY = 'money_scissors_guest_review_token';
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const app = document.getElementById('app');
+    const audio = document.getElementById('audio');
+    const playButton = document.getElementById('play-button');
+    const progress = document.getElementById('progress');
+    const currentTime = document.getElementById('current-time');
+    const totalTime = document.getElementById('total-time');
+    const playerNote = document.getElementById('player-note');
+    const transcriptPanel = document.getElementById('transcript-panel');
+    const sentenceList = document.getElementById('sentence-list');
+    const viewToggle = document.getElementById('view-toggle');
+
+    let review = null;
+    let cuts = [];
+    let keeps = [];
+    let keepDuration = 0;
+    let playbackTimer = null;
+    let activeSentenceId = null;
+    let activeRow = null;
+    let lastAutoScrollAt = 0;
+    const rowById = new Map();
+
+    boot();
+
+    async function boot() {
+      let hashToken = location.hash.replace(/^#/, '').trim();
+      try { hashToken = decodeURIComponent(hashToken); } catch (_) { hashToken = ''; }
+      if (hashToken) {
+        try { sessionStorage.setItem(TOKEN_KEY, hashToken); } catch (_) {}
+        history.replaceState(null, '', `${location.pathname}${location.search}`);
+      }
+      let token = hashToken;
+      if (!token) {
+        try { token = sessionStorage.getItem(TOKEN_KEY) || ''; } catch (_) {}
+      }
+      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        showError('审核链接不完整', '请从收到的完整链接重新打开，或联系把链接发给你的人。');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/guest-review/open', {
+          method: 'POST',
+          cache: 'no-store',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 410) {
+            throw Object.assign(new Error(data.message || '这个审核链接已过期或已停用。'), { expired: true });
+          }
+          throw new Error(data.message || '这个审核链接无效。');
+        }
+        review = data.review;
+        renderReview();
+      } catch (error) {
+        try { sessionStorage.removeItem(TOKEN_KEY); } catch (_) {}
+        showError(error?.expired ? '审核链接已失效' : '审核链接无法打开', error?.message || '请联系把链接发给你的人，重新生成一条审核链接。');
+      }
+    }
+
+    function renderReview() {
+      cuts = normalizeCuts(review.cuts, Number(review.originalDuration || 0));
+      keeps = invertCuts(cuts, Number(review.originalDuration || 0));
+      keepDuration = keeps.reduce((sum, item) => sum + item.end - item.start, 0);
+      if (!keepDuration) keepDuration = Number(review.roughcutDuration || 0);
+
+      document.title = `${review.title || '播客初剪'} · 嘉宾审核`;
+      document.getElementById('review-title').textContent = review.title || '播客初剪';
+      document.getElementById('original-duration').textContent = formatDuration(review.originalDuration);
+      document.getElementById('rough-duration').textContent = formatDuration(review.roughcutDuration || keepDuration);
+      document.getElementById('removed-duration').textContent = formatDuration(review.removedDuration);
+      totalTime.textContent = formatDuration(keepDuration || review.roughcutDuration);
+      document.getElementById('expiry-copy').textContent = `链接有效至 ${formatDate(review.expiresAt)}。页面没有留言区，需要调整时请直接告诉剪辑方。`;
+
+      const sentences = Array.isArray(review.sentences) ? review.sentences : [];
+      const fullDeleted = sentences.filter((sentence) => sentence.deleted).length;
+      const partialDeleted = sentences.filter((sentence) => !sentence.deleted && sentence.partialCuts?.length).length;
+      document.getElementById('transcript-summary').textContent = `共 ${sentences.length} 句 · 整句删减 ${fullDeleted} 句 · 局部删减 ${partialDeleted} 句`;
+      renderSentences(sentences);
+      renderChapters(Array.isArray(review.chapters) ? review.chapters : [], sentences);
+
+      if (review.audioUrl) {
+        audio.src = review.audioUrl;
+      } else {
+        playButton.disabled = true;
+        progress.disabled = true;
+        playerNote.textContent = '这份快照没有可用的试听音频，但仍可查看逐字稿删留。';
+      }
+
+      loadingState.hidden = true;
+      app.hidden = false;
+    }
+
+    function renderSentences(sentences) {
+      rowById.clear();
+      if (!sentences.length) {
+        sentenceList.innerHTML = '<div class="empty-transcript">这份快照暂时没有可显示的逐字稿。</div>';
+        return;
+      }
+      sentenceList.innerHTML = sentences.map((sentence) => `
+        <div class="sentence ${sentence.deleted ? 'is-deleted' : ''}" data-sentence-id="${Number(sentence.id)}" data-start="${Number(sentence.start || 0)}" ${sentence.deleted ? '' : 'role="button" tabindex="0"'}>
+          <div class="sentence-time">${escapeHtml(formatDuration(sentence.start))}</div>
+          <div class="sentence-speaker" title="${escapeAttr(sentence.speaker)}">${escapeHtml(sentence.speaker)}</div>
+          <div class="sentence-text">${renderSentenceText(sentence)}${sentence.deleted ? '<span class="cut-label">整句删减</span>' : ''}</div>
+        </div>
+      `).join('');
+      sentenceList.querySelectorAll('[data-sentence-id]').forEach((row) => {
+        rowById.set(Number(row.dataset.sentenceId), row);
+        if (row.classList.contains('is-deleted')) return;
+        const seek = () => seekOriginal(Number(row.dataset.start || 0), true);
+        row.addEventListener('click', seek);
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            seek();
+          }
+        });
+      });
+    }
+
+    function renderSentenceText(sentence) {
+      const text = String(sentence.text || '');
+      if (sentence.deleted) return `<del>${escapeHtml(text)}</del>`;
+      const ranges = mergeCharRanges(sentence.partialCuts, text.length);
+      if (!ranges.length) return escapeHtml(text);
+      let html = '';
+      let cursor = 0;
+      ranges.forEach((range) => {
+        html += escapeHtml(text.slice(cursor, range.startChar));
+        html += `<del>${escapeHtml(text.slice(range.startChar, range.endChar))}</del>`;
+        cursor = range.endChar;
+      });
+      html += escapeHtml(text.slice(cursor));
+      return html;
+    }
+
+    function renderChapters(chapters, sentences) {
+      const panel = document.getElementById('chapter-panel');
+      const list = document.getElementById('chapter-list');
+      const usable = chapters.map((chapter) => {
+        const target = sentences.find((sentence) => Number(sentence.id) >= Number(chapter.startId) && !sentence.deleted)
+          || sentences.find((sentence) => !sentence.deleted);
+        return target ? { ...chapter, target } : null;
+      }).filter(Boolean);
+      if (!usable.length) return;
+      list.innerHTML = usable.map((chapter, index) => `
+        <button class="chapter-button" type="button" data-chapter-index="${index}">
+          <span class="chapter-time">${escapeHtml(formatDuration(originalToVirtual(chapter.target.start)))}</span>
+          <span class="chapter-title">${escapeHtml(chapter.title)}</span>
+        </button>
+      `).join('');
+      list.querySelectorAll('[data-chapter-index]').forEach((button) => {
+        button.addEventListener('click', () => seekOriginal(usable[Number(button.dataset.chapterIndex)].target.start, true));
+      });
+      panel.hidden = false;
+    }
+
+    playButton.addEventListener('click', async () => {
+      if (!review?.audioUrl) return;
+      if (audio.paused) {
+        skipDeletedAudio();
+        try { await audio.play(); } catch (_) {}
+      } else {
+        audio.pause();
+      }
+    });
+
+    progress.addEventListener('input', () => {
+      if (!keepDuration) return;
+      const virtual = Number(progress.value || 0) / 1000 * keepDuration;
+      seekOriginal(virtualToOriginal(virtual), false);
+    });
+
+    viewToggle.addEventListener('click', () => {
+      const keptOnly = transcriptPanel.classList.toggle('kept-only');
+      viewToggle.textContent = keptOnly ? '查看完整对照' : '只看保留版';
+    });
+
+    audio.addEventListener('play', () => {
+      playButton.textContent = '❚❚';
+      playButton.setAttribute('aria-label', '暂停');
+      startPlaybackTimer();
+    });
+
+    audio.addEventListener('pause', () => {
+      playButton.textContent = '▶';
+      playButton.setAttribute('aria-label', '播放初剪');
+      stopPlaybackTimer();
+      updatePlaybackUi();
+    });
+
+    audio.addEventListener('ended', () => {
+      playButton.textContent = '▶';
+      stopPlaybackTimer();
+    });
+
+    audio.addEventListener('loadedmetadata', updatePlaybackUi);
+    audio.addEventListener('error', () => {
+      playButton.disabled = true;
+      progress.disabled = true;
+      playerNote.textContent = '试听音频暂时无法加载，请稍后再打开，逐字稿删留仍可正常查看。';
+    });
+
+    function startPlaybackTimer() {
+      stopPlaybackTimer();
+      playbackTimer = window.setInterval(() => {
+        skipDeletedAudio();
+        updatePlaybackUi();
+      }, 80);
+    }
+
+    function stopPlaybackTimer() {
+      if (playbackTimer) window.clearInterval(playbackTimer);
+      playbackTimer = null;
+    }
+
+    function skipDeletedAudio() {
+      const current = Number(audio.currentTime || 0);
+      const cut = cuts.find((item) => current >= item.start - 0.015 && current < item.end - 0.015);
+      if (cut) audio.currentTime = Math.min(Number(review.originalDuration || audio.duration || cut.end), cut.end + 0.02);
+    }
+
+    function updatePlaybackUi() {
+      if (!review) return;
+      const original = Number(audio.currentTime || 0);
+      const virtual = originalToVirtual(original);
+      currentTime.textContent = formatDuration(virtual);
+      progress.value = keepDuration ? String(Math.max(0, Math.min(1000, virtual / keepDuration * 1000))) : '0';
+      syncTranscript(original);
+    }
+
+    function syncTranscript(time) {
+      const sentences = Array.isArray(review?.sentences) ? review.sentences : [];
+      let low = 0;
+      let high = sentences.length - 1;
+      let match = null;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const sentence = sentences[middle];
+        if (time < Number(sentence.start || 0)) high = middle - 1;
+        else if (time > Number(sentence.end || 0)) low = middle + 1;
+        else { match = sentence; break; }
+      }
+      if (!match || match.deleted || Number(match.id) === activeSentenceId) return;
+      if (activeRow) activeRow.classList.remove('active');
+      activeSentenceId = Number(match.id);
+      activeRow = rowById.get(activeSentenceId) || null;
+      if (!activeRow) return;
+      activeRow.classList.add('active');
+      const now = Date.now();
+      if (!audio.paused && now - lastAutoScrollAt > 1200) {
+        const rect = activeRow.getBoundingClientRect();
+        if (rect.top < 118 || rect.bottom > window.innerHeight - 40) {
+          activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          lastAutoScrollAt = now;
+        }
+      }
+    }
+
+    function seekOriginal(value, autoplay) {
+      if (!review?.audioUrl) return;
+      let target = Math.max(0, Number(value || 0));
+      const cut = cuts.find((item) => target >= item.start && target < item.end);
+      if (cut) target = cut.end + 0.02;
+      audio.currentTime = Math.min(target, Number(review.originalDuration || audio.duration || target));
+      updatePlaybackUi();
+      if (autoplay && audio.paused) audio.play().catch(() => {});
+    }
+
+    function normalizeCuts(values, duration) {
+      const safeDuration = Math.max(0, Number(duration || 0));
+      const sorted = (Array.isArray(values) ? values : []).map((item) => ({
+        start: Math.max(0, Math.min(safeDuration, Number(item?.start) || 0)),
+        end: Math.max(0, Math.min(safeDuration, Number(item?.end) || 0)),
+      })).filter((item) => item.end > item.start).sort((a, b) => a.start - b.start || a.end - b.end);
+      const merged = [];
+      sorted.forEach((item) => {
+        const previous = merged[merged.length - 1];
+        if (previous && item.start <= previous.end + 0.04) previous.end = Math.max(previous.end, item.end);
+        else merged.push({ ...item });
+      });
+      return merged;
+    }
+
+    function invertCuts(values, duration) {
+      const kept = [];
+      let cursor = 0;
+      values.forEach((cut) => {
+        if (cut.start > cursor) kept.push({ start: cursor, end: cut.start });
+        cursor = Math.max(cursor, cut.end);
+      });
+      if (duration > cursor) kept.push({ start: cursor, end: duration });
+      return kept;
+    }
+
+    function originalToVirtual(original) {
+      let elapsed = 0;
+      for (const keep of keeps) {
+        if (original < keep.start) return elapsed;
+        if (original <= keep.end) return elapsed + Math.max(0, original - keep.start);
+        elapsed += keep.end - keep.start;
+      }
+      return elapsed;
+    }
+
+    function virtualToOriginal(virtual) {
+      let elapsed = 0;
+      for (const keep of keeps) {
+        const length = keep.end - keep.start;
+        if (virtual <= elapsed + length) return keep.start + Math.max(0, virtual - elapsed);
+        elapsed += length;
+      }
+      return keeps.length ? keeps[keeps.length - 1].end : 0;
+    }
+
+    function mergeCharRanges(values, textLength) {
+      const sorted = (Array.isArray(values) ? values : []).map((item) => ({
+        startChar: Math.max(0, Math.min(textLength, Number(item?.startChar) || 0)),
+        endChar: Math.max(0, Math.min(textLength, Number(item?.endChar) || 0)),
+      })).filter((item) => item.endChar > item.startChar).sort((a, b) => a.startChar - b.startChar || a.endChar - b.endChar);
+      const merged = [];
+      sorted.forEach((item) => {
+        const previous = merged[merged.length - 1];
+        if (previous && item.startChar <= previous.endChar) previous.endChar = Math.max(previous.endChar, item.endChar);
+        else merged.push({ ...item });
+      });
+      return merged;
+    }
+
+    function formatDuration(seconds) {
+      const value = Math.max(0, Math.round(Number(seconds || 0)));
+      const hours = Math.floor(value / 3600);
+      const minutes = Math.floor((value % 3600) / 60);
+      const rest = value % 60;
+      if (hours) return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+      return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+    }
+
+    function formatDate(value) {
+      const date = new Date(value || '');
+      if (Number.isNaN(date.getTime())) return '约 7 天后';
+      return new Intl.DateTimeFormat('zh-CN', {
+        month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+      }).format(date);
+    }
+
+    function showError(title, message) {
+      loadingState.hidden = true;
+      app.hidden = true;
+      errorState.hidden = false;
+      document.getElementById('error-title').textContent = title;
+      document.getElementById('error-message').textContent = message;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(value) { return escapeHtml(value); }
+  </script>
+</body>
+</html>
