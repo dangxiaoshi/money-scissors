@@ -5,6 +5,8 @@ const vm = require('vm');
 
 const htmlPath = path.join(__dirname, '..', 'orders', 'index.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
+const adminHtml = fs.readFileSync(path.join(__dirname, '..', 'orders-review-admin.html'), 'utf8');
+const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.cjs'), 'utf8');
 
 function extractFunction(name) {
   const marker = `function ${name}`;
@@ -114,6 +116,26 @@ const externalHtml = ui.renderClaimPrimaryActions(externalSubmittedClaim);
 assert(
   externalHtml.includes('href="https://example.com/result.mp3"') && externalHtml.includes('查看提交'),
   `外部工具提交仍应优先打开外部成品链接，实际 HTML：${externalHtml}`,
+);
+
+assert(
+  adminHtml.includes('data-kick-claim=')
+    && adminHtml.includes('名额会立即释放')
+    && adminHtml.includes('/api/orders/admin/claims/${encodeURIComponent(claimId)}/kick'),
+  '助教订单审核页必须提供手动踢出入口、确认提示和后台接口调用',
+);
+assert(
+  serverSource.includes('kickDispatchClaimByAdmin')
+    && serverSource.includes("status IN ('in_progress', 'returned', 'submitted')")
+    && serverSource.includes("SET status = 'abandoned'")
+    && serverSource.includes("error: 'claim_not_active'"),
+  '后端必须只释放仍占位的接单记录，并阻止重复踢出',
+);
+const adminGateIndex = serverSource.indexOf('const admin = requireAdmin(req, res);');
+const kickRouteIndex = serverSource.indexOf('const kickClaimMatch = url.pathname.match');
+assert(
+  adminGateIndex >= 0 && kickRouteIndex > adminGateIndex,
+  '踢出接口必须位于管理员权限校验之后，普通学员不能调用',
 );
 
 console.log('orders UI regression checks passed');

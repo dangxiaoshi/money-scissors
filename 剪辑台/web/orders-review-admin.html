@@ -587,6 +587,11 @@
     };
 
     els.submissionStack.addEventListener('click', (event) => {
+      const kickBtn = event.target.closest('[data-kick-claim]');
+      if (kickBtn && !kickBtn.disabled) {
+        kickClaim(kickBtn.dataset.kickClaim, kickBtn.dataset.kickName, kickBtn);
+        return;
+      }
       const createShareBtn = event.target.closest('[data-create-guest-share]');
       if (createShareBtn && !createShareBtn.disabled) {
         createGuestShare(createShareBtn.dataset.createGuestShare, createShareBtn);
@@ -787,6 +792,7 @@
         const hasExternal = Boolean(claim.externalSubmission?.url);
         const hasSubmission = hasSnapshot || hasExternal;
         const canReview = !task.completed && isReviewing && hasSubmission;
+        const canKick = !task.completed && ['in_progress', 'returned', 'submitted'].includes(claim.status);
         const external = claim.externalSubmission || {};
         const adoptLabel = isWinner ? '已采用' : task.completed ? '本单已结' : '采用这个';
         const rowCompleted = task.completed || ['completed', 'rejected', 'closed_by_task_completed', 'expired'].includes(claim.status);
@@ -819,6 +825,7 @@
               </div>
             </div>
             <div class="submission-actions">
+              ${canKick ? `<button class="btn bad" type="button" data-kick-claim="${escapeAttr(claim.id)}" data-kick-name="${escapeAttr(claim.editorName)}">踢出</button>` : ''}
               ${hasExternal ? `<a class="btn secondary" href="${escapeAttr(external.url)}" target="_blank" rel="noopener">打开成品</a>` : '<button class="btn secondary" type="button" disabled>试听成品</button>'}
               ${hasSnapshot ? `<a class="btn secondary" href="/review.html?snapshot=${encodeURIComponent(claim.snapshotId)}" target="_blank" rel="noopener">看快照</a>` : (!hasExternal ? '<button class="btn secondary" type="button" disabled>未提交</button>' : '')}
               ${hasSnapshot ? `<button class="btn secondary" type="button" data-create-guest-share="${escapeAttr(claim.snapshotId)}">生成嘉宾审核链接</button>` : ''}
@@ -885,6 +892,26 @@
         window.alert(error?.message || '停用失败，请稍后重试。');
       } finally {
         button.disabled = false;
+      }
+    }
+
+    async function kickClaim(claimId, editorName, button) {
+      if (!claimId) return;
+      const name = String(editorName || '这名学员').trim() || '这名学员';
+      const confirmed = window.confirm(`确认把“${name}”踢出这条订单？名额会立即释放。`);
+      if (!confirmed) return;
+      button.disabled = true;
+      const originalLabel = button.textContent;
+      button.textContent = '正在踢出…';
+      try {
+        await apiJson(`/api/orders/admin/claims/${encodeURIComponent(claimId)}/kick`, {
+          method: 'PATCH',
+        });
+        await load();
+      } catch (error) {
+        window.alert(error?.message || '踢出失败，请刷新后重试。');
+        button.disabled = false;
+        button.textContent = originalLabel;
       }
     }
 

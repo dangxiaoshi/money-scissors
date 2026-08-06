@@ -666,6 +666,14 @@ const statements = {
         updated_at = @updated_at
     WHERE id = @id AND user_id = @user_id AND status IN ('in_progress', 'returned')
   `),
+  kickDispatchClaimByAdmin: db.prepare(`
+    UPDATE dispatch_claims
+    SET status = 'abandoned',
+        abandoned_at = @abandoned_at,
+        updated_at = @updated_at,
+        claim_expires_at = NULL
+    WHERE id = @id AND status IN ('in_progress', 'returned', 'submitted')
+  `),
   markDispatchClaimSubmitted: db.prepare(`
     UPDATE dispatch_claims
     SET status = 'submitted',
@@ -1910,6 +1918,37 @@ async function handleDispatchTasks(req, res, url) {
     const tasks = statements.listDispatchTasks.all().map(publicDispatchTask);
     const claims = statements.listDispatchReviewClaims.all().map(publicDispatchReviewClaim);
     sendJson(res, 200, { tasks, claims });
+    return;
+  }
+
+  const kickClaimMatch = url.pathname.match(/^\/api\/orders\/admin\/claims\/(\d+)\/kick$/);
+  if (kickClaimMatch && req.method === 'PATCH') {
+    const claimId = Number(kickClaimMatch[1]);
+    const claim = statements.findDispatchReviewClaimById.get(claimId);
+    if (!claim) {
+      sendJson(res, 404, { error: 'claim_not_found', message: '没有找到这条接单记录。' });
+      return;
+    }
+    const task = statements.findDispatchTask.get(claim.task_id);
+    if (!task || isDispatchTaskCompleted(task)) {
+      sendJson(res, 409, { error: 'task_completed', message: '这条订单已经完结，不能再踢出学员。' });
+      return;
+    }
+    const now = new Date().toISOString();
+    const info = statements.kickDispatchClaimByAdmin.run({
+      id: claimId,
+      abandoned_at: now,
+      updated_at: now,
+    });
+    if (!info.changes) {
+      sendJson(res, 409, { error: 'claim_not_active', message: '这条接单记录已经释放，不能重复踢出。' });
+      return;
+    }
+    sendJson(res, 200, {
+      ok: true,
+      claimId,
+      task: publicDispatchTask(statements.findDispatchTask.get(claim.task_id)),
+    });
     return;
   }
 
