@@ -2,7 +2,7 @@
 
 > 这是给每个开发窗口 AI 的入口文件，自动加载。**先读完这一页再动手。**
 > 这里只放速览和指针，不放全文。需要细节去 Obsidian 翻大文件，别一上来就全读。
-> 更新：2026-08-06
+> 更新：2026-08-07
 
 ## 最终消息硬闸门（所有窗口必守）
 
@@ -59,7 +59,7 @@
 
 | 优先级 | 事项 | 状态 |
 |---|---|---|
-| A | ✅ H2 真短信 + 删除验证码后门 | **已收口。** 2026-07-06 从 Codex/Claude 本地会话归档找回有效短信 Secret：AccessKey ID 已存钥匙串，文档不记录具体值；查询短信签名 `成都当前文化` 返回 OK，Secret 已存 macOS 钥匙串 `money-scissors-aliyun-sms`（Obsidian 不记明文）。2026-07-07 运营商报备验证跑通：移动 `15882401030`、联通 `18582488035` 测试站发码均 `DELIVERED`。已配置测试站和正式站 `.env` 四项短信配置，并把两站 `ALLOW_DEV_SEND_CODE_FALLBACK=0`；正式站备份 `/root/nginx-backups/money-scissors-prod-sms-secret-20260707-111339/`，测试站备份 `/root/nginx-backups/money-scissors-test-sms-carrier-verify-20260707-111015/`。正式域名 health 200，正式站给 `15882401030` 发码 `hasDevCode=false`，阿里云回执 `DELIVERED`，正式登录接口已返回登录令牌。 |
+| A | ✅ 登录验证码交付方式（当前页面绿色码） | 真短信能力和密钥仍保留；按当前运营决定，测试站和正式站都使用 `AUTH_CODE_DELIVERY_MODE=page`，由登录页直接显示绿色验证码并完全跳过短信。旧开发兜底仍关闭（`ALLOW_DEV_SEND_CODE_FALLBACK=0`），不是短信失败后才临时暴露验证码。2026-08-07 已纠正正式站误留的 `sms` 配置并完成正式域名真实浏览器登录验收；恢复真短信时必须显式改回 `sms`、重启并重新验收。 |
 | A | 🟡 OSS 正式灰度·观察期 | 6/19 正式站已切 OSS（`STORAGE_BACKEND=oss / OSS_PREFIX=prod`），上传 storage=oss、签名下载 200、ffmpeg 可解码。**观察 1-2 天**：盯上传/转写/生成MP3/下载/ECS 带宽。注意 RAM key 当前**无 delete 权限**，测试对象暂留 `prod/uploads`。观察期是运维盯防，不是开发任务。 |
 | A | ✅ 派单需求在剪辑页常驻可见 | `review.html` 已上线“本单需求”入口，支持目标时长/必须保留/必须删除/开头结尾/交付格式；刷新后可从任务接口重新读取。 |
 | B | ✅ 磁吸复查 | 跨句删除/恢复、粗剪试听只读与 pdel 音频连续性回归均已收口；本轮 61 项脚本回归通过。 |
@@ -85,6 +85,7 @@
 
 | 日期 | 事项 | 结果 |
 |---|---|---|
+| 2026-08-07 | **正式登录恢复页面绿色验证码** | 学员反馈正式站仍走普通短信。确认绿色码代码与回归测试正常，根因是环境分叉：测试站为 `AUTH_CODE_DELIVERY_MODE=page`，正式站仍为 `sms`，且 `login.html` 保留 7 月短信提示。已只把正式 `.env` 切回 `page`、白名单同步登录页提示并重启 `money-scissors-m2`，未同步本地并行中的剪辑代码。正式域名真实链路通过：发码 200 且返回绿色码、服务端日志确认跳过短信、验证码登录 200、`/api/auth/me` 200；无头浏览器看到绿色码并登录进入 `/training/path.html`。当日 `daily_limited=0`、`locked_now=0`。正式备份 `/root/nginx-backups/money-scissors-prod-page-code-20260807-110152/`。 |
 | 2026-08-06 | **助教手动踢出订单学员正式上线** | 按最终口径只做手动踢人，不做自动超时、提醒或封禁。助教在订单审核页可把制作中、打回或待审核学员踢出；接单记录保留为 `abandoned`，名额立即释放，普通学员无权调用。测试站已用真实浏览器完成确认弹窗、`1/1 → 0/1` 和数据库回读，并验证其他学员可重新领取；正式站白名单部署 `server.cjs`、`orders-review-admin.html`、`scripts/test_orders_ui_regression.cjs`，保留线上已有外部审核功能，health、全站 smoke、未登录 401、数据库完整性和 PM2 online/unstable restarts=0 均通过。Git 恢复点 `797ef02`；正式备份 `/root/nginx-backups/money-scissors-prod-admin-kick-20260806-163754/`。 |
 | 2026-07-25 | **三个旧 AI 工具页与内部模型失效修复正式上线** | 学员反馈工具台 Show Notes 报 `[object Object]`。根因一是 DeepSeek 供应商已不再接受旧模型 `deepseek-chat`，而代理默认、剪辑决策、旧分析链路、Day1 反馈和助教 AI 批改仍有硬编码；根因二是 Show Notes、剪辑决策、旁白生成三个旧工具页都把对象型 `error` 直接传给 `Error`。已统一改为 `deepseek-v4-flash`，三个旧工具页均提取字符串或嵌套 `message`，无法解析时显示中文兜底。首批白名单同步测试/正式 4 个运行文件，补批白名单同步另外 2 个工具页，未碰 `.env`、`data/`、`uploads/`；首批测试/正式备份分别为 `/root/nginx-backups/money-scissors-test-shownote-model-20260725-195739/`、`/root/nginx-backups/money-scissors-prod-shownote-model-20260725-195844/`，补批备份分别为 `/root/nginx-backups/money-scissors-test-ai-tool-errors-20260725-200519/`、`/root/nginx-backups/money-scissors-prod-ai-tool-errors-20260725-200519/`。两站 health 200、PM2 online/unstable restarts=0，测试/正式部署文件 sha256 一致，运行代码中显式旧模型计数为 0；测试站与正式站均用真实账号和短逐字稿生成成功，HTTP 200，供应商回包模型为 `deepseek-v4-flash`。本地 `server.cjs` 另有并发中的声音克隆 payload 改动，部署时已隔离，未随本次上线。 |
 | 2026-07-18 | **已克隆的当小时声音生成 MP3 正式上线** | 按最终口径，学员不录音、不创建新音色，只输入旁白文字，服务端调用现有 `cosyvoice-v2` 当小时音色。登录用户开放；单段最多 500 字；同一用户单次生成锁；浏览器不接触百炼密钥，服务端校验音频临时地址后回传 MP3。测试站与正式站均用真实账号完成登录→输入→生成→试听→下载；正式站 MP3 `audio/mpeg`、60,277 bytes、ffprobe 时长约 3.76 秒。正式备份 `/opt/money-scissors-m2.releases/voice-clone-20260718-1528/`，本地/正式两文件 sha256 一致。 |
